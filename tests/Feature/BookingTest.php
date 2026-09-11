@@ -8,6 +8,7 @@ use App\Models\BranchService;
 use App\Models\Customer;
 use App\Models\Service;
 use App\Models\User;
+use Carbon\Carbon;
 use Database\Factories\BranchFactory;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -46,7 +47,7 @@ class BookingTest extends TestCase
 
         $this->post(route('booking.store'), $this->payload(
             $employee,
-            now()->addDays(2)->startOfHour()->format('Y-m-d H:i:s'),
+            now()->addDays(2)->startOfHour()->format('Y-m-d\TH:i'),
             ['service_ids' => [$service->id]],
         ))->assertRedirect(route('home'))->assertSessionHas('booking_success');
 
@@ -64,14 +65,30 @@ class BookingTest extends TestCase
         $employee = User::factory()->employee()->create();
         $startsAt = now()->addDays(2)->startOfHour();
 
-        $this->post(route('booking.store'), $this->payload($employee, $startsAt->format('Y-m-d H:i:s')));
+        $this->post(route('booking.store'), $this->payload($employee, $startsAt->format('Y-m-d\TH:i')));
 
         $this->from(route('home'))
-            ->post(route('booking.store'), $this->payload($employee, $startsAt->copy()->addMinutes(30)->format('Y-m-d H:i:s')))
+            ->post(route('booking.store'), $this->payload($employee, $startsAt->copy()->addMinutes(30)->format('Y-m-d\TH:i')))
             ->assertRedirect(route('home'))
             ->assertSessionHasErrors('starts_at');
 
         $this->assertSame(1, Appointment::query()->count());
+    }
+
+    public function test_a_datetime_local_booking_is_saved_as_vietnam_time(): void
+    {
+        $employee = User::factory()->employee()->create();
+        $startsAt = Carbon::create(2026, 9, 15, 10, 30, 0, 'Asia/Ho_Chi_Minh');
+
+        $this->travelTo(Carbon::create(2026, 9, 11, 9, 0, 0, 'UTC'));
+
+        $this->post(route('booking.store'), $this->payload($employee, '2026-09-15T10:30'))
+            ->assertRedirect(route('home'));
+
+        $appointment = Appointment::query()->firstOrFail();
+
+        $this->assertSame($startsAt->utc()->format('Y-m-d H:i:s'), $appointment->starts_at->utc()->format('Y-m-d H:i:s'));
+        $this->assertSame('2026-09-15 10:30', $appointment->starts_at->setTimezone('Asia/Ho_Chi_Minh')->format('Y-m-d H:i'));
     }
 
     public function test_a_booking_in_the_past_is_rejected(): void
@@ -79,8 +96,23 @@ class BookingTest extends TestCase
         $employee = User::factory()->employee()->create();
 
         $this->from(route('home'))
-            ->post(route('booking.store'), $this->payload($employee, now()->subHour()->format('Y-m-d H:i:s')))
+            ->post(route('booking.store'), $this->payload($employee, now()->subHour()->format('Y-m-d\TH:i')))
             ->assertSessionHasErrors('starts_at');
+
+        $this->assertSame(0, Appointment::query()->count());
+    }
+
+    public function test_a_vietnam_local_time_in_the_past_is_rejected_with_a_clear_message(): void
+    {
+        $employee = User::factory()->employee()->create();
+
+        $this->travelTo(Carbon::create(2026, 9, 11, 9, 0, 0, 'UTC'));
+
+        $this->from(route('home'))
+            ->post(route('booking.store'), $this->payload($employee, '2026-09-11T15:30'))
+            ->assertSessionHasErrors([
+                'starts_at' => 'Thời gian đặt lịch phải ở trong tương lai theo giờ Việt Nam.',
+            ]);
 
         $this->assertSame(0, Appointment::query()->count());
     }

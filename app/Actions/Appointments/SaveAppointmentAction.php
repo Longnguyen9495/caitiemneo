@@ -24,7 +24,9 @@ class SaveAppointmentAction
     public function handle(array $data, ?Appointment $appointment = null): Appointment
     {
         $branchId = (int) $data['branch_id'];
-        $startsAt = Carbon::parse($data['starts_at']);
+        $startsAt = $data['starts_at'] instanceof Carbon
+            ? $data['starts_at']->copy()
+            : Carbon::parse($data['starts_at']);
         $durationMinutes = (int) $data['duration_minutes'];
         $endsAt = $startsAt->copy()->addMinutes($durationMinutes);
         $employeeId = isset($data['employee_id']) ? ((int) $data['employee_id'] ?: null) : null;
