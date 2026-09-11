@@ -1,0 +1,100 @@
+<?php
+
+use App\Http\Controllers\Admin\AppointmentController;
+use App\Http\Controllers\Admin\AttendanceController;
+use App\Http\Controllers\Admin\BranchCatalogController;
+use App\Http\Controllers\Admin\BranchController;
+use App\Http\Controllers\Admin\BranchSwitchController;
+use App\Http\Controllers\Admin\CashTransactionController;
+use App\Http\Controllers\Admin\DashboardController;
+use App\Http\Controllers\Admin\EmployeeAssignmentController;
+use App\Http\Controllers\Admin\EmployeeController;
+use App\Http\Controllers\Admin\InventoryMovementController;
+use App\Http\Controllers\Admin\InvoiceController;
+use App\Http\Controllers\Admin\InvoicePaymentController;
+use App\Http\Controllers\Admin\PayrollAdjustmentController;
+use App\Http\Controllers\Admin\PayrollController;
+use App\Http\Controllers\Admin\PayrollStatusController;
+use App\Http\Controllers\Admin\ProductController;
+use App\Http\Controllers\Admin\ReportController;
+use App\Http\Controllers\Admin\ReportExportController;
+use App\Http\Controllers\Admin\ServiceController;
+use App\Http\Controllers\Admin\StockTransferController;
+use App\Http\Controllers\Admin\SupplierController;
+use App\Http\Controllers\BookingController;
+use App\Http\Controllers\HomeController;
+use App\Http\Controllers\ProfileController;
+use Illuminate\Support\Facades\Route;
+
+Route::get('/', HomeController::class)->name('home');
+Route::post('/dat-lich', [BookingController::class, 'store'])->name('booking.store');
+
+Route::middleware(['auth', 'verified'])->group(function (): void {
+    Route::get('/dashboard', DashboardController::class)->name('dashboard');
+
+    Route::prefix('admin')->as('admin.')->middleware(['role:owner,manager,employee', 'branch.context'])->group(function (): void {
+        Route::post('branch-switch', BranchSwitchController::class)->name('branch.switch');
+
+        Route::get('/', DashboardController::class)->name('dashboard');
+
+        Route::resource('services', ServiceController::class)->except('show', 'destroy');
+
+        Route::resource('appointments', AppointmentController::class)->except('show', 'destroy');
+        Route::patch('appointments/{appointment}/status', [AppointmentController::class, 'updateStatus'])
+            ->name('appointments.status');
+        Route::post('appointments/{appointment}/convert-to-invoice', [AppointmentController::class, 'convertToInvoice'])
+            ->name('appointments.convert-to-invoice');
+
+        Route::get('invoices', [InvoiceController::class, 'index'])->name('invoices.index');
+        Route::get('invoices/{invoice}/edit', [InvoiceController::class, 'edit'])->name('invoices.edit');
+        Route::patch('invoices/{invoice}', [InvoiceController::class, 'update'])->name('invoices.update');
+        Route::post('invoices/{invoice}/payment', [InvoicePaymentController::class, 'store'])->name('invoices.pay');
+        Route::patch('invoices/{invoice}/bill-kpi', [InvoiceController::class, 'verifyBillKpi'])->name('invoices.bill-kpi');
+        Route::delete('invoices/{invoice}/payment', [InvoicePaymentController::class, 'destroy'])->name('invoices.cancel');
+
+        Route::resource('cash', CashTransactionController::class)
+            ->parameters(['cash' => 'cash_transaction'])
+            ->except('show');
+
+        Route::resource('products', ProductController::class)->except('show', 'destroy');
+        Route::resource('suppliers', SupplierController::class)->except('show', 'destroy');
+        Route::resource('inventory', InventoryMovementController::class)->only('index', 'create', 'store');
+
+        Route::resource('stock-transfers', StockTransferController::class)
+            ->parameters(['stock-transfers' => 'stock_transfer'])
+            ->only('index', 'create', 'store', 'show');
+        Route::post('stock-transfers/{stock_transfer}/complete', [StockTransferController::class, 'complete'])->name('stock-transfers.complete');
+        Route::delete('stock-transfers/{stock_transfer}', [StockTransferController::class, 'cancel'])->name('stock-transfers.cancel');
+
+        Route::resource('branches', BranchController::class)->except('show', 'destroy');
+        Route::get('branches/{branch}/catalog', [BranchCatalogController::class, 'edit'])->name('branches.catalog.edit');
+        Route::patch('branches/{branch}/catalog', [BranchCatalogController::class, 'update'])->name('branches.catalog.update');
+
+        Route::resource('employees', EmployeeController::class)->except('show', 'destroy');
+        Route::post('employees/{employee}/assignments', [EmployeeAssignmentController::class, 'store'])->name('employees.assignments.store');
+        Route::patch('employees/{employee}/assignments/{assignment}', [EmployeeAssignmentController::class, 'update'])->name('employees.assignments.update');
+
+        Route::resource('attendance', AttendanceController::class)->except('show', 'create');
+
+        Route::resource('payrolls', PayrollController::class)->except('edit', 'destroy');
+        Route::post('payrolls/{payroll}/recalculate', [PayrollController::class, 'recalculate'])->name('payrolls.recalculate');
+        Route::post('payrolls/{payroll}/finalize', [PayrollStatusController::class, 'finalize'])->name('payrolls.finalize');
+        Route::post('payrolls/{payroll}/adjustments', [PayrollAdjustmentController::class, 'store'])->name('payrolls.adjustments.store');
+        Route::delete('payrolls/{payroll}/adjustments/{adjustment}', [PayrollAdjustmentController::class, 'destroy'])->name('payrolls.adjustments.destroy');
+        Route::post('payrolls/{payroll}/variance', [PayrollStatusController::class, 'approveVariance'])->name('payrolls.variance');
+        Route::post('payrolls/{payroll}/payment', [PayrollStatusController::class, 'pay'])->name('payrolls.pay');
+        Route::delete('payrolls/{payroll}', [PayrollStatusController::class, 'cancel'])->name('payrolls.cancel');
+
+        Route::get('reports', ReportController::class)->name('reports.index');
+        Route::get('reports/export/invoices', [ReportExportController::class, 'invoices'])->name('reports.export.invoices');
+        Route::get('reports/export/cash', [ReportExportController::class, 'cash'])->name('reports.export.cash');
+        Route::get('reports/export/inventory', [ReportExportController::class, 'inventory'])->name('reports.export.inventory');
+        Route::get('reports/export/payrolls', [ReportExportController::class, 'payrolls'])->name('reports.export.payrolls');
+    });
+
+    Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
+    Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
+    Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+});
+
+require __DIR__.'/auth.php';

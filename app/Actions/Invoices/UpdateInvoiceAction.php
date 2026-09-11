@@ -1,0 +1,178 @@
+<?php
+
+namespace App\Actions\Invoices;
+
+use App\Enums\WorkContext;
+use App\Models\BranchService;
+use App\Models\Invoice;
+use App\Models\InvoiceItem;
+use App\Models\User;
+use App\Services\CompensationResolver;
+use Carbon\CarbonInterface;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
+
+/**
+ * Persist the editable part of a draft invoice: customer snapshot, discount,
+ * payment method, note and the service lines.
+ *
+ * The branch of an invoice is never taken from the request; it is fixed when
+ * the invoice is created and stays put.
+ */
+class UpdateInvoiceAction
+{
+    public function __construct(
+        private RecalculateInvoiceAction $recalculate,
+        private CompensationResolver $compensation,
+    ) {}
+
+    /**
+     * @param  array{customer_name?: string|null, customer_phone?: string|null, discount?: mixed, payment_method?: string|null, note?: string|null, items?: array<int, array<string, mixed>>}  $data
+     *
+     * @throws ValidationException when the invoice is no longer a draft
+     */
+    public function handle(Invoice $invoice, array $data, ?User $actor = null): Invoice
+    {
+        return DB::transaction(function () use ($invoice, $data, $actor): Invoice {
+            $locked = Invoice::query()->lockForUpdate()->findOrFail($invoice->getKey());
+
+            if (! $locked->isEditable()) {
+                throw ValidationException::withMessages([
+                    'status' => 'Chỉ hóa đơn ở trạng thái nháp mới được chỉnh sửa.',
+                ]);
+            }
+
+            $locked->forceFill([
+                'customer_name' => $data['customer_name'] ?? $locked->customer_name,
+                'customer_phone' => $data['customer_phone'] ?? $locked->customer_phone,
+                'discount' => $data['discount'] ?? $locked->discount,
+                'payment_method' => ($data['payment_method'] ?? null) ?: null,
+                'note' => $data['note'] ?? null,
+            ])->save();
+
+            if (array_key_exists('items', $data)) {
+                $this->syncItems($locked, $data['items'] ?? [], $actor);
+            }
+
+            return $this->recalculate->handle($locked);
+        });
+    }
+
+    /**
+     * Replace the invoice lines with the submitted ones.
+     *
+     * Only the raw inputs are trusted; `line_total` and `commission_amount` are
+     * always derived by {@see RecalculateInvoiceAction}, and the commission rate
+     * comes from the branch catalogue or the employee's dated profile unless a
+     * privileged user deliberately overrides it with a reason.
+     *
+     * @param  array<int, array<string, mixed>>  $items
+     */
+    private function syncItems(Invoice $invoice, array $items, ?User $actor): void
+    {
+        $keptIds = [];
+        $branchServices = BranchService::query()
+            ->with('service')
+            ->where('branch_id', $invoice->branch_id)
+            ->whereIn('service_id', array_filter(array_column($items, 'service_id')))
+            ->get()
+            ->keyBy('service_id');
+
+        $mayApproveOvertime = $actor !== null && $actor->can('approveOvertime', $invoice);
+        $referenceDate = $invoice->created_at ?? now();
+
+        foreach ($items as $row) {
+            $serviceId = ($row['service_id'] ?? null) ?: null;
+            $branchService = $serviceId ? $branchServices->get((int) $serviceId) : null;
+            $employeeId = ($row['employee_id'] ?? null) ?: null;
+
+            $existing = ($row['id'] ?? null)
+                ? $invoice->items()->whereKey($row['id'])->first()
+                : null;
+
+            $context = $this->resolveWorkContext($row, $existing, $mayApproveOvertime);
+            $rate = $this->resolveCommissionRate($row, $employeeId, $invoice->branch_id, $serviceId, $context, $referenceDate, $actor);
+
+            $attributes = [
+                'invoice_id' => $invoice->id,
+                'service_id' => $branchService?->service_id,
+                'employee_id' => $employeeId,
+                'work_context' => $context,
+                'name' => trim((string) ($row['name'] ?? '')) ?: ($branchService?->service?->name ?? 'Dịch vụ'),
+                'quantity' => $row['quantity'] ?? 1,
+                'unit_price' => $row['unit_price'] ?? 0,
+                'commission_rate' => $rate['rate'],
+                'commission_rate_source' => $rate['source'],
+                'commission_rate_reason' => $rate['reason'],
+                'line_total' => 0,
+                'commission_amount' => 0,
+            ];
+
+            if ($context === WorkContext::Overtime && $mayApproveOvertime) {
+                $attributes['overtime_approved_by'] = $actor?->getKey();
+                $attributes['overtime_approved_at'] = $existing?->overtime_approved_at ?? now();
+            }
+
+            if ($existing !== null) {
+                $existing->forceFill($attributes)->save();
+                $keptIds[] = $existing->getKey();
+
+                continue;
+            }
+
+            $keptIds[] = InvoiceItem::query()->create($attributes)->getKey();
+        }
+
+        $invoice->items()->whereKeyNot($keptIds)->delete();
+    }
+
+    /**
+     * Out-of-hours status is a claim about how the work was done, so it needs a
+     * manager's approval; an unprivileged edit keeps whatever was approved
+     * before and otherwise falls back to normal hours.
+     *
+     * @param  array<string, mixed>  $row
+     */
+    private function resolveWorkContext(array $row, ?InvoiceItem $existing, bool $mayApproveOvertime): WorkContext
+    {
+        $requested = WorkContext::tryFrom((string) ($row['work_context'] ?? '')) ?? WorkContext::Regular;
+
+        if ($mayApproveOvertime) {
+            return $requested;
+        }
+
+        return $existing?->work_context ?? WorkContext::Regular;
+    }
+
+    /**
+     * @param  array<string, mixed>  $row
+     * @return array{rate: string, source: string, reason: string|null}
+     */
+    private function resolveCommissionRate(
+        array $row,
+        ?int $employeeId,
+        ?int $branchId,
+        ?int $serviceId,
+        WorkContext $context,
+        mixed $referenceDate,
+        ?User $actor,
+    ): array {
+        $override = $row['commission_rate'] ?? null;
+        $reason = trim((string) ($row['commission_rate_reason'] ?? '')) ?: null;
+
+        // A hand-typed rate is only honoured with an approver and a reason on file.
+        if ($override !== null && $override !== '' && $reason !== null && $actor !== null && $actor->isOwner()) {
+            return ['rate' => (string) $override, 'source' => 'manual_override', 'reason' => $reason];
+        }
+
+        $resolved = $this->compensation->commissionRateFor(
+            $employeeId,
+            $branchId,
+            $serviceId,
+            $context,
+            $referenceDate instanceof CarbonInterface ? $referenceDate : now(),
+        );
+
+        return ['rate' => $resolved['rate'], 'source' => $resolved['source'], 'reason' => null];
+    }
+}

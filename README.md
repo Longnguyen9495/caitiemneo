@@ -1,34 +1,58 @@
-# Cái Tiệm Neo
+<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
 
-Website giới thiệu tĩnh cho **Cái Tiệm Neo**, tiệm nail tại 47 ngõ 131 Thái Hà, Đống Đa, Hà Nội.
+<p align="center">
+<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
+<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
+<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
+<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
+</p>
 
-## Liên hệ
+## About Laravel
 
-- Điện thoại: [0826 881 094](tel:0826881094)
-- Instagram: [@caitiemneo](https://www.instagram.com/caitiemneo/)
-- TikTok: [@caitiemneo_](https://www.tiktok.com/@caitiemneo_)
-- Địa chỉ: [47 ngõ 131 Thái Hà, Đống Đa, Hà Nội](https://www.google.com/maps/search/?api=1&query=47%20ng%C3%B5%20131%20Th%C3%A1i%20H%C3%A0%2C%20%C4%90%E1%BB%91ng%20%C4%90a%2C%20H%C3%A0%20N%E1%BB%99i)
+Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
 
-Website chỉ sử dụng các thông tin liên hệ đã được xác minh. Không công bố giá, giờ mở cửa, đánh giá hay danh mục dịch vụ chưa được tiệm xác nhận.
+- [Simple, fast routing engine](https://laravel.com/docs/routing).
+- [Powerful dependency injection container](https://laravel.com/docs/container).
+- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
+- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
+- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
+- [Robust background job processing](https://laravel.com/docs/queues).
+- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
 
-## Chạy cục bộ
+Laravel is accessible, powerful, and provides tools required for large, robust applications.
 
-Đây là static site không cần cài dependency. Từ thư mục repository, chạy:
+## Learning Laravel
+
+Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+
+In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+
+You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
+
+## Agentic Development
+
+Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
 
 ```bash
-python3 -m http.server 8000
+composer require laravel/boost --dev
+
+php artisan boost:install
 ```
 
-Sau đó mở <http://localhost:8000>.
+Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
 
-## Triển khai GitHub Pages
+## Contributing
 
-Website được thiết kế để xuất bản trực tiếp từ nhánh `main`, thư mục gốc (`/`). Sau khi GitHub Pages được bật trong repository, URL dự kiến là:
+Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
 
-<https://longnguyen9495.github.io/caitiemneo/>
+## Code of Conduct
 
-## Cấu trúc
+In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
 
-- `index.html` — nội dung, cấu trúc ngữ nghĩa và metadata.
-- `styles.css` — giao diện responsive, phong cách hiện đại pha vintage.
-- `script.js` — menu di động có hỗ trợ accessibility và hiệu ứng xuất hiện giảm dần an toàn khi JavaScript không chạy.
+## Security Vulnerabilities
+
+If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+
+## License
+
+The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
