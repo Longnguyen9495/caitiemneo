@@ -7,14 +7,14 @@
         <x-slot:actions>
             <x-admin.status-badge :status="$invoice->status" />
             @if ($invoice->appointment)
-                <a class="admin-button is-ghost" href="{{ route('admin.appointments.index', ['date' => $invoice->appointment->starts_at->toDateString()]) }}">Lịch hẹn gốc</a>
+                <a class="btn btn-sm btn-outline-secondary" href="{{ route('admin.appointments.index', ['date' => $invoice->appointment->starts_at->toDateString()]) }}">Lịch hẹn gốc</a>
             @endif
         </x-slot:actions>
     </x-admin.page-header>
 
-    @include('admin.invoices.partials.form')
-
     @include('admin.invoices.partials.settlement')
+
+    @include('admin.invoices.partials.form')
 
     @include('admin.invoices.partials.bill-kpi')
 

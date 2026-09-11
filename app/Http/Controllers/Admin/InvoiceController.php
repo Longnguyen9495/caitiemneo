@@ -49,7 +49,7 @@ class InvoiceController extends Controller
 
         return view('admin.invoices.edit', [
             'invoice' => $invoice,
-            'services' => Service::query()->where('is_active', true)->orderBy('name')->get(),
+            'services' => Service::query()->active()->inMenuOrder()->get(),
             'employees' => User::query()->active()->orderBy('name')->get(['id', 'name']),
             'paymentMethods' => PaymentMethod::options(),
         ]);

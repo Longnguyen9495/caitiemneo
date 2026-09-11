@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\Coordinates;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -9,7 +10,18 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['code', 'name', 'address', 'phone', 'is_active'])]
+#[Fillable([
+    'code',
+    'name',
+    'address',
+    'phone',
+    'latitude',
+    'longitude',
+    'attendance_radius_meters',
+    'attendance_accuracy_limit_meters',
+    'gps_attendance_enabled',
+    'is_active',
+])]
 class Branch extends Model
 {
     use HasFactory;
@@ -17,8 +29,23 @@ class Branch extends Model
     protected function casts(): array
     {
         return [
+            'latitude' => 'decimal:7',
+            'longitude' => 'decimal:7',
+            'attendance_radius_meters' => 'integer',
+            'attendance_accuracy_limit_meters' => 'integer',
+            'gps_attendance_enabled' => 'boolean',
             'is_active' => 'boolean',
         ];
+    }
+
+    public function workShifts(): HasMany
+    {
+        return $this->hasMany(WorkShift::class);
+    }
+
+    public function shiftAssignments(): HasMany
+    {
+        return $this->hasMany(ShiftAssignment::class);
     }
 
     public function assignments(): HasMany
@@ -81,5 +108,25 @@ class Branch extends Model
     public function label(): string
     {
         return $this->code.' · '.$this->name;
+    }
+
+    /**
+     * Whether this shop can accept a GPS clock event right now.
+     *
+     * The flag alone is not enough: without coordinates there is nothing to
+     * measure a distance against, so both must be present.
+     */
+    public function acceptsGpsAttendance(): bool
+    {
+        return $this->gps_attendance_enabled && $this->coordinates() !== null;
+    }
+
+    public function coordinates(): ?Coordinates
+    {
+        if ($this->latitude === null || $this->longitude === null) {
+            return null;
+        }
+
+        return Coordinates::tryFrom($this->latitude, $this->longitude);
     }
 }

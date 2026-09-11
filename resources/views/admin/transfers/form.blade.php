@@ -6,78 +6,87 @@
     ])->values();
 @endphp
 
-<x-layouts.admin title="Tạo phiếu chuyển kho" heading="Kho vật tư">
+<x-layouts.admin title="Tạo phiếu chuyển kho" heading="Chuyển kho">
     @include('admin.partials.inventory-nav')
 
-    <section class="admin-form-panel">
-        <x-admin.page-header
-            title="Tạo phiếu chuyển kho"
-            description="Phiếu được lưu ở trạng thái nháp; tồn kho chỉ thay đổi khi bạn hoàn tất phiếu."
-            :breadcrumbs="['Chuyển kho' => route('admin.stock-transfers.index'), 'Tạo phiếu' => null]"
-        />
+    <x-admin.page-header
+        title="Tạo phiếu chuyển kho"
+        description="Phiếu lưu ở trạng thái nháp; tồn kho chỉ thay đổi khi bạn hoàn tất phiếu."
+        :breadcrumbs="['Chuyển kho' => route('admin.stock-transfers.index'), 'Tạo phiếu' => null]"
+    />
 
-        <form method="POST" action="{{ route('admin.stock-transfers.store') }}" x-data="transferEditor(@js($productOptions))">
-            @csrf
+    <form method="POST" action="{{ route('admin.stock-transfers.store') }}" class="card p-3 p-lg-4"
+          x-data="transferEditor(@js($productOptions))">
+        @csrf
 
-            <div class="admin-form">
-                <label>
-                    Chi nhánh gửi
-                    <select name="source_branch_id" required>
-                        @foreach ($sourceBranches as $branch)
-                            <option value="{{ $branch->id }}" @selected((string) old('source_branch_id') === (string) $branch->id)>{{ $branch->name }}</option>
-                        @endforeach
-                    </select>
-                    @error('source_branch_id')<small>{{ $message }}</small>@enderror
-                </label>
+        <div class="row g-3">
+            <x-admin.field name="source_branch_id" label="Chi nhánh gửi" required>
+                <select class="form-select @error('source_branch_id') is-invalid @enderror" id="source_branch_id" name="source_branch_id" required>
+                    @foreach ($sourceBranches as $branch)
+                        <option value="{{ $branch->id }}" @selected((string) old('source_branch_id') === (string) $branch->id)>{{ $branch->name }}</option>
+                    @endforeach
+                </select>
+            </x-admin.field>
 
-                <label>
-                    Chi nhánh nhận
-                    <select name="destination_branch_id" required>
-                        <option value="">Chọn chi nhánh nhận</option>
-                        @foreach ($destinationBranches as $branch)
-                            <option value="{{ $branch->id }}" @selected((string) old('destination_branch_id') === (string) $branch->id)>{{ $branch->name }}</option>
-                        @endforeach
-                    </select>
-                    @error('destination_branch_id')<small>{{ $message }}</small>@enderror
-                </label>
+            <x-admin.field name="destination_branch_id" label="Chi nhánh nhận" required>
+                <select class="form-select @error('destination_branch_id') is-invalid @enderror" id="destination_branch_id" name="destination_branch_id" required>
+                    <option value="">Chọn chi nhánh nhận</option>
+                    @foreach ($destinationBranches as $branch)
+                        <option value="{{ $branch->id }}" @selected((string) old('destination_branch_id') === (string) $branch->id)>{{ $branch->name }}</option>
+                    @endforeach
+                </select>
+            </x-admin.field>
 
-                <label class="admin-form-wide">
-                    Ghi chú
-                    <input name="note" value="{{ old('note') }}" placeholder="Lý do điều chuyển…">
-                    @error('note')<small>{{ $message }}</small>@enderror
-                </label>
-            </div>
+            <x-admin.field name="note" label="Ghi chú" col="col-12">
+                <input class="form-control @error('note') is-invalid @enderror" id="note" name="note"
+                       value="{{ old('note') }}" placeholder="Lý do điều chuyển…">
+            </x-admin.field>
+        </div>
 
-            <div class="admin-table-wrap" style="margin-top: 1.2rem;">
-                <table class="admin-table">
-                    <thead><tr><th style="min-width: 14rem;">Vật tư</th><th class="admin-numeric">Số lượng</th><th class="admin-numeric">Đơn giá</th><th></th></tr></thead>
-                    <tbody>
-                        <template x-for="(row, index) in rows" :key="row.key">
-                            <tr>
-                                <td>
-                                    <select :name="`items[${index}][product_id]`" x-model="row.product_id" x-on:change="applyProduct(row)" required>
-                                        <option value="">Chọn vật tư</option>
-                                        <template x-for="product in products" :key="product.id">
-                                            <option :value="product.id" x-text="product.name"></option>
-                                        </template>
-                                    </select>
-                                </td>
-                                <td class="admin-numeric"><input class="admin-money-input" type="number" step="0.01" min="0.01" :name="`items[${index}][quantity]`" x-model="row.quantity" required></td>
-                                <td class="admin-numeric"><input class="admin-money-input" type="number" step="1000" min="0" :name="`items[${index}][unit_cost]`" x-model="row.unit_cost"></td>
-                                <td><button type="button" class="admin-button is-ghost" x-on:click="rows.splice(index, 1)" x-show="rows.length > 1">Xóa</button></td>
-                            </tr>
-                        </template>
-                    </tbody>
-                </table>
-            </div>
+        <h3 class="fs-6 fw-semibold mt-4 mb-2">Vật tư cần chuyển</h3>
 
-            @error('items')<small style="color:#b83c68; font-size:.7rem;">{{ $message }}</small>@enderror
+        <template x-for="(row, index) in rows" :key="row.key">
+            <fieldset class="border rounded-3 p-3 mb-2">
+                <div class="row g-2">
+                    <div class="col-12 col-lg-6">
+                        <label class="form-label" :for="`prod-${index}`">Vật tư</label>
+                        <select class="form-select" :id="`prod-${index}`" :name="`items[${index}][product_id]`"
+                                x-model="row.product_id" x-on:change="applyProduct(row)" required>
+                            <option value="">Chọn vật tư</option>
+                            <template x-for="product in products" :key="product.id">
+                                <option :value="product.id" x-text="product.name"></option>
+                            </template>
+                        </select>
+                    </div>
 
-            <div class="admin-form-actions" style="margin-top: 1rem;">
-                <button type="button" class="admin-button is-ghost" x-on:click="addRow()">+ Thêm dòng</button>
-                <a href="{{ route('admin.stock-transfers.index') }}">Hủy</a>
-                <x-admin.submit-button label="Tạo phiếu nháp" />
-            </div>
-        </form>
-    </section>
+                    <div class="col-6 col-lg-3">
+                        <label class="form-label" :for="`tqty-${index}`">Số lượng</label>
+                        <input class="form-control text-end neo-num" :id="`tqty-${index}`" type="number" step="0.01" min="0.01"
+                               :name="`items[${index}][quantity]`" x-model="row.quantity" required>
+                    </div>
+
+                    <div class="col-6 col-lg-3">
+                        <label class="form-label" :for="`tcost-${index}`">Đơn giá</label>
+                        <input class="form-control text-end neo-num" :id="`tcost-${index}`" type="number" step="1000" min="0"
+                               :name="`items[${index}][unit_cost]`" x-model="row.unit_cost">
+                    </div>
+                </div>
+
+                <div class="text-end mt-2" x-show="rows.length > 1">
+                    <button type="button" class="btn btn-sm btn-outline-danger" x-on:click="rows.splice(index, 1)">Xóa dòng</button>
+                </div>
+            </fieldset>
+        </template>
+
+        @error('items')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
+
+        <button type="button" class="btn btn-outline-primary btn-sm align-self-start d-inline-flex align-items-center gap-1" x-on:click="addRow()">
+            <x-admin.icon name="plus" size="16" /> Thêm dòng
+        </button>
+
+        <div class="neo-formbar">
+            <a href="{{ route('admin.stock-transfers.index') }}" class="btn btn-light">Hủy</a>
+            <x-admin.submit-button label="Tạo phiếu nháp" />
+        </div>
+    </form>
 </x-layouts.admin>

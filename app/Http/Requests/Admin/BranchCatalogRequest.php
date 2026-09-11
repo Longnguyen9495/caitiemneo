@@ -19,6 +19,8 @@ class BranchCatalogRequest extends FormRequest
             'services.*.enabled' => ['nullable', 'boolean'],
             'services.*.is_active' => ['nullable', 'boolean'],
             'services.*.price' => ['required_with:services.*.enabled', 'numeric', 'min:0', 'max:99999999999'],
+            'services.*.price_min' => ['nullable', 'numeric', 'min:0', 'max:99999999999'],
+            'services.*.price_max' => ['nullable', 'numeric', 'min:0', 'max:99999999999', 'gte:services.*.price_min'],
             'services.*.duration_minutes' => ['required_with:services.*.enabled', 'integer', 'min:5', 'max:480'],
             'services.*.commission_rate' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'services.*.overtime_commission_rate' => ['nullable', 'numeric', 'min:0', 'max:100'],
@@ -34,6 +36,8 @@ class BranchCatalogRequest extends FormRequest
     {
         return [
             'services.*.price' => 'giá dịch vụ',
+            'services.*.price_min' => 'giá sàn',
+            'services.*.price_max' => 'giá trần',
             'services.*.duration_minutes' => 'thời lượng',
             'products.*.minimum_stock' => 'định mức tồn',
         ];

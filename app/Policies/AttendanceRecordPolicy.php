@@ -31,4 +31,25 @@ class AttendanceRecordPolicy
     {
         return $this->view($user, $record);
     }
+
+    /**
+     * Deciding on somebody's overtime.
+     *
+     * Explicitly not the employee themselves, even for their own row: the
+     * whole point of the pending state is that a second person signs it off.
+     */
+    public function reviewOvertime(User $user, AttendanceRecord $record): bool
+    {
+        if ((int) $record->employee_id === (int) $user->getKey() && ! $user->isOwner()) {
+            return false;
+        }
+
+        return $this->view($user, $record);
+    }
+
+    /** An employee may always read back their own attendance history. */
+    public function viewOwn(User $user, AttendanceRecord $record): bool
+    {
+        return (int) $record->employee_id === (int) $user->getKey() || $this->view($user, $record);
+    }
 }

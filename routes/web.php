@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Admin\AppointmentController;
 use App\Http\Controllers\Admin\AttendanceController;
+use App\Http\Controllers\Admin\AttendanceReviewController;
 use App\Http\Controllers\Admin\BranchCatalogController;
 use App\Http\Controllers\Admin\BranchController;
 use App\Http\Controllers\Admin\BranchSwitchController;
@@ -19,11 +20,14 @@ use App\Http\Controllers\Admin\ProductController;
 use App\Http\Controllers\Admin\ReportController;
 use App\Http\Controllers\Admin\ReportExportController;
 use App\Http\Controllers\Admin\ServiceController;
+use App\Http\Controllers\Admin\ShiftScheduleController;
 use App\Http\Controllers\Admin\StockTransferController;
 use App\Http\Controllers\Admin\SupplierController;
+use App\Http\Controllers\Admin\WorkShiftController;
 use App\Http\Controllers\BookingController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\StaffAttendanceController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', HomeController::class)->name('home');
@@ -31,6 +35,21 @@ Route::post('/dat-lich', [BookingController::class, 'store'])->name('booking.sto
 
 Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::get('/dashboard', DashboardController::class)->name('dashboard');
+
+    /*
+     * Chấm công của nhân viên.
+     *
+     * Nằm ngoài nhóm admin vì đây là màn hình duy nhất mà nhân viên thường
+     * thao tác, và nó chỉ tác động lên chính tài khoản đang đăng nhập.
+     * Throttle để một nút bị bấm liên tục không tạo hàng loạt yêu cầu.
+     */
+    Route::middleware(['role:owner,manager,employee', 'branch.context'])->group(function (): void {
+        Route::get('cham-cong', [StaffAttendanceController::class, 'index'])->name('attendance.board');
+        Route::post('cham-cong/vao-ca', [StaffAttendanceController::class, 'checkIn'])
+            ->middleware('throttle:12,1')->name('attendance.check-in');
+        Route::post('cham-cong/ra-ca', [StaffAttendanceController::class, 'checkOut'])
+            ->middleware('throttle:12,1')->name('attendance.check-out');
+    });
 
     Route::prefix('admin')->as('admin.')->middleware(['role:owner,manager,employee', 'branch.context'])->group(function (): void {
         Route::post('branch-switch', BranchSwitchController::class)->name('branch.switch');
@@ -73,6 +92,17 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
         Route::resource('employees', EmployeeController::class)->except('show', 'destroy');
         Route::post('employees/{employee}/assignments', [EmployeeAssignmentController::class, 'store'])->name('employees.assignments.store');
         Route::patch('employees/{employee}/assignments/{assignment}', [EmployeeAssignmentController::class, 'update'])->name('employees.assignments.update');
+
+        Route::resource('work-shifts', WorkShiftController::class)->except('show', 'destroy');
+
+        Route::get('shift-schedule', [ShiftScheduleController::class, 'index'])->name('shift-schedule.index');
+        Route::post('shift-schedule', [ShiftScheduleController::class, 'store'])->name('shift-schedule.store');
+        Route::delete('shift-schedule/{shift_assignment}', [ShiftScheduleController::class, 'destroy'])
+            ->name('shift-schedule.destroy');
+
+        Route::get('attendance/review', [AttendanceReviewController::class, 'index'])->name('attendance.review');
+        Route::patch('attendance/{attendance}/overtime', [AttendanceReviewController::class, 'update'])
+            ->name('attendance.overtime');
 
         Route::resource('attendance', AttendanceController::class)->except('show', 'create');
 

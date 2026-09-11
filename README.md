@@ -29,6 +29,10 @@ In addition, [Laracasts](https://laracasts.com) contains thousands of video tuto
 
 You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
 
+## AI Project Context
+
+AI/agent làm việc tiếp trong dự án phải đọc [`docs/AI-PROJECT-PLAYBOOK.md`](docs/AI-PROJECT-PLAYBOOK.md) trước. Tài liệu này tóm tắt kiến trúc, module, workflow, phân quyền chi nhánh, bất biến dữ liệu và lệnh kiểm thử theo domain.
+
 ## Agentic Development
 
 Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:

@@ -44,6 +44,10 @@ class AttendanceRecordRequest extends FormRequest
             'checked_in_at' => ['nullable', 'date'],
             'checked_out_at' => ['nullable', 'date', 'after:checked_in_at'],
             'note' => ['nullable', 'string', 'max:1000'],
+            // Every hand-written shift carries a reason, because that is what
+            // turns the audit entry from "somebody changed this" into
+            // something a person can actually review later.
+            'reason' => ['required', 'string', 'max:255'],
         ];
     }
 
@@ -71,6 +75,7 @@ class AttendanceRecordRequest extends FormRequest
             'checked_in_at' => 'giờ vào',
             'checked_out_at' => 'giờ ra',
             'note' => 'ghi chú',
+            'reason' => 'lý do',
         ];
     }
 
@@ -79,6 +84,7 @@ class AttendanceRecordRequest extends FormRequest
     {
         return $this->branchMessages() + [
             'shift_name.unique' => 'Nhân viên này đã có ca cùng tên trong ngày.',
+            'reason.required' => 'Hãy ghi lý do nhập tay để lưu vào nhật ký chỉnh sửa.',
             'checked_out_at.after' => 'Giờ ra phải sau giờ vào.',
         ];
     }

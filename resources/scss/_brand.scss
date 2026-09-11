@@ -1,0 +1,40 @@
+// Bảng màu và token thương hiệu Cái Tiệm Neo.
+// Đây là nguồn duy nhất cho màu, bo góc và bóng đổ của khu quản trị;
+// Bootstrap được map theo các giá trị này chứ không ngược lại.
+
+// --- Màu nền tảng -----------------------------------------------------------
+$neo-wine:        #7b2f50; // Màu chủ đạo, dùng cho nút chính và trạng thái active
+$neo-wine-bright: #bd4e78; // Nhấn nhẹ, link và viền focus
+$neo-rose:        #e979a3;
+$neo-gold:        #f4aac5;
+
+$neo-canvas:      #fff9fc; // Nền ô nhập liệu
+$neo-shell:       #fdf1f6; // Nền toàn trang
+$neo-paper:       #fffdfd; // Nền thẻ
+
+$neo-ink:         #38242e;
+$neo-ink-muted:   #765864;
+
+// Trạng thái: giữ cùng họ màu ấm để không phá nhận diện.
+$neo-success:     #3f6b52;
+$neo-warning:     #8a5a24;
+$neo-danger:      #a63057;
+
+// --- Thang bo góc (SHAPE LOCK) ----------------------------------------------
+// Một quy tắc duy nhất, áp dụng ở mọi nơi:
+//   container (card, panel, offcanvas) = 16px
+//   control   (nút, input, select)     = 10px
+//   pill      (badge, chip, tab)       = bo tròn hết
+$neo-radius-container: 16px;
+$neo-radius-control:   10px;
+
+// --- Bóng đổ ----------------------------------------------------------------
+// Nhuộm theo màu nền thay vì dùng đen thuần.
+$neo-shadow-sm: 0 1px 2px rgba(92, 41, 65, .06);
+$neo-shadow:    0 6px 18px rgba(92, 41, 65, .08);
+$neo-shadow-lg: 0 18px 40px rgba(92, 41, 65, .14);
+
+// --- Kích thước chạm --------------------------------------------------------
+// Tối thiểu 44px theo hướng dẫn tiếp xúc ngón tay của Apple và Google.
+$neo-tap-target: 44px;
+$neo-bottom-nav-height: 60px;

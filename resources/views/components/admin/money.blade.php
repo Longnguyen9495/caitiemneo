@@ -3,6 +3,7 @@
 @php
     $minor = \App\Support\Money::toMinor($value);
     $prefix = $signed && $minor > 0 ? '+' : '';
+    $tone = $signed ? ($minor < 0 ? 'text-danger' : ($minor > 0 ? 'text-success' : '')) : '';
 @endphp
 
-<span {{ $attributes->merge(['class' => 'admin-money'.($signed && $minor < 0 ? ' is-negative' : ($signed && $minor > 0 ? ' is-positive' : ''))]) }}>{{ $prefix }}{{ \App\Support\Money::format($value, $suffix) }}</span>
+<span {{ $attributes->merge(['class' => trim("neo-num {$tone}")]) }}>{{ $prefix }}{{ \App\Support\Money::format($value, $suffix) }}</span>

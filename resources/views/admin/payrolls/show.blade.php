@@ -1,4 +1,4 @@
-<x-layouts.admin :title="'Bảng lương '.$payroll->employee?->name" heading="Nhân sự & lương">
+<x-layouts.admin :title="'Bảng lương '.$payroll->employee?->name" heading="Phiếu lương">
     @include('admin.partials.staff-nav')
 
     <x-admin.page-header
@@ -8,7 +8,7 @@
     >
         <x-slot:actions>
             <x-admin.status-badge :status="$payroll->status" />
-            <button type="button" class="admin-button is-ghost" onclick="window.print()">In phiếu lương</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="window.print()">In phiếu lương</button>
         </x-slot:actions>
     </x-admin.page-header>
 

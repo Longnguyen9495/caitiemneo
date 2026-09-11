@@ -126,6 +126,7 @@ class EmployeeManagementTest extends TestCase
             'shift_name' => 'Ca sáng',
             'shift_value' => 1,
             'status' => AttendanceStatus::Present->value,
+            'reason' => 'Nhân viên quên bấm vào ca',
         ];
 
         $this->actingAs($owner)->post(route('admin.attendance.store'), $payload);
@@ -153,6 +154,7 @@ class EmployeeManagementTest extends TestCase
                 'status' => AttendanceStatus::Present->value,
                 'checked_in_at' => '2026-08-10 14:00:00',
                 'checked_out_at' => '2026-08-10 09:00:00',
+                'reason' => 'Sửa giờ theo báo cáo của quản lý ca',
             ])
             ->assertSessionHasErrors('checked_out_at');
     }

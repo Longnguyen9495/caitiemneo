@@ -36,6 +36,7 @@ class BranchAttendanceTest extends TestCase
             'shift_name' => 'Ca sáng',
             'shift_value' => 1,
             'status' => AttendanceStatus::Present->value,
+            'reason' => 'Ghi bù ca cho nhân viên quên chấm công',
         ])->assertRedirect();
 
         $this->assertSame($this->branchA->id, AttendanceRecord::query()->value('branch_id'));

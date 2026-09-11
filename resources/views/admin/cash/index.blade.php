@@ -1,128 +1,139 @@
 <x-layouts.admin title="Sổ thu chi" heading="Hóa đơn & thu chi">
     @include('admin.partials.finance-nav')
 
-    <section class="admin-panel">
-        <header class="admin-panel-header">
-            <div>
-                <h2>Sổ thu chi</h2>
-                <p>Dòng tiền được tính theo thời điểm phát sinh của giao dịch, độc lập với ngày lập hóa đơn.</p>
-            </div>
-            <div class="admin-page-actions">
-                <a href="{{ route('admin.reports.export.cash', request()->query()) }}" class="admin-button is-ghost">Xuất CSV</a>
-                <a href="{{ route('admin.cash.create') }}" class="admin-button">+ Ghi khoản thu/chi</a>
-            </div>
-        </header>
+    <x-admin.page-header title="Sổ thu chi" description="Dòng tiền tính theo thời điểm phát sinh, độc lập với ngày lập hóa đơn.">
+        <x-slot:actions>
+            <a href="{{ route('admin.reports.export.cash', request()->query()) }}" class="btn btn-sm btn-outline-secondary">Xuất CSV</a>
+            <a href="{{ route('admin.cash.create') }}" class="btn btn-sm btn-primary d-inline-flex align-items-center gap-1">
+                <x-admin.icon name="plus" size="18" /> Ghi khoản
+            </a>
+        </x-slot:actions>
+    </x-admin.page-header>
 
+    <div class="row g-2 mb-3">
+        <div class="col-4">
+            <dl class="neo-stat mb-0"><dt>Tổng thu</dt><dd class="fs-6"><x-admin.money :value="$totals['income']" /></dd></dl>
+        </div>
+        <div class="col-4">
+            <dl class="neo-stat mb-0"><dt>Tổng chi</dt><dd class="fs-6"><x-admin.money :value="$totals['expense']" /></dd></dl>
+        </div>
+        <div class="col-4">
+            <dl class="neo-stat mb-0"><dt>Số dư</dt><dd class="fs-6"><x-admin.money :value="$totals['balance']" signed /></dd></dl>
+        </div>
+    </div>
+
+    <section class="card overflow-hidden">
         <x-admin.filter-bar :action="route('admin.cash.index')">
-            <label>Tìm kiếm<input type="search" name="search" value="{{ request('search') }}" placeholder="Tham chiếu hoặc ghi chú"></label>
-            <label>
-                Loại
-                <select name="type">
+            <div class="col-12 col-lg-3">
+                <label class="form-label" for="search">Tìm kiếm</label>
+                <input class="form-control" id="search" type="search" name="search" value="{{ request('search') }}" placeholder="Tham chiếu hoặc ghi chú">
+            </div>
+            <div class="col-6 col-lg-2">
+                <label class="form-label" for="type">Loại</label>
+                <select class="form-select" id="type" name="type">
                     <option value="">Tất cả</option>
                     @foreach ($types as $value => $label)
                         <option value="{{ $value }}" @selected(request('type') === $value)>{{ $label }}</option>
                     @endforeach
                 </select>
-            </label>
-            <label>
-                Hạng mục
-                <select name="category">
+            </div>
+            <div class="col-6 col-lg-3">
+                <label class="form-label" for="category">Hạng mục</label>
+                <select class="form-select" id="category" name="category">
                     <option value="">Tất cả</option>
                     @foreach ($categories as $value => $label)
                         <option value="{{ $value }}" @selected(request('category') === $value)>{{ $label }}</option>
                     @endforeach
                 </select>
-            </label>
-            <label>
-                Phương thức
-                <select name="payment_method">
-                    <option value="">Tất cả</option>
-                    @foreach ($paymentMethods as $value => $label)
-                        <option value="{{ $value }}" @selected(request('payment_method') === $value)>{{ $label }}</option>
-                    @endforeach
-                </select>
-            </label>
-            <label>Từ ngày<input type="date" name="from" value="{{ request('from') }}"></label>
-            <label>Đến ngày<input type="date" name="to" value="{{ request('to') }}"></label>
-            <label class="admin-checkbox"><input type="checkbox" name="include_voided" value="1" @checked(request()->boolean('include_voided'))><span>Hiện cả giao dịch đã hủy</span></label>
+            </div>
+            <div class="col-6 col-lg-2">
+                <label class="form-label" for="from">Từ ngày</label>
+                <input class="form-control" id="from" type="date" name="from" value="{{ request('from') }}">
+            </div>
+            <div class="col-6 col-lg-2">
+                <label class="form-label" for="to">Đến ngày</label>
+                <input class="form-control" id="to" type="date" name="to" value="{{ request('to') }}">
+            </div>
+            <div class="col-12">
+                <label class="form-check d-inline-flex align-items-center gap-2 mb-0">
+                    <input class="form-check-input m-0" type="checkbox" name="include_voided" value="1" @checked(request()->boolean('include_voided'))>
+                    <span class="small">Hiện cả giao dịch đã hủy</span>
+                </label>
+            </div>
         </x-admin.filter-bar>
 
-        <div class="admin-summary-grid">
-            <div><p>Tổng thu theo bộ lọc</p><strong><x-admin.money :value="$totals['income']" /></strong></div>
-            <div><p>Tổng chi theo bộ lọc</p><strong><x-admin.money :value="$totals['expense']" /></strong></div>
-            <div><p>Số dư</p><strong><x-admin.money :value="$totals['balance']" signed /></strong></div>
-        </div>
-
-        <div class="admin-table-wrap">
-            <table class="admin-table">
-                <thead>
+        <table class="table neo-table align-middle mb-0">
+            <thead>
+                <tr>
+                    <th scope="col">Thời điểm</th>
+                    <th scope="col">Chi nhánh</th>
+                    <th scope="col">Hạng mục</th>
+                    <th scope="col" class="text-end">Số tiền</th>
+                    <th scope="col">Phương thức</th>
+                    <th scope="col">Nguồn</th>
+                    <th scope="col">Người tạo</th>
+                    <th scope="col"><span class="visually-hidden">Thao tác</span></th>
+                </tr>
+            </thead>
+            <tbody>
+                @forelse ($transactions as $transaction)
                     <tr>
-                        <th>Chi nhánh</th>
-                        <th>Thời điểm</th>
-                        <th>Loại</th>
-                        <th>Hạng mục</th>
-                        <th class="admin-numeric">Số tiền</th>
-                        <th>Phương thức</th>
-                        <th>Nguồn</th>
-                        <th>Người tạo</th>
-                        <th></th>
+                        <td>
+                            <span class="fw-semibold neo-num">{{ $transaction->occurred_at?->format('d/m/Y') }}</span>
+                            <small class="text-body-secondary neo-num">{{ $transaction->occurred_at?->format('H:i') }}</small>
+                        </td>
+                        <td data-label="Chi nhánh"><span class="badge rounded-pill text-bg-light border fw-normal">{{ $transaction->branch?->code }}</span></td>
+                        <td data-label="Hạng mục">
+                            <x-admin.status-badge :status="$transaction->type" class="me-1" />
+                            {{ $transaction->category->label() }}
+                            @if ($transaction->note)<small class="d-block text-body-secondary">{{ $transaction->note }}</small>@endif
+                        </td>
+                        <td data-label="Số tiền" class="text-end fw-semibold">
+                            <x-admin.money :value="$transaction->type->sign() * (float) $transaction->amount" signed />
+                        </td>
+                        <td data-label="Phương thức">{{ $transaction->payment_method?->label() ?? '—' }}</td>
+                        <td data-label="Nguồn">
+                            @if ($transaction->invoice)
+                                <a href="{{ route('admin.invoices.edit', $transaction->invoice) }}">{{ $transaction->invoice->number }}</a>
+                            @elseif ($transaction->payroll)
+                                <a href="{{ route('admin.payrolls.show', $transaction->payroll) }}">Lương {{ $transaction->payroll->employee?->name }}</a>
+                            @else
+                                {{ $transaction->reference ?: 'Nhập tay' }}
+                            @endif
+                        </td>
+                        <td data-label="Người tạo">{{ $transaction->creator?->name ?? '—' }}</td>
+                        <td>
+                            @if ($transaction->isVoided())
+                                <x-admin.status-badge tone="is-danger" label="Đã hủy" />
+                            @else
+                                <span class="d-inline-flex flex-wrap gap-2">
+                                    @can('update', $transaction)
+                                        <a href="{{ route('admin.cash.edit', $transaction) }}" class="btn btn-sm btn-outline-secondary">Sửa</a>
+                                    @endcan
+                                    @can('void', $transaction)
+                                        <x-admin.confirm-form
+                                            :action="route('admin.cash.destroy', $transaction)"
+                                            method="DELETE"
+                                            label="Hủy"
+                                            message="Hủy giao dịch này? Dữ liệu vẫn được giữ lại để đối soát."
+                                        >
+                                            <input type="hidden" name="void_reason" value="Hủy bởi người dùng">
+                                        </x-admin.confirm-form>
+                                    @endcan
+                                </span>
+                            @endif
+                        </td>
                     </tr>
-                </thead>
-                <tbody>
-                    @forelse ($transactions as $transaction)
-                        <tr>
-                            <td><span class="admin-branch-chip">{{ $transaction->branch?->code }}</span></td>
-                            <td>
-                                <strong>{{ $transaction->occurred_at?->format('d/m/Y') }}</strong>
-                                <p>{{ $transaction->occurred_at?->format('H:i') }}</p>
-                            </td>
-                            <td><x-admin.status-badge :status="$transaction->type" /></td>
-                            <td>
-                                {{ $transaction->category->label() }}
-                                @if ($transaction->note)<p>{{ $transaction->note }}</p>@endif
-                            </td>
-                            <td class="admin-numeric">
-                                <x-admin.money :value="$transaction->type->sign() * (float) $transaction->amount" signed />
-                            </td>
-                            <td>{{ $transaction->payment_method?->label() ?? '—' }}</td>
-                            <td>
-                                @if ($transaction->invoice)
-                                    <a href="{{ route('admin.invoices.edit', $transaction->invoice) }}">{{ $transaction->invoice->number }}</a>
-                                @elseif ($transaction->payroll)
-                                    <a href="{{ route('admin.payrolls.show', $transaction->payroll) }}">Lương {{ $transaction->payroll->employee?->name }}</a>
-                                @else
-                                    {{ $transaction->reference ?: 'Nhập tay' }}
-                                @endif
-                            </td>
-                            <td>{{ $transaction->creator?->name ?? '—' }}</td>
-                            <td>
-                                <div class="admin-row-actions">
-                                    @if ($transaction->isVoided())
-                                        <x-admin.status-badge tone="is-danger" label="Đã hủy" />
-                                    @else
-                                        @can('update', $transaction)
-                                            <a href="{{ route('admin.cash.edit', $transaction) }}">Sửa</a>
-                                        @endcan
-                                        @can('void', $transaction)
-                                            <x-admin.confirm-form
-                                                :action="route('admin.cash.destroy', $transaction)"
-                                                method="DELETE"
-                                                label="Hủy"
-                                                message="Hủy giao dịch này? Dữ liệu vẫn được giữ lại để đối soát."
-                                            >
-                                                <input type="hidden" name="void_reason" value="Hủy bởi người dùng">
-                                            </x-admin.confirm-form>
-                                        @endcan
-                                    @endif
-                                </div>
-                            </td>
-                        </tr>
-                    @empty
-                        <x-admin.empty-state :colspan="9" title="Chưa có giao dịch nào" hint="Thanh toán hóa đơn hoặc ghi khoản thu/chi thủ công để bắt đầu theo dõi dòng tiền." />
-                    @endforelse
-                </tbody>
-            </table>
-        </div>
+                @empty
+                    <x-admin.empty-state
+                        :colspan="8"
+                        icon="wallet"
+                        title="Chưa có giao dịch nào"
+                        hint="Thanh toán hóa đơn hoặc ghi khoản thu chi thủ công để bắt đầu theo dõi dòng tiền."
+                    />
+                @endforelse
+            </tbody>
+        </table>
 
         <x-admin.pagination :paginator="$transactions" />
     </section>

@@ -68,7 +68,8 @@ class AuthenticationTest extends TestCase
         $this->actingAs($owner)
             ->get('/admin')
             ->assertOk()
-            ->assertSee('Tổng quan hôm nay');
+            ->assertSee('Doanh thu hôm nay')
+            ->assertSee('Lịch hẹn sắp tới');
     }
 
     public function test_users_can_logout(): void

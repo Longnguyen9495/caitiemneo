@@ -4,80 +4,90 @@
 ])
 
 @php
-    use App\Models\Appointment;
-    use App\Models\Branch;
-    use App\Models\CashTransaction;
-    use App\Models\Invoice;
-    use App\Models\Payroll;
-    use App\Models\Product;
-    use App\Models\Service;
-    use App\Models\User;
-
     $user = auth()->user();
-
-    $navigation = collect([
-        ['label' => 'Tổng quan', 'route' => 'admin.dashboard', 'pattern' => 'admin.dashboard', 'visible' => true],
-        ['label' => 'Lịch hẹn', 'route' => 'admin.appointments.index', 'pattern' => 'admin.appointments.*', 'visible' => $user->can('viewAny', Appointment::class)],
-        ['label' => 'Dịch vụ', 'route' => 'admin.services.index', 'pattern' => 'admin.services.*', 'visible' => $user->can('viewAny', Service::class)],
-        ['label' => 'Hóa đơn & thu chi', 'route' => 'admin.invoices.index', 'pattern' => ['admin.invoices.*', 'admin.cash.*'], 'visible' => $user->can('viewAny', Invoice::class) || $user->can('viewAny', CashTransaction::class)],
-        ['label' => 'Kho vật tư', 'route' => 'admin.products.index', 'pattern' => ['admin.products.*', 'admin.suppliers.*', 'admin.inventory.*', 'admin.stock-transfers.*'], 'visible' => $user->can('viewAny', Product::class)],
-        ['label' => 'Nhân sự & lương', 'route' => 'admin.employees.index', 'pattern' => ['admin.employees.*', 'admin.attendance.*', 'admin.payrolls.*'], 'visible' => $user->can('viewAny', User::class) || $user->can('viewAny', Payroll::class)],
-        ['label' => 'Báo cáo', 'route' => 'admin.reports.index', 'pattern' => 'admin.reports.*', 'visible' => \Illuminate\Support\Facades\Gate::allows('view-reports')],
-        ['label' => 'Chi nhánh', 'route' => 'admin.branches.index', 'pattern' => 'admin.branches.*', 'visible' => $user->can('viewAny', Branch::class)],
-    ])->where('visible', true);
+    $navigation = App\Support\AdminNavigation::for($user);
+    $primaryNav = App\Support\AdminNavigation::primaryFor($user);
 @endphp
 
 <!doctype html>
 <html lang="vi">
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="csrf-token" content="{{ csrf_token() }}">
+    <meta name="theme-color" content="#7b2f50">
+    <meta name="description" content="Khu quản trị tiệm nail Cái Tiệm Neo: lịch hẹn, hóa đơn, kho vật tư, chấm công và lương.">
     <title>{{ $title }} · Cái Tiệm Neo</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=DM+Serif+Display:ital@0;1&display=swap" rel="stylesheet">
-    @vite(['resources/css/app.css', 'resources/js/app.js'])
+    <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+    @vite(['resources/scss/admin.scss', 'resources/js/admin.js'])
 </head>
-<body class="admin-body">
-    <div class="admin-shell" x-data="{ sidebarOpen: false }">
-        <aside class="admin-sidebar" :class="{ 'is-open': sidebarOpen }">
-            <a href="{{ route('admin.dashboard') }}" class="admin-brand"><span>N</span><strong>Cái Tiệm Neo</strong></a>
-            <p class="admin-nav-label">Điều hành tiệm</p>
-            <nav class="admin-nav" aria-label="Menu quản trị">
-                @foreach ($navigation as $item)
-                    <a
-                        href="{{ route($item['route']) }}"
-                        @class(['is-active' => request()->routeIs($item['pattern'])])
-                        @if (request()->routeIs($item['pattern'])) aria-current="page" @endif
-                    >{{ $item['label'] }}</a>
-                @endforeach
+<body class="neo">
+    <a class="neo-skip" href="#neo-main">Bỏ qua điều hướng</a>
+
+    <div class="d-flex">
+        <aside class="neo-sidebar p-3">
+            <a href="{{ route('admin.dashboard') }}" class="d-flex align-items-center gap-2 text-white text-decoration-none px-2 py-3 mb-2">
+                <span class="d-inline-grid place-items-center rounded-circle border border-2 fst-italic"
+                      style="width:32px;height:32px;place-items:center;display:grid;border-color:rgba(255,255,255,.35)!important">N</span>
+                <strong class="neo-display fs-5">Cái Tiệm Neo</strong>
+            </a>
+
+            <nav class="d-grid gap-1" aria-label="Menu quản trị">
+                <x-admin.nav-items :items="$navigation" />
             </nav>
-            <div class="admin-sidebar-footer">
-                <p>{{ $user->name }}</p>
-                <span>{{ $user->role->label() }}</span>
+
+            <div class="mt-4 pt-3 border-top" style="border-color:rgba(255,255,255,.16)!important">
+                <p class="mb-0 text-white fw-semibold small">{{ $user->name }}</p>
+                <p class="mb-2 small" style="color:var(--bs-warning-text-emphasis);color:#f4aac5">{{ $user->role->label() }}</p>
+                <form method="POST" action="{{ route('logout') }}">
+                    @csrf
+                    <button type="submit" class="btn btn-sm btn-outline-light w-100">Đăng xuất</button>
+                </form>
             </div>
         </aside>
-        <div class="admin-content">
-            <header class="admin-topbar">
-                <button type="button" class="admin-menu-button" @click="sidebarOpen = !sidebarOpen" aria-label="Mở menu quản trị">☰</button>
-                <div><p class="admin-kicker">Cái Tiệm Neo · quản trị</p><h1>{{ $heading }}</h1></div>
-                <div class="admin-top-actions"><x-admin.branch-switcher /><a href="{{ route('home') }}" target="_blank">Xem website ↗</a><form method="POST" action="{{ route('logout') }}">@csrf<button type="submit">Đăng xuất</button></form></div>
+
+        <div class="flex-grow-1 min-w-0" style="min-width:0">
+            <header class="neo-topbar sticky-top d-flex align-items-center gap-2 px-3">
+                <button class="btn btn-link text-decoration-none p-1 d-lg-none" type="button"
+                        data-bs-toggle="offcanvas" data-bs-target="#neoMenu" aria-controls="neoMenu"
+                        aria-label="Mở menu quản trị">
+                    <x-admin.icon name="menu" size="24" />
+                </button>
+
+                <h1 class="neo-topbar__title mb-0 flex-grow-1 text-truncate">{{ $heading }}</h1>
+
+                <x-admin.branch-switcher />
             </header>
-            <main class="admin-main">
-                @if (session('success'))
-                    <div class="admin-flash" role="status">{{ session('success') }}</div>
-                @endif
 
-                @if (session('error'))
-                    <div class="admin-flash is-error" role="alert">{{ session('error') }}</div>
-                @endif
-
-                <x-admin.errors />
+            <main id="neo-main" class="p-3 p-lg-4">
+                <x-admin.flash />
 
                 {{ $slot }}
             </main>
         </div>
     </div>
+
+    @include('admin.partials.mobile-menu', ['navigation' => $navigation, 'user' => $user])
+
+    <nav class="neo-tabbar" aria-label="Điều hướng nhanh">
+        @foreach ($primaryNav as $item)
+            <a href="{{ route($item['route']) }}"
+               @class(['neo-tabbar__item', 'position-relative', 'is-active' => request()->routeIs($item['pattern'])])
+               @if (request()->routeIs($item['pattern'])) aria-current="page" @endif>
+                <x-admin.icon :name="$item['icon']" />
+                <span>{{ $item['short'] }}</span>
+            </a>
+        @endforeach
+
+        <button type="button" class="neo-tabbar__item border-0 bg-transparent"
+                data-bs-toggle="offcanvas" data-bs-target="#neoMenu" aria-controls="neoMenu">
+            <x-admin.icon name="more" />
+            <span>Thêm</span>
+        </button>
+    </nav>
+
+    <x-admin.confirm-modal />
 </body>
 </html>

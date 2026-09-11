@@ -1,47 +1,64 @@
 <x-layouts.admin title="Nhà cung cấp" heading="Kho vật tư">
     @include('admin.partials.inventory-nav')
 
-    <section class="admin-panel">
-        <header class="admin-panel-header">
-            <div>
-                <h2>Nhà cung cấp</h2>
-                <p>Nhà cung cấp đã phát sinh phiếu nhập sẽ được vô hiệu hóa thay vì xóa.</p>
-            </div>
-            <a href="{{ route('admin.suppliers.create') }}" class="admin-button">+ Thêm nhà cung cấp</a>
-        </header>
+    <x-admin.page-header title="Nhà cung cấp" description="Nhà cung cấp đã phát sinh phiếu nhập sẽ được vô hiệu hóa thay vì xóa.">
+        <x-slot:actions>
+            <a href="{{ route('admin.suppliers.create') }}" class="btn btn-sm btn-primary d-inline-flex align-items-center gap-1">
+                <x-admin.icon name="plus" size="18" /> Thêm nhà cung cấp
+            </a>
+        </x-slot:actions>
+    </x-admin.page-header>
 
+    <section class="card overflow-hidden">
         <x-admin.filter-bar :action="route('admin.suppliers.index')">
-            <label>Tìm kiếm<input type="search" name="search" value="{{ request('search') }}" placeholder="Tên hoặc số điện thoại"></label>
-            <label>
-                Trạng thái
-                <select name="status">
+            <div class="col-12 col-lg-4">
+                <label class="form-label" for="search">Tìm kiếm</label>
+                <input class="form-control" id="search" type="search" name="search" value="{{ request('search') }}" placeholder="Tên hoặc số điện thoại">
+            </div>
+            <div class="col-6 col-lg-3">
+                <label class="form-label" for="status">Trạng thái</label>
+                <select class="form-select" id="status" name="status">
                     <option value="">Tất cả</option>
                     <option value="active" @selected(request('status') === 'active')>Đang hợp tác</option>
                     <option value="inactive" @selected(request('status') === 'inactive')>Đã ngưng</option>
                 </select>
-            </label>
+            </div>
         </x-admin.filter-bar>
 
-        <div class="admin-table-wrap">
-            <table class="admin-table">
-                <thead>
-                    <tr><th>Nhà cung cấp</th><th>Liên hệ</th><th class="admin-numeric">Số phiếu</th><th>Trạng thái</th><th></th></tr>
-                </thead>
-                <tbody>
-                    @forelse ($suppliers as $supplier)
-                        <tr>
-                            <td><strong>{{ $supplier->name }}</strong>@if ($supplier->address)<p>{{ $supplier->address }}</p>@endif</td>
-                            <td>{{ $supplier->phone ?: '—' }}@if ($supplier->email)<p>{{ $supplier->email }}</p>@endif</td>
-                            <td class="admin-numeric">{{ $supplier->inventory_movements_count }}</td>
-                            <td><x-admin.status-badge :tone="$supplier->is_active ? 'is-active' : 'is-muted'" :label="$supplier->is_active ? 'Đang hợp tác' : 'Đã ngưng'" /></td>
-                            <td><a href="{{ route('admin.suppliers.edit', $supplier) }}">Chỉnh sửa</a></td>
-                        </tr>
-                    @empty
-                        <x-admin.empty-state :colspan="5" title="Chưa có nhà cung cấp" hint="Thêm nhà cung cấp để gắn vào phiếu nhập kho." />
-                    @endforelse
-                </tbody>
-            </table>
-        </div>
+        <table class="table neo-table align-middle mb-0">
+            <thead>
+                <tr>
+                    <th scope="col">Nhà cung cấp</th>
+                    <th scope="col">Liên hệ</th>
+                    <th scope="col" class="text-end">Số phiếu</th>
+                    <th scope="col">Trạng thái</th>
+                    <th scope="col"><span class="visually-hidden">Thao tác</span></th>
+                </tr>
+            </thead>
+            <tbody>
+                @forelse ($suppliers as $supplier)
+                    <tr>
+                        <td>
+                            <span class="fw-semibold">{{ $supplier->name }}</span>
+                            @if ($supplier->address)<small class="d-block text-body-secondary">{{ $supplier->address }}</small>@endif
+                        </td>
+                        <td data-label="Liên hệ">
+                            <span class="neo-num">{{ $supplier->phone ?: '—' }}</span>
+                            @if ($supplier->email)<small class="d-block text-body-secondary">{{ $supplier->email }}</small>@endif
+                        </td>
+                        <td data-label="Số phiếu" class="text-end neo-num">{{ $supplier->inventory_movements_count }}</td>
+                        <td data-label="Trạng thái">
+                            <x-admin.status-badge :tone="$supplier->is_active ? 'is-success' : 'is-muted'" :label="$supplier->is_active ? 'Đang hợp tác' : 'Đã ngưng'" />
+                        </td>
+                        <td>
+                            <a href="{{ route('admin.suppliers.edit', $supplier) }}" class="btn btn-sm btn-outline-secondary">Sửa</a>
+                        </td>
+                    </tr>
+                @empty
+                    <x-admin.empty-state :colspan="5" title="Chưa có nhà cung cấp" hint="Thêm nhà cung cấp để gắn vào phiếu nhập kho." />
+                @endforelse
+            </tbody>
+        </table>
 
         <x-admin.pagination :paginator="$suppliers" />
     </section>

@@ -1,0 +1,125 @@
+// Giao diện khu quản trị: Bootstrap 5 được nhuộm theo nhận diện Cái Tiệm Neo.
+// Thiết kế ưu tiên điện thoại — chủ tiệm thao tác một tay, giữa ca làm.
+
+// Dùng @import xuyên suốt cho khớp với Bootstrap 5.3 (bản thân nó vẫn dùng @import).
+@import 'brand';
+
+// --- 1. Map token thương hiệu sang biến Bootstrap ---------------------------
+$primary:   $neo-wine;
+$secondary: $neo-ink-muted;
+$success:   $neo-success;
+$warning:   $neo-warning;
+$danger:    $neo-danger;
+$info:      #9b7086;
+$light:     $neo-canvas;
+$dark:      $neo-ink;
+
+$body-bg:          $neo-shell;
+$body-color:       $neo-ink;
+$body-secondary-color: $neo-ink-muted;
+$border-color:     rgba(123, 47, 80, .18);
+
+$font-family-sans-serif: 'Be Vietnam Pro', system-ui, -apple-system, 'Segoe UI', sans-serif;
+$font-size-root:  16px;
+$font-size-base:  .9375rem;   // 15px — đọc thoải mái trên màn hình nhỏ
+$line-height-base: 1.55;
+
+$headings-font-weight: 600;
+$headings-color:  $neo-wine;
+
+// Thang bo góc đã khóa ở _brand.scss
+$border-radius:    $neo-radius-control;
+$border-radius-sm: 8px;
+$border-radius-lg: $neo-radius-container;
+$border-radius-xl: $neo-radius-container;
+$border-radius-pill: 999px;
+
+$box-shadow-sm: $neo-shadow-sm;
+$box-shadow:    $neo-shadow;
+$box-shadow-lg: $neo-shadow-lg;
+
+// Vùng chạm rộng rãi
+$input-btn-padding-y:    .625rem;
+$input-btn-padding-x:    1rem;
+$input-btn-focus-width:  .2rem;
+$input-btn-focus-color-opacity: .18;
+$input-bg:               $neo-canvas;
+$input-border-color:     rgba(123, 47, 80, .3);
+$input-focus-border-color: $neo-wine-bright;
+$input-placeholder-color: rgba(118, 88, 100, .65);
+
+$card-bg:            $neo-paper;
+$card-border-color:  rgba(123, 47, 80, .12);
+$card-cap-bg:        transparent;
+$card-spacer-y:      1rem;
+$card-spacer-x:      1rem;
+
+$table-cell-padding-y: .75rem;
+$table-cell-padding-x: .75rem;
+$table-border-color:   rgba(123, 47, 80, .1);
+
+$offcanvas-bg-color:      $neo-wine;
+$offcanvas-color:         rgba(255, 255, 255, .82);
+$offcanvas-horizontal-width: 17rem;
+
+$accordion-button-active-bg: rgba(189, 78, 120, .08);
+$accordion-button-active-color: $neo-wine;
+
+$nav-link-color:       $neo-ink-muted;
+$nav-link-hover-color: $neo-wine;
+
+$breadcrumb-divider-color: rgba(123, 47, 80, .4);
+$breadcrumb-active-color:  $neo-ink;
+$breadcrumb-font-size:     .78rem;
+
+$badge-font-weight: 600;
+$badge-padding-y:   .35em;
+$badge-padding-x:   .6em;
+
+$enable-negative-margins: true;
+
+// --- 2. Bootstrap ------------------------------------------------------------
+// Nhập theo từng phần: bỏ carousel, popover, tooltip, spinner, progress,
+// scrollspy vì khu quản trị không dùng tới, giữ bundle nhẹ cho 3G/4G.
+@import 'bootstrap/scss/functions';
+@import 'bootstrap/scss/variables';
+@import 'bootstrap/scss/variables-dark';
+@import 'bootstrap/scss/maps';
+@import 'bootstrap/scss/mixins';
+@import 'bootstrap/scss/utilities';
+
+// Không cắt bớt $utilities: kiểm tra thực tế cho thấy align-middle, shadow,
+// border-0, opacity-* và fst-italic đều đang dùng, trong khi phần cắt được chỉ
+// tiết kiệm ~0,7 KB sau nén. Không đáng đánh đổi rủi ro vỡ layout.
+
+@import 'bootstrap/scss/root';
+@import 'bootstrap/scss/reboot';
+@import 'bootstrap/scss/type';
+@import 'bootstrap/scss/images';
+@import 'bootstrap/scss/containers';
+@import 'bootstrap/scss/grid';
+@import 'bootstrap/scss/tables';
+@import 'bootstrap/scss/forms';
+@import 'bootstrap/scss/buttons';
+@import 'bootstrap/scss/button-group';
+// input-group nằm sẵn trong bootstrap/scss/forms, không có partial riêng ở gốc.
+@import 'bootstrap/scss/transitions';
+@import 'bootstrap/scss/dropdown';
+@import 'bootstrap/scss/nav';
+@import 'bootstrap/scss/navbar';
+@import 'bootstrap/scss/card';
+@import 'bootstrap/scss/accordion';
+@import 'bootstrap/scss/breadcrumb';
+@import 'bootstrap/scss/pagination';
+@import 'bootstrap/scss/badge';
+@import 'bootstrap/scss/alert';
+@import 'bootstrap/scss/list-group';
+@import 'bootstrap/scss/close';
+@import 'bootstrap/scss/modal';
+@import 'bootstrap/scss/offcanvas';
+@import 'bootstrap/scss/placeholders';
+@import 'bootstrap/scss/helpers';
+@import 'bootstrap/scss/utilities/api';
+
+// --- 3. Lớp giao diện riêng --------------------------------------------------
+@import 'neo-admin';

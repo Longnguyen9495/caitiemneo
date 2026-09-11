@@ -1,0 +1,433 @@
+// Lớp riêng của khu quản trị, đặt trên Bootstrap.
+// Ba việc chính: vỏ điều hướng cho điện thoại, bảng dữ liệu đọc được trên
+// màn hẹp, và các trạng thái đầy đủ (rỗng, đang tải, lỗi).
+
+// Alpine chỉ gỡ x-cloak sau khi khởi tạo; thiếu quy tắc này thì nhãn "Đang xử
+// lý…" của nút gửi sẽ hiện song song với nhãn thật trong lúc trang đang tải.
+[x-cloak] { display: none !important; }
+
+// --- Nền và chữ --------------------------------------------------------------
+body.neo {
+    // Nền có hạt nhiễu rất nhẹ để bề mặt không bị phẳng lì.
+    background-image: radial-gradient(rgba(123, 47, 80, .07) .5px, transparent .6px);
+    background-size: 9px 9px;
+    padding-bottom: calc(#{$neo-bottom-nav-height} + env(safe-area-inset-bottom));
+
+    @include media-breakpoint-up(lg) {
+        padding-bottom: 0;
+    }
+}
+
+// Kiểu chữ tiêu đề.
+//
+// Bản trước dùng DM Serif Display, nhưng font đó KHÔNG có bộ glyph tiếng Việt:
+// trình duyệt phải tự ghép dấu nên "sắp", "chấm", "tiết" hiện thành "sắ´p",
+// "châ´m", "tiê´t". Be Vietnam Pro được thiết kế riêng cho tiếng Việt, dựng
+// hierarchy bằng độ đậm và khoảng cách chữ thay vì đổi họ chữ. Bớt một file
+// font cũng là bớt một lượt tải trên mạng di động.
+.neo-display {
+    font-weight: 700;
+    letter-spacing: -.02em;
+    line-height: 1.15;
+}
+
+// Mọi con số tiền và số lượng đều dùng chữ số đều bề ngang để cột thẳng hàng.
+.neo-num {
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+// --- Vỏ điều hướng -----------------------------------------------------------
+.neo-topbar {
+    background: rgba(255, 253, 253, .92);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid $border-color;
+    min-height: 56px;
+}
+
+.neo-topbar__title {
+    font-size: 1rem;
+    font-weight: 600;
+    line-height: 1.2;
+    color: $neo-wine;
+}
+
+// Thanh điều hướng dưới: đích đến chính, luôn nằm trong tầm ngón cái.
+.neo-tabbar {
+    position: fixed;
+    inset: auto 0 0 0;
+    z-index: $zindex-sticky;
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: 1fr;
+    background: rgba(255, 253, 253, .96);
+    backdrop-filter: blur(12px);
+    border-top: 1px solid $border-color;
+    padding-bottom: env(safe-area-inset-bottom);
+
+    @include media-breakpoint-up(lg) {
+        display: none;
+    }
+}
+
+.neo-tabbar__item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: .15rem;
+    min-height: $neo-bottom-nav-height;
+    padding: .35rem .25rem;
+    color: $neo-ink-muted;
+    font-size: .625rem;
+    font-weight: 600;
+    text-decoration: none;
+    transition: color 160ms ease, background-color 160ms ease;
+
+    svg { width: 21px; height: 21px; }
+
+    &:hover { color: $neo-wine; }
+    &:active { background: rgba(189, 78, 120, .08); }
+
+    &.is-active {
+        color: $neo-wine;
+
+        // Vạch chỉ vị trí thay cho việc chỉ đổi màu chữ.
+        &::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            width: 26px;
+            height: 2px;
+            border-radius: 0 0 2px 2px;
+            background: $neo-wine;
+        }
+    }
+}
+
+// Thanh bên cố định trên máy tính bàn.
+.neo-sidebar {
+    display: none;
+
+    @include media-breakpoint-up(lg) {
+        display: block;
+        position: sticky;
+        top: 0;
+        height: 100dvh;
+        width: 16rem;
+        flex: 0 0 16rem;
+        overflow-y: auto;
+        background: $neo-wine;
+    }
+}
+
+.neo-navlink {
+    display: flex;
+    align-items: center;
+    gap: .7rem;
+    min-height: $neo-tap-target;
+    padding: .55rem .75rem;
+    border-radius: $neo-radius-control;
+    color: rgba(255, 255, 255, .78);
+    font-size: .875rem;
+    font-weight: 500;
+    text-decoration: none;
+    transition: background-color 160ms ease, color 160ms ease;
+
+    svg { width: 19px; height: 19px; flex: none; opacity: .85; }
+
+    &:hover { color: #fff; background: rgba(255, 255, 255, .1); }
+    &:active { transform: translateY(1px); }
+
+    &.is-active {
+        color: $neo-wine;
+        background: $neo-canvas;
+        font-weight: 600;
+
+        svg { opacity: 1; }
+    }
+}
+
+// --- Bảng dữ liệu đọc được trên màn hẹp -------------------------------------
+// Dưới lg, mỗi hàng trở thành một thẻ và từng ô tự gắn nhãn từ data-label.
+// Một DOM duy nhất cho cả hai bề rộng: không nhân đôi markup, không lệch dữ liệu.
+.neo-table {
+    margin-bottom: 0;
+
+    th {
+        font-size: .7rem;
+        font-weight: 600;
+        letter-spacing: .01em;
+        color: $neo-ink-muted;
+        background: rgba(189, 78, 120, .05);
+        white-space: nowrap;
+    }
+
+    td { font-size: .875rem; vertical-align: middle; }
+
+    @include media-breakpoint-down(lg) {
+        display: block;
+
+        thead { display: none; }
+        tbody, tr, td { display: block; width: 100%; }
+
+        tr {
+            padding: .85rem 1rem;
+            border-bottom: 1px solid $border-color;
+
+            &:last-child { border-bottom: 0; }
+        }
+
+        td {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 1rem;
+            padding: .2rem 0;
+            border: 0;
+            text-align: right;
+
+            &::before {
+                content: attr(data-label);
+                flex: 0 0 auto;
+                color: $neo-ink-muted;
+                font-size: .72rem;
+                font-weight: 600;
+                text-align: left;
+            }
+
+            // Ô không có nhãn (ô đầu tiên và ô thao tác) chiếm trọn bề ngang.
+            &[data-label=''], &:not([data-label]) {
+                justify-content: flex-start;
+                text-align: left;
+
+                &::before { display: none; }
+            }
+        }
+
+        // Ô đầu tiên đóng vai trò tiêu đề của thẻ.
+        td:first-child {
+            margin-bottom: .35rem;
+            font-size: 1rem;
+            font-weight: 600;
+            color: $neo-ink;
+        }
+
+        // Hàng "không có dữ liệu" giữ nguyên dạng khối căn giữa.
+        td.neo-table__empty {
+            justify-content: center;
+            text-align: center;
+            font-size: inherit;
+            font-weight: inherit;
+        }
+    }
+}
+
+// Nút trong bảng không bao giờ được xuống dòng: nhãn vỡ thành ba dòng đọc như
+// lỗi layout chứ không phải nút.
+.neo-table .btn { white-space: nowrap; }
+
+// Mã chứng từ là một chuỗi liền, cắt giữa chừng sẽ khó đối chiếu.
+.neo-doc-no { white-space: nowrap; }
+
+// Bảng quá nhiều cột để xếp chồng (dòng hóa đơn) thì cuộn ngang có chủ đích.
+.neo-table-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+// --- Trạng thái --------------------------------------------------------------
+.neo-empty {
+    padding: 2.5rem 1.25rem;
+    text-align: center;
+
+    svg { width: 40px; height: 40px; color: rgba(123, 47, 80, .28); }
+
+    strong { display: block; margin-top: .75rem; color: $neo-ink; font-size: .95rem; }
+    p { margin: .35rem auto 0; max-width: 30rem; color: $neo-ink-muted; font-size: .82rem; }
+}
+
+// Khung xương khi đang tải, khớp hình dạng nội dung thật thay vì vòng xoay.
+.neo-skeleton {
+    border-radius: $neo-radius-control;
+    background: linear-gradient(90deg, rgba(123, 47, 80, .07) 25%, rgba(123, 47, 80, .13) 37%, rgba(123, 47, 80, .07) 63%);
+    background-size: 400% 100%;
+    animation: neo-shimmer 1.3s ease infinite;
+}
+
+@keyframes neo-shimmer {
+    from { background-position: 100% 50%; }
+    to   { background-position: 0 50%; }
+}
+
+// --- Thanh thao tác dính đáy trên biểu mẫu ----------------------------------
+// Nút lưu luôn trong tầm với, không phải cuộn xuống cuối form dài.
+.neo-formbar {
+    position: sticky;
+    bottom: calc(#{$neo-bottom-nav-height} + env(safe-area-inset-bottom));
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: .75rem;
+    margin: 1rem -1rem -1rem;
+    padding: .75rem 1rem calc(.75rem + env(safe-area-inset-bottom));
+    background: rgba(255, 253, 253, .95);
+    backdrop-filter: blur(10px);
+    border-top: 1px solid $border-color;
+
+    @include media-breakpoint-up(lg) {
+        position: static;
+        margin: 1rem 0 0;
+        padding: 1rem 0 0;
+        background: none;
+        backdrop-filter: none;
+    }
+}
+
+// --- Thẻ chỉ số --------------------------------------------------------------
+.neo-stat {
+    display: block;
+    padding: .9rem 1rem;
+    border: 1px solid $card-border-color;
+    border-radius: $neo-radius-container;
+    background: $neo-paper;
+    box-shadow: $neo-shadow-sm;
+    text-decoration: none;
+    color: inherit;
+    transition: box-shadow 180ms ease, transform 180ms ease;
+
+    &[href]:hover { box-shadow: $neo-shadow; }
+    &[href]:active { transform: translateY(1px); }
+
+    dt { color: $neo-ink-muted; font-size: .72rem; font-weight: 500; }
+    dd {
+        margin: .2rem 0 0;
+        color: $neo-wine;
+        font-size: 1.3rem;
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+        line-height: 1.15;
+    }
+    small { color: rgba(118, 88, 100, .8); font-size: .68rem; }
+}
+
+// --- Chip lọc và chuyển mục --------------------------------------------------
+// Cuộn ngang thay vì xuống dòng: giữ chiều cao ổn định trên điện thoại.
+.neo-chips {
+    display: flex;
+    gap: .4rem;
+    overflow-x: auto;
+    scrollbar-width: none;
+    padding-bottom: .15rem;
+    -webkit-overflow-scrolling: touch;
+
+    &::-webkit-scrollbar { display: none; }
+}
+
+.neo-chip {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    min-height: 38px;
+    padding: .35rem .85rem;
+    border: 1px solid $border-color;
+    border-radius: 999px;
+    background: $neo-paper;
+    color: $neo-ink-muted;
+    font-size: .8rem;
+    font-weight: 600;
+    text-decoration: none;
+    white-space: nowrap;
+    transition: all 160ms ease;
+
+    &:hover { border-color: rgba(123, 47, 80, .4); color: $neo-wine; }
+    &:active { transform: translateY(1px); }
+
+    &.is-active {
+        border-color: $neo-wine;
+        background: $neo-wine;
+        color: #fff;
+    }
+}
+
+// --- Tinh chỉnh Bootstrap ----------------------------------------------------
+.btn {
+    font-weight: 600;
+    min-height: $neo-tap-target;
+    transition: background-color 180ms ease, border-color 180ms ease, transform 120ms ease;
+
+    // Phản hồi vật lý khi nhấn.
+    &:active { transform: translateY(1px); }
+}
+
+.btn-sm { min-height: 36px; }
+
+.form-control, .form-select {
+    min-height: $neo-tap-target;
+    font-size: 1rem; // Dưới 16px iOS sẽ tự phóng to trang khi focus.
+
+    @include media-breakpoint-up(lg) {
+        font-size: .9375rem;
+    }
+}
+
+.form-label {
+    margin-bottom: .3rem;
+    color: $neo-ink;
+    font-size: .78rem;
+    font-weight: 600;
+}
+
+.card { box-shadow: $neo-shadow-sm; }
+
+.card-header {
+    border-bottom: 1px solid $card-border-color;
+    padding: .9rem 1rem;
+}
+
+.badge { letter-spacing: .01em; }
+
+.breadcrumb { margin-bottom: .5rem; }
+
+// Viền focus rõ ràng cho người dùng bàn phím.
+:focus-visible {
+    outline: 3px solid $neo-gold;
+    outline-offset: 2px;
+}
+
+// --- Hỗ trợ tiếp cận ---------------------------------------------------------
+.neo-skip {
+    position: absolute;
+    left: .75rem;
+    top: -4rem;
+    z-index: $zindex-modal;
+    padding: .7rem 1rem;
+    border-radius: $neo-radius-control;
+    background: $neo-wine;
+    color: #fff;
+    font-weight: 600;
+    text-decoration: none;
+    transition: top 160ms ease;
+
+    &:focus { top: .75rem; }
+}
+
+// Tôn trọng thiết lập giảm chuyển động của hệ điều hành.
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: .001ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: .001ms !important;
+        scroll-behavior: auto !important;
+    }
+}
+
+// --- Bản in phiếu lương ------------------------------------------------------
+@media print {
+    .neo-topbar, .neo-tabbar, .neo-sidebar, .neo-formbar,
+    .neo-chips, .btn, .breadcrumb { display: none !important; }
+
+    body.neo { padding: 0; background: #fff; }
+    .card { border: 0; box-shadow: none; }
+}
