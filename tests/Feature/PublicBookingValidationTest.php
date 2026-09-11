@@ -132,7 +132,7 @@ class PublicBookingValidationTest extends TestCase
     public function test_a_booking_in_the_past_is_refused(): void
     {
         $this->post(route('booking.store'), $this->payload([
-            'starts_at' => now()->subDay()->format('Y-m-d H:i:s'),
+            'starts_at' => now()->subDay()->format('Y-m-d\TH:i'),
         ]))->assertSessionHasErrors('starts_at');
     }
 
@@ -146,7 +146,7 @@ class PublicBookingValidationTest extends TestCase
             'branch_id' => $this->branch->getKey(),
             'customer_name' => 'Khach dat online',
             'customer_phone' => '0900000000',
-            'starts_at' => now()->addDay()->format('Y-m-d H:i:s'),
+            'starts_at' => now()->addDay()->format('Y-m-d\TH:i'),
             'duration_minutes' => 60,
             'service_ids' => [$this->service->getKey()],
         ], $overrides);

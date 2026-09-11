@@ -67,26 +67,30 @@
             <div class="booking-alert booking-success" role="status">{{ session('booking_success') }}</div>
           @endif
           @if ($errors->any())
-            <div class="booking-alert" role="alert">Vui lòng kiểm tra lại các thông tin được đánh dấu bên dưới.</div>
+            <div class="booking-alert" role="alert">
+              <p>Vui lòng kiểm tra lại các thông tin sau:</p>
+              <ul>
+                @foreach ($errors->all() as $error)
+                  <li>{{ $error }}</li>
+                @endforeach
+              </ul>
+            </div>
           @endif
           <form action="{{ route('booking.store') }}" method="POST" class="booking-form">
             @csrf
-            {{-- Chi nhánh là trường bắt buộc ở phía máy chủ, nên form công khai
-                 phải hỏi; thiếu nó thì không đặt lịch nào gửi đi được. --}}
-            <label>Chi nhánh<select name="branch_id" required>
-              <option value="">Chọn chi nhánh</option>
-              @foreach ($branches as $branch)
-                <option value="{{ $branch->id }}" @selected(old('branch_id') == $branch->id)>{{ $branch->name }}</option>
-              @endforeach
-            </select></label>
-            @error('branch_id')<small>{{ $message }}</small>@enderror
+            @if ($branches->count() === 1)
+              <input type="hidden" name="branch_id" value="{{ $branches->first()->id }}" />
+            @else
+              <label>Chi nhánh<select name="branch_id" required><option value="">Chọn chi nhánh</option>@foreach ($branches as $branch)<option value="{{ $branch->id }}" @selected((string) old('branch_id') === (string) $branch->id)>{{ $branch->name }}</option>@endforeach</select></label>
+              @error('branch_id')<small>{{ $message }}</small>@enderror
+            @endif
             <label>Họ và tên<input name="customer_name" value="{{ old('customer_name') }}" required autocomplete="name" /></label>
             @error('customer_name')<small>{{ $message }}</small>@enderror
             <label>Số điện thoại<input name="customer_phone" value="{{ old('customer_phone') }}" required inputmode="tel" autocomplete="tel" /></label>
             @error('customer_phone')<small>{{ $message }}</small>@enderror
             <label>Nhân viên mong muốn<select name="employee_id"><option value="">Để tiệm sắp xếp</option>@foreach ($employees as $employee)<option value="{{ $employee->id }}" @selected(old('employee_id') == $employee->id)>{{ $employee->name }}</option>@endforeach</select></label>
             @error('employee_id')<small>{{ $message }}</small>@enderror
-            <label>Thời gian mong muốn<input type="datetime-local" name="starts_at" value="{{ old('starts_at') }}" min="{{ now()->addHour()->format('Y-m-d\\TH:i') }}" required /></label>
+            <label>Thời gian mong muốn<input type="datetime-local" name="starts_at" value="{{ old('starts_at') }}" min="{{ now('Asia/Ho_Chi_Minh')->addHour()->format('Y-m-d\\TH:i') }}" required /></label>
             @error('starts_at')<small>{{ $message }}</small>@enderror
             <label>Thời lượng dự kiến<select name="duration_minutes" required><option value="60" @selected(old('duration_minutes', 60) == 60)>60 phút</option><option value="90" @selected(old('duration_minutes') == 90)>90 phút</option><option value="120" @selected(old('duration_minutes') == 120)>120 phút</option><option value="150" @selected(old('duration_minutes') == 150)>150 phút</option></select></label>
             @error('duration_minutes')<small>{{ $message }}</small>@enderror

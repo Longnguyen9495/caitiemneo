@@ -9,6 +9,8 @@ use App\Models\Branch;
 use App\Models\User;
 use App\Notifications\NewOnlineBookingNotification;
 use App\Rules\InBranchCatalogue;
+use Carbon\Carbon;
+use Closure;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Notification;
@@ -26,14 +28,27 @@ class BookingController extends Controller
             'customer_name' => ['required', 'string', 'max:255'],
             'customer_phone' => ['required', 'string', 'max:30'],
             'employee_id' => ['nullable', Rule::exists(User::class, 'id')->where('is_active', true)],
-            'starts_at' => ['required', 'date', 'after:now'],
+            'starts_at' => [
+                'bail',
+                'required',
+                'date_format:Y-m-d\\TH:i',
+                function (string $attribute, mixed $value, Closure $fail): void {
+                    $startsAt = Carbon::createFromFormat('Y-m-d\\TH:i', (string) $value, 'Asia/Ho_Chi_Minh');
+
+                    if ($startsAt->lessThanOrEqualTo(now('Asia/Ho_Chi_Minh'))) {
+                        $fail('Thời gian đặt lịch phải ở trong tương lai theo giờ Việt Nam.');
+                    }
+                },
+            ],
             'duration_minutes' => ['required', 'integer', 'min:15', 'max:480'],
             'service_ids' => ['nullable', 'array'],
             // Dịch vụ phải nằm trong bảng giá của **đúng chi nhánh khách chọn**.
             // Đây là bề mặt công khai nên mọi giá trị đều do người lạ gửi lên.
             'service_ids.*' => ['integer', new InBranchCatalogue($branchId)],
             'note' => ['nullable', 'string', 'max:2000'],
-        ], [], [
+        ], [
+            'starts_at.date_format' => 'Thời gian đặt lịch không hợp lệ.',
+        ], [
             'branch_id' => 'chi nhánh',
             'customer_name' => 'tên khách hàng',
             'customer_phone' => 'số điện thoại',
@@ -44,6 +59,18 @@ class BookingController extends Controller
             'service_ids.*' => 'dịch vụ',
             'note' => 'ghi chú',
         ]);
+
+        // Giờ khách gõ trong ô datetime-local là giờ Việt Nam, không kèm múi
+        // giờ. Dựng lại mốc thời gian với đúng múi giờ đó thay vì để PHP đoán
+        // theo trình duyệt người đặt.
+        //
+        // Không gọi ->utc() ở đây: ứng dụng đã chạy trên Asia/Ho_Chi_Minh nên
+        // Eloquent tự quy đổi khi lưu; chuyển thêm một lần nữa sẽ lệch 7 tiếng.
+        $validated['starts_at'] = Carbon::createFromFormat(
+            'Y-m-d\TH:i',
+            $validated['starts_at'],
+            'Asia/Ho_Chi_Minh',
+        );
 
         $appointment = $saveAppointment->handle($validated + ['status' => AppointmentStatus::Pending->value]);
 
