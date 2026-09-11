@@ -1,7 +1,9 @@
 <?php
 
+use App\Http\Middleware\AssignRequestId;
 use App\Http\Middleware\EnsureRole;
 use App\Http\Middleware\ResolveBranchContext;
+use App\Http\Middleware\SecurityHeaders;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -18,6 +20,11 @@ return Application::configure(basePath: dirname(__DIR__))
             'role' => EnsureRole::class,
             'branch.context' => ResolveBranchContext::class,
         ]);
+
+        // Gắn cho toàn bộ request, kể cả file tải về và trang lỗi: một endpoint
+        // mới không thể vô tình ra đời mà thiếu những header này.
+        $middleware->append(SecurityHeaders::class);
+        $middleware->append(AssignRequestId::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(

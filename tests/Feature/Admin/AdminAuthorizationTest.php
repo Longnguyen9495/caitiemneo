@@ -36,7 +36,7 @@ class AdminAuthorizationTest extends TestCase
     #[DataProvider('adminRoutes')]
     public function test_owner_can_reach_every_module(string $routeName): void
     {
-        $this->actingAs(User::factory()->owner()->create())
+        $this->actingAs(User::factory()->owner()->create())->withConfirmedPassword()
             ->get(route($routeName))
             ->assertOk();
     }
@@ -46,16 +46,16 @@ class AdminAuthorizationTest extends TestCase
         $manager = User::factory()->manager()->create();
 
         foreach (['admin.invoices.index', 'admin.cash.index', 'admin.products.index', 'admin.inventory.index', 'admin.employees.index', 'admin.reports.index'] as $routeName) {
-            $this->actingAs($manager)->get(route($routeName))->assertOk();
+            $this->actingAs($manager)->withConfirmedPassword()->get(route($routeName))->assertOk();
         }
 
-        $this->actingAs($manager)->get(route('admin.payrolls.create'))->assertForbidden();
-        $this->actingAs($manager)->get(route('admin.reports.export.payrolls'))->assertForbidden();
+        $this->actingAs($manager)->withConfirmedPassword()->get(route('admin.payrolls.create'))->assertForbidden();
+        $this->actingAs($manager)->withConfirmedPassword()->get(route('admin.reports.export.payrolls'))->assertForbidden();
     }
 
     public function test_manager_with_explicit_grant_may_manage_payroll(): void
     {
-        $this->actingAs(User::factory()->payrollManager()->create())
+        $this->actingAs(User::factory()->payrollManager()->create())->withConfirmedPassword()
             ->get(route('admin.payrolls.create'))
             ->assertOk();
     }
@@ -67,36 +67,36 @@ class AdminAuthorizationTest extends TestCase
             'can_create_invoices' => false,
         ]);
 
-        $this->actingAs($employee)->get(route('admin.appointments.index'))->assertOk();
-        $this->actingAs($employee)->get(route('admin.invoices.index'))->assertForbidden();
-        $this->actingAs($employee)->get(route('admin.cash.index'))->assertForbidden();
-        $this->actingAs($employee)->get(route('admin.employees.index'))->assertForbidden();
-        $this->actingAs($employee)->get(route('admin.reports.index'))->assertForbidden();
-        $this->actingAs($employee)->get(route('admin.services.index'))->assertForbidden();
+        $this->actingAs($employee)->withConfirmedPassword()->get(route('admin.appointments.index'))->assertOk();
+        $this->actingAs($employee)->withConfirmedPassword()->get(route('admin.invoices.index'))->assertForbidden();
+        $this->actingAs($employee)->withConfirmedPassword()->get(route('admin.cash.index'))->assertForbidden();
+        $this->actingAs($employee)->withConfirmedPassword()->get(route('admin.employees.index'))->assertForbidden();
+        $this->actingAs($employee)->withConfirmedPassword()->get(route('admin.reports.index'))->assertForbidden();
+        $this->actingAs($employee)->withConfirmedPassword()->get(route('admin.services.index'))->assertForbidden();
     }
 
     public function test_employee_may_read_inventory_but_not_change_it(): void
     {
         $employee = User::factory()->employee()->create();
 
-        $this->actingAs($employee)->get(route('admin.products.index'))->assertOk();
-        $this->actingAs($employee)->get(route('admin.inventory.index'))->assertOk();
-        $this->actingAs($employee)->get(route('admin.inventory.create'))->assertForbidden();
-        $this->actingAs($employee)->get(route('admin.products.create'))->assertForbidden();
-        $this->actingAs($employee)->get(route('admin.suppliers.index'))->assertForbidden();
+        $this->actingAs($employee)->withConfirmedPassword()->get(route('admin.products.index'))->assertOk();
+        $this->actingAs($employee)->withConfirmedPassword()->get(route('admin.inventory.index'))->assertOk();
+        $this->actingAs($employee)->withConfirmedPassword()->get(route('admin.inventory.create'))->assertForbidden();
+        $this->actingAs($employee)->withConfirmedPassword()->get(route('admin.products.create'))->assertForbidden();
+        $this->actingAs($employee)->withConfirmedPassword()->get(route('admin.suppliers.index'))->assertForbidden();
     }
 
     public function test_employee_with_invoice_permission_reaches_invoices_only(): void
     {
         $employee = User::factory()->employee()->create(['can_create_invoices' => true]);
 
-        $this->actingAs($employee)->get(route('admin.invoices.index'))->assertOk();
-        $this->actingAs($employee)->get(route('admin.cash.index'))->assertForbidden();
+        $this->actingAs($employee)->withConfirmedPassword()->get(route('admin.invoices.index'))->assertOk();
+        $this->actingAs($employee)->withConfirmedPassword()->get(route('admin.cash.index'))->assertForbidden();
     }
 
     public function test_inactive_user_cannot_enter_the_admin_area(): void
     {
-        $this->actingAs(User::factory()->owner()->inactive()->create())
+        $this->actingAs(User::factory()->owner()->inactive()->create())->withConfirmedPassword()
             ->get(route('admin.dashboard'))
             ->assertForbidden();
     }

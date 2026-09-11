@@ -70,4 +70,24 @@ class PasswordResetTest extends TestCase
             return true;
         });
     }
+
+    public function test_reset_password_link_status_message_is_vietnamese(): void
+    {
+        Notification::fake();
+
+        $user = User::factory()->create();
+
+        $response = $this->from('/forgot-password')->post('/forgot-password', ['email' => $user->email]);
+
+        $response->assertSessionHas('status', 'Chúng tôi đã gửi liên kết đặt lại mật khẩu tới email của bạn.');
+    }
+
+    public function test_forgot_password_screen_uses_the_site_auth_styling(): void
+    {
+        $response = $this->get('/forgot-password');
+
+        $response->assertSee('auth-form', false);
+        $response->assertSee('Quên mật khẩu');
+        $response->assertDontSee('text-gray-600', false);
+    }
 }

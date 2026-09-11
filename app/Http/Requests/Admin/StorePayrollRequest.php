@@ -3,9 +3,9 @@
 namespace App\Http\Requests\Admin;
 
 use App\Models\Payroll;
-use App\Models\User;
+use App\Rules\EmployeeWithinActorScope;
+use App\Rules\WithinActorBranchScope;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
 
 class StorePayrollRequest extends FormRequest
 {
@@ -18,8 +18,8 @@ class StorePayrollRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'employee_id' => ['required', Rule::exists(User::class, 'id')],
-            'paying_branch_id' => ['nullable', 'integer', 'exists:branches,id'],
+            'employee_id' => ['required', 'integer', new EmployeeWithinActorScope($this->user())],
+            'paying_branch_id' => ['nullable', 'integer', new WithinActorBranchScope($this->user())],
             'period_start' => ['required', 'date'],
             'period_end' => ['required', 'date', 'after_or_equal:period_start'],
             'adjustment' => ['nullable', 'numeric', 'min:0', 'max:99999999999'],

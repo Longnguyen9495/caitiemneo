@@ -10,12 +10,24 @@ use Illuminate\Database\Eloquent\Factories\Factory;
  */
 class BranchFactory extends Factory
 {
+    /**
+     * A counter shared by every instance of the factory.
+     *
+     * `fake()->unique()` only de-duplicates within one faker instance, and a
+     * two-digit code gives just a hundred values, so a suite that builds a few
+     * branches per test used to collide on `branches.code` at random. Counting
+     * in PHP makes the code unique for the whole process instead.
+     */
+    private static int $sequence = 0;
+
     /** @return array<string, mixed> */
     public function definition(): array
     {
+        $number = ++self::$sequence;
+
         return [
-            'code' => 'CN-'.fake()->unique()->numerify('##'),
-            'name' => 'Chi nhánh '.fake()->unique()->city(),
+            'code' => sprintf('CN-%03d', $number),
+            'name' => 'Chi nhánh '.fake()->city().' '.$number,
             'address' => fake()->address(),
             'phone' => fake()->numerify('028########'),
             'is_active' => true,

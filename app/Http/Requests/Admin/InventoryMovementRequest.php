@@ -26,8 +26,10 @@ class InventoryMovementRequest extends FormRequest
 
         return [
             'branch_id' => $this->branchRules(),
-            'product_id' => ['required', Rule::exists(Product::class, 'id')],
-            'supplier_id' => ['nullable', Rule::exists(Supplier::class, 'id')],
+            // A retired product or supplier must not receive new movements:
+            // that is how stock is quietly parked against a dead record.
+            'product_id' => ['required', 'integer', Rule::exists(Product::class, 'id')->where('is_active', true)],
+            'supplier_id' => ['nullable', 'integer', Rule::exists(Supplier::class, 'id')->where('is_active', true)],
             'type' => ['required', Rule::enum(InventoryMovementType::class)],
             'adjustment_mode' => [
                 Rule::requiredIf($isAdjustment),
@@ -41,8 +43,17 @@ class InventoryMovementRequest extends FormRequest
             ],
             'unit_cost' => ['nullable', 'numeric', 'min:0', 'max:99999999999'],
             'reference' => ['nullable', 'string', 'max:255'],
-            'note' => [$isAdjustment ? 'required' : 'nullable', 'string', 'max:2000'],
-            'occurred_at' => ['required', 'date'],
+            // Phiếu điều chỉnh là loại duy nhất giảm được tồn chỉ bằng một lý
+            // do gõ tay, nên lý do phải nói được điều gì đó. Ngưỡng cố ý thấp:
+            // "Hỏng hàng" là lý do thật và đủ rõ, chỉ chặn kiểu gõ cho có.
+            'note' => $isAdjustment
+                ? ['required', 'string', 'min:6', 'max:2000']
+                : ['nullable', 'string', 'max:2000'],
+            'occurred_at' => [
+                'required', 'date',
+                'before_or_equal:'.now()->endOfDay()->toDateTimeString(),
+                'after_or_equal:'.now()->subDays((int) config('business.backdate_days'))->startOfDay()->toDateTimeString(),
+            ],
         ];
     }
 
@@ -73,7 +84,10 @@ class InventoryMovementRequest extends FormRequest
     {
         return $this->branchMessages() + [
             'note.required' => 'Phiếu điều chỉnh bắt buộc phải ghi lý do.',
+            'note.min' => 'Lý do điều chỉnh cần nói rõ hơn, ít nhất 6 ký tự.',
             'quantity.gt' => 'Số lượng nhập hoặc xuất phải lớn hơn 0.',
+            'occurred_at.before_or_equal' => 'Không ghi được phiếu kho của ngày trong tương lai.',
+            'occurred_at.after_or_equal' => 'Phiếu kho ghi lùi quá '.config('business.backdate_days').' ngày cần xử lý qua phiếu điều chỉnh.',
         ];
     }
 }

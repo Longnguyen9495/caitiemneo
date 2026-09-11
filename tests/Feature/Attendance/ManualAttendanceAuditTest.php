@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Attendance;
 
+use App\Enums\AttendanceAuditAction;
 use App\Enums\AttendanceSource;
 use App\Enums\AttendanceStatus;
 use App\Enums\OvertimeStatus;
@@ -14,6 +15,7 @@ use App\Models\ShiftAssignment;
 use App\Models\User;
 use App\Models\WorkShift;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Tests\TestCase;
 
 class ManualAttendanceAuditTest extends TestCase
@@ -30,9 +32,20 @@ class ManualAttendanceAuditTest extends TestCase
     {
         parent::setUp();
 
+        // Các test này dùng ngày cố định; đóng băng đồng hồ để chúng không
+        // trôi ra ngoài cửa sổ ghi lùi khi thời gian thật đi qua.
+        Carbon::setTestNow(Carbon::parse('2026-09-20 09:00:00'));
+
         $this->branch = Branch::factory()->create(['code' => 'CN-MAN']);
         $this->manager = User::factory()->manager()->withoutBranch()->atBranch($this->branch)->create();
         $this->employee = User::factory()->employee()->withoutBranch()->atBranch($this->branch)->create();
+    }
+
+    protected function tearDown(): void
+    {
+        Carbon::setTestNow();
+
+        parent::tearDown();
     }
 
     public function test_a_manager_can_still_record_a_forgotten_shift_by_hand(): void
@@ -117,9 +130,18 @@ class ManualAttendanceAuditTest extends TestCase
 
         $this->assertSame(0, AttendanceRecord::query()->count());
 
-        // The record row is gone, so the FK cascade takes its log with it; the
-        // branch-scoped trail is what survives a deletion.
-        $this->assertSame(0, AttendanceAuditLog::query()->count());
+        // The shift row is gone, but the evidence of who removed it — and what
+        // it held — must not go with it. The relation is nulled, not cascaded,
+        // and the snapshot columns keep the entry readable on its own.
+        $log = AttendanceAuditLog::query()->latest('id')->firstOrFail();
+
+        $this->assertNull($log->attendance_record_id);
+        $this->assertSame($this->employee->id, $log->employee_id_snapshot);
+        $this->assertSame('Ca chính', $log->shift_name_snapshot);
+        $this->assertSame('2026-09-14', $log->work_date_snapshot?->toDateString());
+        $this->assertSame($this->manager->id, $log->actor_id);
+        $this->assertSame('Ghi nhầm sang nhân viên khác', $log->reason);
+        $this->assertSame(AttendanceAuditAction::ManualDelete, $log->action);
     }
 
     public function test_a_closed_payroll_blocks_a_manual_create(): void

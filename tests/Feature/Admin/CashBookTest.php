@@ -25,7 +25,7 @@ class CashBookTest extends TestCase
             'category' => CashTransactionCategory::Rent->value,
             'amount' => 4500000,
             'payment_method' => PaymentMethod::Transfer->value,
-            'occurred_at' => '2026-08-01 09:00:00',
+            'occurred_at' => now()->subDay()->format('Y-m-d H:i:s'),
             'note' => 'Tiền thuê tháng 8',
         ])->assertRedirect(route('admin.cash.index'));
 
@@ -83,17 +83,19 @@ class CashBookTest extends TestCase
 
     public function test_voiding_a_manual_entry_keeps_the_row_and_drops_it_from_the_balance(): void
     {
+        // Người hủy phải là người thứ hai: xem CashMakerCheckerTest.
+        $author = User::factory()->owner()->create();
         $owner = User::factory()->owner()->create();
-        $transaction = CashTransaction::factory()->create(['amount' => 200000, 'created_by' => $owner->id]);
+        $transaction = CashTransaction::factory()->create(['amount' => 200000, 'created_by' => $author->id]);
 
         $this->actingAs($owner)
-            ->delete(route('admin.cash.destroy', $transaction), ['void_reason' => 'Ghi nhầm'])
+            ->delete(route('admin.cash.destroy', $transaction), ['void_reason' => 'Ghi nhầm số tiền khi nhập'])
             ->assertRedirect(route('admin.cash.index'));
 
         $transaction->refresh();
         $this->assertNotNull($transaction->voided_at);
         $this->assertSame($owner->id, $transaction->voided_by);
-        $this->assertSame('Ghi nhầm', $transaction->void_reason);
+        $this->assertSame('Ghi nhầm số tiền khi nhập', $transaction->void_reason);
         $this->assertSame(1, CashTransaction::query()->count());
         $this->assertSame(0, CashTransaction::query()->active()->count());
     }
@@ -118,7 +120,7 @@ class CashBookTest extends TestCase
     {
         $owner = User::factory()->owner()->create();
         $transaction = CashTransaction::factory()->create(['amount' => 123000, 'note' => 'Khoản đã hủy']);
-        $this->actingAs($owner)->delete(route('admin.cash.destroy', $transaction), ['void_reason' => 'Sai']);
+        $this->actingAs($owner)->delete(route('admin.cash.destroy', $transaction), ['void_reason' => 'Nhập sai hạng mục']);
 
         $this->actingAs($owner)->get(route('admin.cash.index'))->assertDontSee('Khoản đã hủy');
         $this->actingAs($owner)->get(route('admin.cash.index', ['include_voided' => 1]))->assertSee('Khoản đã hủy');

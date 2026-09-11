@@ -44,8 +44,8 @@ class InvoiceWorkflowTest extends TestCase
         $employee = User::factory()->employee()->create(['commission_rate' => 10]);
         $appointment = $this->appointmentWithServices($employee);
 
-        $this->actingAs($owner)->post(route('admin.appointments.convert-to-invoice', $appointment))->assertRedirect();
-        $this->actingAs($owner)->post(route('admin.appointments.convert-to-invoice', $appointment))->assertRedirect();
+        $this->actingAs($owner)->withConfirmedPassword()->post(route('admin.appointments.convert-to-invoice', $appointment))->assertRedirect();
+        $this->actingAs($owner)->withConfirmedPassword()->post(route('admin.appointments.convert-to-invoice', $appointment))->assertRedirect();
 
         $this->assertSame(1, Invoice::query()->count());
 
@@ -59,7 +59,7 @@ class InvoiceWorkflowTest extends TestCase
         $owner = User::factory()->owner()->create();
         $invoice = Invoice::factory()->create();
 
-        $this->actingAs($owner)->patch(route('admin.invoices.update', $invoice), [
+        $this->actingAs($owner)->withConfirmedPassword()->patch(route('admin.invoices.update', $invoice), [
             'discount' => 50000,
             'total' => 1,
             'subtotal' => 1,
@@ -88,7 +88,7 @@ class InvoiceWorkflowTest extends TestCase
         $owner = User::factory()->owner()->create();
         $invoice = Invoice::factory()->create();
 
-        $this->actingAs($owner)->patch(route('admin.invoices.update', $invoice), [
+        $this->actingAs($owner)->withConfirmedPassword()->patch(route('admin.invoices.update', $invoice), [
             'discount' => 900000,
             'items' => [['name' => 'Dịch vụ', 'quantity' => 1, 'unit_price' => 100000]],
         ]);
@@ -102,7 +102,7 @@ class InvoiceWorkflowTest extends TestCase
         $invoice = Invoice::factory()->create();
         InvoiceItem::factory()->create(['invoice_id' => $invoice->id, 'unit_price' => 250000, 'line_total' => 250000]);
 
-        $this->actingAs($owner)
+        $this->actingAs($owner)->withConfirmedPassword()
             ->post(route('admin.invoices.pay', $invoice), ['payment_method' => PaymentMethod::Cash->value])
             ->assertRedirect();
 
@@ -124,8 +124,8 @@ class InvoiceWorkflowTest extends TestCase
         $invoice = Invoice::factory()->create();
         InvoiceItem::factory()->create(['invoice_id' => $invoice->id, 'unit_price' => 100000, 'line_total' => 100000]);
 
-        $this->actingAs($owner)->post(route('admin.invoices.pay', $invoice), ['payment_method' => PaymentMethod::Cash->value]);
-        $this->actingAs($owner)->post(route('admin.invoices.pay', $invoice), ['payment_method' => PaymentMethod::Transfer->value]);
+        $this->actingAs($owner)->withConfirmedPassword()->post(route('admin.invoices.pay', $invoice), ['payment_method' => PaymentMethod::Cash->value]);
+        $this->actingAs($owner)->withConfirmedPassword()->post(route('admin.invoices.pay', $invoice), ['payment_method' => PaymentMethod::Transfer->value]);
 
         $this->assertSame(1, CashTransaction::query()->where('invoice_id', $invoice->id)->count());
         $this->assertSame(PaymentMethod::Cash, $invoice->fresh()->payment_method);
@@ -137,9 +137,9 @@ class InvoiceWorkflowTest extends TestCase
         $invoice = Invoice::factory()->create();
         InvoiceItem::factory()->create(['invoice_id' => $invoice->id, 'unit_price' => 100000, 'line_total' => 100000]);
 
-        $this->actingAs($owner)->post(route('admin.invoices.pay', $invoice), ['payment_method' => PaymentMethod::Cash->value]);
+        $this->actingAs($owner)->withConfirmedPassword()->post(route('admin.invoices.pay', $invoice), ['payment_method' => PaymentMethod::Cash->value]);
 
-        $this->actingAs($owner)->patch(route('admin.invoices.update', $invoice), [
+        $this->actingAs($owner)->withConfirmedPassword()->patch(route('admin.invoices.update', $invoice), [
             'discount' => 90000,
             'items' => [['name' => 'Thay đổi', 'quantity' => 1, 'unit_price' => 1]],
         ])->assertForbidden();
@@ -153,8 +153,8 @@ class InvoiceWorkflowTest extends TestCase
         $invoice = Invoice::factory()->create();
         InvoiceItem::factory()->create(['invoice_id' => $invoice->id, 'unit_price' => 180000, 'line_total' => 180000]);
 
-        $this->actingAs($owner)->post(route('admin.invoices.pay', $invoice), ['payment_method' => PaymentMethod::Cash->value]);
-        $this->actingAs($owner)->delete(route('admin.invoices.cancel', $invoice), ['cancel_reason' => 'Khách đổi ý'])->assertRedirect();
+        $this->actingAs($owner)->withConfirmedPassword()->post(route('admin.invoices.pay', $invoice), ['payment_method' => PaymentMethod::Cash->value]);
+        $this->actingAs($owner)->withConfirmedPassword()->delete(route('admin.invoices.cancel', $invoice), ['cancel_reason' => 'Khách đổi ý'])->assertRedirect();
 
         $invoice->refresh();
         $this->assertSame(InvoiceStatus::Cancelled, $invoice->status);
@@ -174,7 +174,7 @@ class InvoiceWorkflowTest extends TestCase
         $owner = User::factory()->owner()->create();
         $invoice = Invoice::factory()->create();
 
-        $this->actingAs($owner)->delete(route('admin.invoices.cancel', $invoice), ['cancel_reason' => 'Nhập nhầm']);
+        $this->actingAs($owner)->withConfirmedPassword()->delete(route('admin.invoices.cancel', $invoice), ['cancel_reason' => 'Nhập nhầm']);
 
         $this->assertSame(InvoiceStatus::Cancelled, $invoice->fresh()->status);
         $this->assertSame(0, CashTransaction::query()->count());
@@ -185,7 +185,7 @@ class InvoiceWorkflowTest extends TestCase
         $employee = User::factory()->employee()->create(['can_create_invoices' => false]);
         $invoice = Invoice::factory()->create();
 
-        $this->actingAs($employee)
+        $this->actingAs($employee)->withConfirmedPassword()
             ->post(route('admin.invoices.pay', $invoice), ['payment_method' => PaymentMethod::Cash->value])
             ->assertForbidden();
     }
@@ -195,7 +195,7 @@ class InvoiceWorkflowTest extends TestCase
         $employee = User::factory()->employee()->create(['can_create_invoices' => true]);
         $invoice = Invoice::factory()->create();
 
-        $this->actingAs($employee)
+        $this->actingAs($employee)->withConfirmedPassword()
             ->delete(route('admin.invoices.cancel', $invoice), ['cancel_reason' => 'Thử'])
             ->assertForbidden();
     }
@@ -206,7 +206,7 @@ class InvoiceWorkflowTest extends TestCase
         Invoice::factory()->create(['number' => 'NEO-FIND-ME', 'customer_name' => 'Chị Lan']);
         Invoice::factory()->count(3)->create(['customer_name' => 'Khách khác']);
 
-        $this->actingAs($owner)
+        $this->actingAs($owner)->withConfirmedPassword()
             ->get(route('admin.invoices.index', ['search' => 'FIND-ME']))
             ->assertOk()
             ->assertSee('NEO-FIND-ME')
@@ -218,7 +218,7 @@ class InvoiceWorkflowTest extends TestCase
         $owner = User::factory()->owner()->create();
         $invoice = Invoice::factory()->create();
 
-        $this->actingAs($owner)
+        $this->actingAs($owner)->withConfirmedPassword()
             ->from(route('admin.invoices.edit', $invoice))
             ->patch(route('admin.invoices.update', $invoice), [
                 'discount' => -5,

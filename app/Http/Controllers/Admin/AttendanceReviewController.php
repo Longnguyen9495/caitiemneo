@@ -34,6 +34,7 @@ class AttendanceReviewController extends Controller
                 ->limit(50)
                 ->get(),
             'flaggedGps' => $this->scoped($branchIds)->gpsNeedsReview()->orderByDesc('work_date')->limit(50)->get(),
+            'selfRecorded' => $this->scoped($branchIds)->selfRecorded()->orderByDesc('work_date')->limit(50)->get(),
             'auditLogs' => AttendanceAuditLog::query()
                 ->with(['actor:id,name', 'attendanceRecord:id,employee_id,work_date,shift_name', 'attendanceRecord.employee:id,name'])
                 ->whereIn('branch_id', $branchIds)

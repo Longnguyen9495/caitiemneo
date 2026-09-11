@@ -66,6 +66,7 @@
 
     <section class="card overflow-hidden">
         <table class="table neo-table align-middle mb-0">
+            <caption class="visually-hidden">Lịch phân ca</caption>
             <thead>
                 <tr>
                     <th scope="col">Nhân viên</th>

@@ -20,6 +20,14 @@ class CsvExporter
     private const CHUNK = 500;
 
     /**
+     * Characters a spreadsheet reads as the start of a formula.
+     *
+     * The tab and carriage return are included because Excel strips leading
+     * whitespace before deciding, so " =1+1" is a formula too.
+     */
+    private const FORMULA_PREFIXES = ['=', '+', '-', '@', "\t", "\r"];
+
+    /**
      * @param  array<int, string>  $headings
      * @param  Closure(mixed): array<int, mixed>  $mapRow
      */
@@ -33,7 +41,7 @@ class CsvExporter
 
             $query->chunkById(self::CHUNK, function ($rows) use ($handle, $mapRow): void {
                 foreach ($rows as $row) {
-                    fputcsv($handle, $mapRow($row));
+                    fputcsv($handle, array_map(self::sanitise(...), $mapRow($row)));
                 }
 
                 flush();
@@ -44,5 +52,33 @@ class CsvExporter
             'Content-Type' => 'text/csv; charset=UTF-8',
             'Cache-Control' => 'no-store, no-cache',
         ]);
+    }
+
+    /**
+     * Neutralise a cell a spreadsheet would otherwise run as a formula.
+     *
+     * The value is prefixed with an apostrophe, which Excel and LibreOffice
+     * treat as "this is text" and do not display. The text stays readable,
+     * which matters: mangling or dropping the value would make the export
+     * useless for the person who asked for it.
+     *
+     * Numbers are deliberately left alone. A money column legitimately holds
+     * `-150000`, and quoting it as text would break every formula the
+     * accountant writes on top of the file — the cure would be worse than the
+     * disease, and a bare number cannot carry a payload anyway.
+     */
+    public static function sanitise(mixed $value): mixed
+    {
+        if (! is_string($value) || $value === '') {
+            return $value;
+        }
+
+        if (is_numeric($value)) {
+            return $value;
+        }
+
+        return in_array($value[0], self::FORMULA_PREFIXES, true)
+            ? "'".$value
+            : $value;
     }
 }

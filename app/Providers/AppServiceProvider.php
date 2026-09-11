@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Models\User;
+use App\Services\Audit\AuditRecorder;
 use App\Support\BranchContext;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Gate;
@@ -18,6 +19,10 @@ class AppServiceProvider extends ServiceProvider
         // Scoped, so a queued job or a console command gets its own clean
         // instance instead of inheriting a web request's branch selection.
         $this->app->scoped(BranchContext::class, fn ($app) => new BranchContext($app['request']));
+
+        // Scoped as well, so every audit event raised while handling one
+        // request shares a correlation id and reads back as a single action.
+        $this->app->scoped(AuditRecorder::class, fn ($app) => new AuditRecorder($app['request']));
     }
 
     /**

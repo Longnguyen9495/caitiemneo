@@ -26,6 +26,7 @@
         </x-admin.filter-bar>
 
         <table class="table neo-table align-middle mb-0">
+            <caption class="visually-hidden">Danh sách nhà cung cấp</caption>
             <thead>
                 <tr>
                     <th scope="col">Nhà cung cấp</th>

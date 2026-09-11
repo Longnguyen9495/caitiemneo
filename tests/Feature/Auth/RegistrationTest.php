@@ -5,27 +5,20 @@ namespace Tests\Feature\Auth;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
+/**
+ * Đăng ký công khai đã được gỡ bỏ.
+ *
+ * Test cũ của Breeze khẳng định người lạ đăng ký được — đúng với một ứng dụng
+ * mẫu, nhưng sai với hệ thống nội bộ của một tiệm. Xem SelfRegistrationTest để
+ * biết lý do và các test thay thế.
+ */
 class RegistrationTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_registration_screen_can_be_rendered(): void
+    public function test_the_registration_routes_no_longer_exist(): void
     {
-        $response = $this->get('/register');
-
-        $response->assertStatus(200);
-    }
-
-    public function test_new_users_can_register(): void
-    {
-        $response = $this->post('/register', [
-            'name' => 'Test User',
-            'email' => 'test@example.com',
-            'password' => 'password',
-            'password_confirmation' => 'password',
-        ]);
-
-        $this->assertAuthenticated();
-        $response->assertRedirect(route('dashboard', absolute: false));
+        $this->get('/register')->assertNotFound();
+        $this->post('/register', [])->assertNotFound();
     }
 }

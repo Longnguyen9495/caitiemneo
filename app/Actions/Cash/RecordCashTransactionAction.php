@@ -2,9 +2,11 @@
 
 namespace App\Actions\Cash;
 
+use App\Enums\AuditAction;
 use App\Enums\CashTransactionType;
 use App\Models\CashTransaction;
 use App\Models\User;
+use App\Services\Audit\AuditRecorder;
 use App\Support\Money;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -18,6 +20,8 @@ use Illuminate\Validation\ValidationException;
  */
 class RecordCashTransactionAction
 {
+    public function __construct(private AuditRecorder $auditor) {}
+
     /** @param array<string, mixed> $data */
     public function handle(array $data, User $actor, ?CashTransaction $transaction = null): CashTransaction
     {
@@ -42,11 +46,21 @@ class RecordCashTransactionAction
             ];
 
             if ($transaction === null) {
-                return CashTransaction::query()->create($attributes + ['created_by' => $actor->id]);
+                $created = CashTransaction::query()->create($attributes + ['created_by' => $actor->id]);
+
+                // Written inside the same transaction as the change, so the
+                // trail can never be one commit behind the money.
+                $this->auditor->record($created, $actor, AuditAction::Created, null, $created->auditSnapshot());
+
+                return $created;
             }
 
             $this->guardManual($transaction);
+
+            $before = $transaction->auditSnapshot();
             $transaction->forceFill($attributes)->save();
+
+            $this->auditor->record($transaction, $actor, AuditAction::Updated, $before, $transaction->auditSnapshot());
 
             return $transaction;
         });

@@ -24,12 +24,35 @@ class AttendanceRecordPolicy
 
     public function update(User $user, AttendanceRecord $record): bool
     {
-        return $this->view($user, $record);
+        return $this->view($user, $record) && ! $this->isSelfDealing($user, (int) $record->employee_id);
     }
 
     public function delete(User $user, AttendanceRecord $record): bool
     {
-        return $this->view($user, $record);
+        return $this->update($user, $record);
+    }
+
+    /** Writing a hand-made shift for a named employee. */
+    public function createFor(User $user, int $employeeId): bool
+    {
+        return $this->create($user) && ! $this->isSelfDealing($user, $employeeId);
+    }
+
+    /**
+     * Whether this account would be writing its own hours.
+     *
+     * Attendance drives pay, so a manager amending their own shift is writing
+     * their own payslip — the same reasoning that already blocks approving your
+     * own overtime, applied to the record itself so the approval gate cannot be
+     * walked around by editing the row instead.
+     *
+     * The owner is excepted because a one-owner shop would otherwise be locked
+     * out of its own records entirely; their entries are flagged
+     * (`is_self_recorded`) and surfaced in the review queue instead.
+     */
+    private function isSelfDealing(User $user, int $employeeId): bool
+    {
+        return $employeeId === (int) $user->getKey() && ! $user->isOwner();
     }
 
     /**

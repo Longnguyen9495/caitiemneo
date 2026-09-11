@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Enums\AuditAction;
 use App\Http\Controllers\Controller;
 use App\Models\CashTransaction;
 use App\Models\InventoryMovement;
@@ -11,7 +12,9 @@ use App\Queries\CashTransactionQuery;
 use App\Queries\InventoryMovementQuery;
 use App\Queries\InvoiceQuery;
 use App\Queries\PayrollQuery;
+use App\Services\Audit\AuditRecorder;
 use App\Services\CsvExporter;
+use App\Support\BranchContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -21,7 +24,14 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  */
 class ReportExportController extends Controller
 {
-    public function __construct(private CsvExporter $exporter) {}
+    /** Chủ thể của sự kiện xuất dữ liệu: một hành động, không phải một bản ghi. */
+    private const EXPORT_SUBJECT = 'report_export';
+
+    public function __construct(
+        private CsvExporter $exporter,
+        private AuditRecorder $auditor,
+        private BranchContext $branchContext,
+    ) {}
 
     public function invoices(Request $request, InvoiceQuery $invoices): StreamedResponse
     {
@@ -128,8 +138,34 @@ class ReportExportController extends Controller
         );
     }
 
+    /**
+     * Name the file and, in the same breath, record that it was taken.
+     *
+     * Every export passes through here, so the trail cannot be forgotten by a
+     * future method. Only the shape of the request is stored — who, what kind,
+     * which branches, which filters — never the exported rows themselves.
+     */
     private function filename(string $prefix): string
     {
-        return $prefix.'-'.now()->format('Ymd-His').'.csv';
+        $name = $prefix.'-'.now()->format('Ymd-His').'.csv';
+        $request = request();
+
+        $this->auditor->record(
+            self::EXPORT_SUBJECT,
+            $request->user(),
+            AuditAction::Exported,
+            null,
+            [
+                'dataset' => $prefix,
+                'filename' => $name,
+                'branch_ids' => $this->branchContext->scopeIds(),
+                'filters' => $request->only(['from', 'to', 'status', 'type', 'employee_id', 'branch', 'category']),
+            ],
+            null,
+            $this->branchContext->currentId(),
+            $name,
+        );
+
+        return $name;
     }
 }

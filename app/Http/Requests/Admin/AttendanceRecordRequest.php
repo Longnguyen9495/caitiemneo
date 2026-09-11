@@ -5,7 +5,7 @@ namespace App\Http\Requests\Admin;
 use App\Enums\AttendanceStatus;
 use App\Http\Requests\Concerns\ResolvesBranch;
 use App\Models\AttendanceRecord;
-use App\Models\User;
+use App\Rules\AssignedToBranch;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -17,9 +17,14 @@ class AttendanceRecordRequest extends FormRequest
     {
         $record = $this->route('attendance');
 
-        return $record instanceof AttendanceRecord
-            ? $this->user()->can('update', $record)
-            : $this->user()->can('create', AttendanceRecord::class);
+        if ($record instanceof AttendanceRecord) {
+            return $this->user()->can('update', $record);
+        }
+
+        // The employee is part of the authorization question here, not just of
+        // the validation: writing a shift for yourself is the thing being
+        // refused, so it must be answered before the form is even validated.
+        return $this->user()->can('createFor', [AttendanceRecord::class, (int) $this->input('employee_id')]);
     }
 
     /** @return array<string, array<int, mixed>> */
@@ -29,8 +34,21 @@ class AttendanceRecordRequest extends FormRequest
 
         return [
             'branch_id' => $this->branchRules(),
-            'employee_id' => ['required', Rule::exists(User::class, 'id')],
-            'work_date' => ['required', 'date'],
+            // Hours may only be written for staff actually posted to this shop
+            // on the day being recorded.
+            'employee_id' => [
+                'required', 'integer',
+                new AssignedToBranch(
+                    $record instanceof AttendanceRecord ? $record->branch_id : $this->contextBranchId(),
+                    $this->date('work_date')?->toDateString(),
+                ),
+            ],
+            // Công của ngày chưa tới thì chưa có thật.
+            'work_date' => [
+                'required', 'date',
+                'before_or_equal:'.now()->toDateString(),
+                'after_or_equal:'.now()->subDays((int) config('business.backdate_days'))->toDateString(),
+            ],
             'shift_name' => [
                 'required', 'string', 'max:60',
                 Rule::unique(AttendanceRecord::class)
@@ -86,6 +104,8 @@ class AttendanceRecordRequest extends FormRequest
             'shift_name.unique' => 'Nhân viên này đã có ca cùng tên trong ngày.',
             'reason.required' => 'Hãy ghi lý do nhập tay để lưu vào nhật ký chỉnh sửa.',
             'checked_out_at.after' => 'Giờ ra phải sau giờ vào.',
+            'work_date.before_or_equal' => 'Không nhập được công cho ngày chưa tới.',
+            'work_date.after_or_equal' => 'Công ghi lùi quá '.config('business.backdate_days').' ngày cần xử lý qua điều chỉnh bảng lương.',
         ];
     }
 }

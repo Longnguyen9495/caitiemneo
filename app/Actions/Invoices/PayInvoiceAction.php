@@ -2,6 +2,7 @@
 
 namespace App\Actions\Invoices;
 
+use App\Enums\AuditAction;
 use App\Enums\CashTransactionCategory;
 use App\Enums\CashTransactionType;
 use App\Enums\InvoiceStatus;
@@ -9,6 +10,7 @@ use App\Enums\PaymentMethod;
 use App\Models\CashTransaction;
 use App\Models\Invoice;
 use App\Models\User;
+use App\Services\Audit\AuditRecorder;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -23,7 +25,10 @@ use Illuminate\Validation\ValidationException;
  */
 class PayInvoiceAction
 {
-    public function __construct(private RecalculateInvoiceAction $recalculate) {}
+    public function __construct(
+        private RecalculateInvoiceAction $recalculate,
+        private AuditRecorder $auditor,
+    ) {}
 
     /** @throws ValidationException */
     public function handle(Invoice $invoice, User $actor, PaymentMethod $paymentMethod, ?CarbonInterface $paidAt = null): Invoice
@@ -43,6 +48,7 @@ class PayInvoiceAction
 
             $this->recalculate->handle($locked);
 
+            $before = $locked->load('items')->auditSnapshot();
             $settledAt = $paidAt ?? now();
 
             $locked->forceFill([
@@ -64,6 +70,14 @@ class PayInvoiceAction
                 'note' => 'Thu tiền hóa đơn '.$locked->number,
                 'occurred_at' => $settledAt,
             ]);
+
+            $this->auditor->record(
+                $locked,
+                $actor,
+                AuditAction::Paid,
+                $before,
+                $locked->load('items')->auditSnapshot(),
+            );
 
             return $locked;
         });

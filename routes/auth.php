@@ -7,16 +7,19 @@ use App\Http\Controllers\Auth\EmailVerificationPromptController;
 use App\Http\Controllers\Auth\NewPasswordController;
 use App\Http\Controllers\Auth\PasswordController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
-use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\Auth\VerifyEmailController;
 use Illuminate\Support\Facades\Route;
 
+/*
+ * Đây là hệ thống nội bộ của một tiệm: tài khoản thuộc về người mà chủ tiệm
+ * đã tuyển. Không mở đăng ký công khai — tài khoản tự đăng ký mặc định là
+ * `employee` đang hoạt động, tức là vào thẳng được sổ lịch hẹn cùng tên và số
+ * điện thoại khách. Tài khoản mới được tạo ở màn hình Nhân sự trong khu quản
+ * trị, nơi chủ tiệm quyết định vai trò và quyền.
+ *
+ * Nếu sau này cần mở lại, phải kèm cơ chế mời hoặc duyệt, không mở trần.
+ */
 Route::middleware('guest')->group(function () {
-    Route::get('register', [RegisteredUserController::class, 'create'])
-        ->name('register');
-
-    Route::post('register', [RegisteredUserController::class, 'store']);
-
     Route::get('login', [AuthenticatedSessionController::class, 'create'])
         ->name('login');
 

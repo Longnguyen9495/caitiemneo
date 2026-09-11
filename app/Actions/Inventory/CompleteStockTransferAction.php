@@ -2,12 +2,14 @@
 
 namespace App\Actions\Inventory;
 
+use App\Enums\AuditAction;
 use App\Enums\InventoryMovementType;
 use App\Enums\StockTransferStatus;
 use App\Models\BranchProduct;
 use App\Models\InventoryMovement;
 use App\Models\StockTransfer;
 use App\Models\User;
+use App\Services\Audit\AuditRecorder;
 use App\Support\Money;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -23,6 +25,8 @@ use Illuminate\Validation\ValidationException;
  */
 class CompleteStockTransferAction
 {
+    public function __construct(private AuditRecorder $auditor) {}
+
     /** @throws ValidationException */
     public function handle(StockTransfer $transfer, User $actor): StockTransfer
     {
@@ -66,11 +70,24 @@ class CompleteStockTransferAction
                 $this->writeMovement($locked, $item->product_id, $locked->destination_branch_id, InventoryMovementType::In, $quantityMinor, $item->unit_cost, $transferredAt);
             }
 
+            $before = $locked->auditSnapshot();
+
             $locked->forceFill([
                 'status' => StockTransferStatus::Completed,
                 'transferred_at' => $transferredAt,
                 'completed_by' => $actor->getKey(),
             ])->save();
+
+            // Ghi trong cùng transaction: hai người, hai đầu, một dấu vết.
+            $this->auditor->record(
+                $locked,
+                $actor,
+                AuditAction::Approved,
+                $before,
+                $locked->auditSnapshot(),
+                null,
+                $locked->source_branch_id,
+            );
 
             return $locked;
         });

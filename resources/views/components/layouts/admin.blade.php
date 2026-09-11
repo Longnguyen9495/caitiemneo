@@ -64,6 +64,10 @@
             <main id="neo-main" class="p-3 p-lg-4">
                 <x-admin.flash />
 
+                {{-- Tóm tắt lỗi đặt một lần ở layout: mọi biểu mẫu trong khu quản
+                     trị đều có, không phải nhớ thêm vào từng trang. --}}
+                <x-admin.error-summary class="mb-3" />
+
                 {{ $slot }}
             </main>
         </div>

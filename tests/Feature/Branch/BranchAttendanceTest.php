@@ -7,6 +7,7 @@ use App\Models\AttendanceRecord;
 use App\Models\Branch;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Tests\TestCase;
 
 class BranchAttendanceTest extends TestCase
@@ -21,8 +22,19 @@ class BranchAttendanceTest extends TestCase
     {
         parent::setUp();
 
+        // Test dùng ngày cố định nên phải neo đồng hồ, nếu không chúng sẽ
+        // rơi ra ngoài cửa sổ ghi lùi khi thời gian thật trôi qua.
+        Carbon::setTestNow(Carbon::parse('2026-08-20 09:00:00'));
+
         $this->branchA = Branch::factory()->create(['code' => 'CN-TA']);
         $this->branchB = Branch::factory()->create(['code' => 'CN-TB']);
+    }
+
+    protected function tearDown(): void
+    {
+        Carbon::setTestNow();
+
+        parent::tearDown();
     }
 
     public function test_a_shift_is_recorded_against_the_active_branch(): void

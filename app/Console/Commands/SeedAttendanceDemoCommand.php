@@ -7,11 +7,13 @@ use App\Enums\AttendanceSource;
 use App\Enums\AttendanceStatus;
 use App\Enums\GpsVerification;
 use App\Enums\OvertimeStatus;
+use App\Models\AttendanceAuditLog;
 use App\Models\AttendanceRecord;
 use App\Models\Branch;
 use App\Models\ShiftAssignment;
 use App\Models\User;
 use App\Models\WorkShift;
+use App\Services\Attendance\AttendanceAuditor;
 use Carbon\CarbonImmutable;
 use Illuminate\Console\Command;
 use Illuminate\Database\Eloquent\Collection;
@@ -113,7 +115,15 @@ class SeedAttendanceDemoCommand extends Command
         $ids = $staff->modelKeys();
 
         DB::transaction(function () use ($ids, $from, $to): void {
-            // Nhật ký đi theo bản ghi qua khoá ngoại cascade.
+            // Nhật ký chấm công cố ý KHÔNG còn cascade theo bản ghi, để xoá một
+            // ca không xoá mất bằng chứng ai đã xoá nó. Ở đây là lệnh dựng dữ
+            // liệu thử nghiệm nên phải tự dọn phần nhật ký của chính nó, và chỉ
+            // đúng phần đó: lọc theo nhân sự và khoảng ngày đã sinh ra.
+            AttendanceAuditLog::query()
+                ->whereIn('employee_id_snapshot', $ids)
+                ->whereBetween('work_date_snapshot', [$from, $to])
+                ->delete();
+
             AttendanceRecord::query()
                 ->whereIn('employee_id', $ids)
                 ->whereBetween('work_date', [$from, $to])
@@ -392,14 +402,9 @@ class SeedAttendanceDemoCommand extends Command
     /** @param  array<string, mixed>|null  $before */
     private function log(AttendanceRecord $record, ?User $actor, AttendanceAuditAction $action, ?array $before, array $after, string $reason): void
     {
-        $record->auditLogs()->create([
-            'branch_id' => $record->branch_id,
-            'actor_id' => $actor?->getKey(),
-            'action' => $action,
-            'reason' => $reason,
-            'before' => $before,
-            'after' => $after,
-        ]);
+        // Qua service dùng chung để phần snapshot (nhân viên, ngày, tên ca)
+        // chỉ có một chỗ quyết định, và dữ liệu mẫu giống hệt dữ liệu thật.
+        app(AttendanceAuditor::class)->record($record, $actor, $action, $before, $after, $reason);
     }
 
     /**

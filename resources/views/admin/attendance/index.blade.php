@@ -79,6 +79,7 @@
         </x-admin.filter-bar>
 
         <table class="table neo-table align-middle mb-0">
+            <caption class="visually-hidden">Danh sách chấm công theo tháng đang chọn</caption>
             <thead>
                 <tr>
                     <th scope="col">Ngày</th>

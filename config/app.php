@@ -59,13 +59,17 @@ return [
     | Application Timezone
     |--------------------------------------------------------------------------
     |
-    | Here you may specify the default timezone for your application, which
-    | will be used by the PHP date and date-time functions. The timezone
-    | is set to "UTC" by default as it is suitable for most use cases.
+    | Múi giờ nghiệp vụ của tiệm.
+    |
+    | Mặc định của framework là UTC. Với tiệm ở Việt Nam, UTC làm lệch ranh
+    | giới ngày đúng 7 tiếng: một hóa đơn thu lúc 1h30 sáng sẽ bị ghi nhận
+    | sang ngày hôm trước, kéo theo doanh thu, KPI ngày và hoa hồng của ca
+    | đêm rơi nhầm ngày. Mọi so sánh `whereDate` trong hệ thống đều dựa trên
+    | mốc này, nên nó phải là giờ mà tiệm thực sự làm việc.
     |
     */
 
-    'timezone' => 'UTC',
+    'timezone' => env('APP_TIMEZONE', 'Asia/Ho_Chi_Minh'),
 
     /*
     |--------------------------------------------------------------------------
@@ -78,7 +82,7 @@ return [
     |
     */
 
-    'locale' => env('APP_LOCALE', 'en'),
+    'locale' => env('APP_LOCALE', 'vi'),
 
     'fallback_locale' => env('APP_FALLBACK_LOCALE', 'en'),
 

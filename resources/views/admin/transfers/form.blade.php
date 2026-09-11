@@ -15,8 +15,8 @@
         :breadcrumbs="['Chuyển kho' => route('admin.stock-transfers.index'), 'Tạo phiếu' => null]"
     />
 
-    <form method="POST" action="{{ route('admin.stock-transfers.store') }}" class="card p-3 p-lg-4"
-          x-data="transferEditor(@js($productOptions))">
+    <form method="POST" data-neo-dirty-guard action="{{ route('admin.stock-transfers.store') }}" class="card p-3 p-lg-4"
+          x-data="transferEditor(@js($productOptions), @js(old('items', [])), @js($errors->getMessages()))">
         @csrf
 
         <div class="row g-3">
@@ -50,19 +50,27 @@
                 <div class="row g-2">
                     <div class="col-12 col-lg-6">
                         <label class="form-label" :for="`prod-${index}`">Vật tư</label>
-                        <select class="form-select" :id="`prod-${index}`" :name="`items[${index}][product_id]`"
+                        <select class="form-select" :class="rowError(index, 'product_id') ? 'is-invalid' : ''"
+                                :id="`prod-${index}`" :name="`items[${index}][product_id]`"
+                                :aria-invalid="rowError(index, 'product_id') ? 'true' : 'false'"
                                 x-model="row.product_id" x-on:change="applyProduct(row)" required>
                             <option value="">Chọn vật tư</option>
                             <template x-for="product in products" :key="product.id">
                                 <option :value="product.id" x-text="product.name"></option>
                             </template>
                         </select>
+                        <div class="invalid-feedback d-block" role="alert" x-show="rowError(index, 'product_id')" x-cloak
+                             x-text="rowError(index, 'product_id')"></div>
                     </div>
 
                     <div class="col-6 col-lg-3">
                         <label class="form-label" :for="`tqty-${index}`">Số lượng</label>
-                        <input class="form-control text-end neo-num" :id="`tqty-${index}`" type="number" step="0.01" min="0.01"
+                        <input class="form-control text-end neo-num" :class="rowError(index, 'quantity') ? 'is-invalid' : ''"
+                               :id="`tqty-${index}`" type="number" step="0.01" min="0.01"
+                               :aria-invalid="rowError(index, 'quantity') ? 'true' : 'false'"
                                :name="`items[${index}][quantity]`" x-model="row.quantity" required>
+                        <div class="invalid-feedback d-block" role="alert" x-show="rowError(index, 'quantity')" x-cloak
+                             x-text="rowError(index, 'quantity')"></div>
                     </div>
 
                     <div class="col-6 col-lg-3">

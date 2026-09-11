@@ -2,11 +2,13 @@
 
 namespace App\Actions\Invoices;
 
+use App\Enums\AuditAction;
 use App\Enums\WorkContext;
 use App\Models\BranchService;
 use App\Models\Invoice;
 use App\Models\InvoiceItem;
 use App\Models\User;
+use App\Services\Audit\AuditRecorder;
 use App\Services\CompensationResolver;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\DB;
@@ -24,6 +26,7 @@ class UpdateInvoiceAction
     public function __construct(
         private RecalculateInvoiceAction $recalculate,
         private CompensationResolver $compensation,
+        private AuditRecorder $auditor,
     ) {}
 
     /**
@@ -42,6 +45,10 @@ class UpdateInvoiceAction
                 ]);
             }
 
+            // Snapshotted before anything moves, so the trail shows the state
+            // an operator actually changed away from — lines included.
+            $before = $locked->load('items')->auditSnapshot();
+
             $locked->forceFill([
                 'customer_name' => $data['customer_name'] ?? $locked->customer_name,
                 'customer_phone' => $data['customer_phone'] ?? $locked->customer_phone,
@@ -54,8 +61,42 @@ class UpdateInvoiceAction
                 $this->syncItems($locked, $data['items'] ?? [], $actor);
             }
 
-            return $this->recalculate->handle($locked);
+            $result = $this->recalculate->handle($locked);
+
+            $this->auditor->record(
+                $result,
+                $actor,
+                AuditAction::Updated,
+                $before,
+                $result->load('items')->auditSnapshot(),
+                $this->overrideReasons($data['items'] ?? []),
+            );
+
+            return $result;
         });
+    }
+
+    /**
+     * The reasons given for pricing lines outside the branch range.
+     *
+     * Collected onto the audit event so a reviewer reading the timeline sees
+     * why the price moved without having to diff every line by hand.
+     *
+     * @param  array<int, array<string, mixed>>  $items
+     */
+    private function overrideReasons(array $items): ?string
+    {
+        $reasons = [];
+
+        foreach ($items as $row) {
+            $reason = trim((string) ($row['price_override_reason'] ?? ''));
+
+            if ($reason !== '') {
+                $reasons[] = $reason;
+            }
+        }
+
+        return $reasons === [] ? null : implode(' | ', array_unique($reasons));
     }
 
     /**

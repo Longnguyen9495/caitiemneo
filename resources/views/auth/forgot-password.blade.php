@@ -1,25 +1,26 @@
 <x-guest-layout>
-    <div class="mb-4 text-sm text-gray-600">
-        {{ __('Forgot your password? No problem. Just let us know your email address and we will email you a password reset link that will allow you to choose a new one.') }}
-    </div>
+    <header class="auth-card-header">
+        <p class="eyebrow">Khôi phục truy cập</p>
+        <h2>Quên mật khẩu</h2>
+        <p>Nhập email của tài khoản. Chúng tôi sẽ gửi cho bạn một liên kết để đặt lại mật khẩu mới.</p>
+    </header>
 
-    <!-- Session Status -->
-    <x-auth-session-status class="mb-4" :status="session('status')" />
+    @if (session('status'))
+        <div class="auth-alert auth-success" role="status">{{ session('status') }}</div>
+    @endif
 
-    <form method="POST" action="{{ route('password.email') }}">
+    <form method="POST" action="{{ route('password.email') }}" class="auth-form">
         @csrf
 
-        <!-- Email Address -->
-        <div>
-            <x-input-label for="email" :value="__('Email')" />
-            <x-text-input id="email" class="block mt-1 w-full" type="email" name="email" :value="old('email')" required autofocus />
-            <x-input-error :messages="$errors->get('email')" class="mt-2" />
-        </div>
+        <label for="email">
+            Email
+            <input id="email" type="email" name="email" value="{{ old('email') }}" required autofocus autocomplete="username">
+            @error('email')<small>{{ $message }}</small>@enderror
+        </label>
 
-        <div class="flex items-center justify-end mt-4">
-            <x-primary-button>
-                {{ __('Email Password Reset Link') }}
-            </x-primary-button>
+        <div class="auth-actions">
+            <a href="{{ route('login') }}">← Quay lại đăng nhập</a>
+            <button type="submit">Gửi liên kết <span aria-hidden="true">↗</span></button>
         </div>
     </form>
 </x-guest-layout>

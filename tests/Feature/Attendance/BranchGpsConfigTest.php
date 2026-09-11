@@ -23,7 +23,7 @@ class BranchGpsConfigTest extends TestCase
 
     public function test_a_new_branch_starts_with_gps_off_and_the_default_thresholds(): void
     {
-        $this->actingAs($this->owner)
+        $this->actingAs($this->owner)->withConfirmedPassword()
             ->post(route('admin.branches.store'), [
                 'code' => 'CN-NEW',
                 'name' => 'Chi nhánh mới',
@@ -42,7 +42,7 @@ class BranchGpsConfigTest extends TestCase
     {
         $branch = Branch::factory()->create(['code' => 'CN-CFG']);
 
-        $this->actingAs($this->owner)
+        $this->actingAs($this->owner)->withConfirmedPassword()
             ->put(route('admin.branches.update', $branch), [
                 'code' => 'CN-CFG',
                 'name' => $branch->name,
@@ -70,7 +70,7 @@ class BranchGpsConfigTest extends TestCase
     {
         $branch = Branch::factory()->create(['code' => 'CN-NOLL']);
 
-        $this->actingAs($this->owner)
+        $this->actingAs($this->owner)->withConfirmedPassword()
             ->from(route('admin.branches.edit', $branch))
             ->put(route('admin.branches.update', $branch), [
                 'code' => 'CN-NOLL',
@@ -89,7 +89,7 @@ class BranchGpsConfigTest extends TestCase
     {
         $branch = Branch::factory()->create(['code' => 'CN-BAD']);
 
-        $this->actingAs($this->owner)
+        $this->actingAs($this->owner)->withConfirmedPassword()
             ->from(route('admin.branches.edit', $branch))
             ->put(route('admin.branches.update', $branch), [
                 'code' => 'CN-BAD',
@@ -107,7 +107,7 @@ class BranchGpsConfigTest extends TestCase
     {
         $branch = Branch::factory()->create(['code' => 'CN-RAD']);
 
-        $this->actingAs($this->owner)
+        $this->actingAs($this->owner)->withConfirmedPassword()
             ->from(route('admin.branches.edit', $branch))
             ->put(route('admin.branches.update', $branch), [
                 'code' => 'CN-RAD',
@@ -124,7 +124,7 @@ class BranchGpsConfigTest extends TestCase
         $branch = Branch::factory()->create(['code' => 'CN-MGR']);
         $manager = User::factory()->manager()->withoutBranch()->atBranch($branch)->create();
 
-        $this->actingAs($manager)->get(route('admin.branches.edit', $branch))->assertForbidden();
+        $this->actingAs($manager)->withConfirmedPassword()->get(route('admin.branches.edit', $branch))->assertForbidden();
     }
 
     public function test_a_manager_may_curate_the_shift_catalogue_of_their_own_branch(): void
@@ -132,7 +132,7 @@ class BranchGpsConfigTest extends TestCase
         $branch = Branch::factory()->create(['code' => 'CN-CAT']);
         $manager = User::factory()->manager()->withoutBranch()->atBranch($branch)->create();
 
-        $this->actingAs($manager)
+        $this->actingAs($manager)->withConfirmedPassword()
             ->post(route('admin.work-shifts.store'), [
                 'name' => 'Ca chiều',
                 'branch_id' => $branch->id,
@@ -157,7 +157,7 @@ class BranchGpsConfigTest extends TestCase
         $branch = Branch::factory()->create(['code' => 'CN-SHR']);
         $manager = User::factory()->manager()->withoutBranch()->atBranch($branch)->create();
 
-        $this->actingAs($manager)
+        $this->actingAs($manager)->withConfirmedPassword()
             ->post(route('admin.work-shifts.store'), [
                 'name' => 'Ca toàn hệ thống',
                 'branch_id' => '',
@@ -180,7 +180,7 @@ class BranchGpsConfigTest extends TestCase
         $manager = User::factory()->manager()->withoutBranch()->atBranch($branch)->create();
         $shared = WorkShift::factory()->shared()->create(['name' => 'Ca chung']);
 
-        $this->actingAs($manager)->get(route('admin.work-shifts.edit', $shared))->assertForbidden();
+        $this->actingAs($manager)->withConfirmedPassword()->get(route('admin.work-shifts.edit', $shared))->assertForbidden();
     }
 
     public function test_an_employee_cannot_reach_the_shift_catalogue(): void
@@ -188,8 +188,8 @@ class BranchGpsConfigTest extends TestCase
         $branch = Branch::factory()->create(['code' => 'CN-EMP']);
         $employee = User::factory()->employee()->withoutBranch()->atBranch($branch)->create();
 
-        $this->actingAs($employee)->get(route('admin.work-shifts.index'))->assertForbidden();
-        $this->actingAs($employee)->get(route('admin.work-shifts.create'))->assertForbidden();
+        $this->actingAs($employee)->withConfirmedPassword()->get(route('admin.work-shifts.index'))->assertForbidden();
+        $this->actingAs($employee)->withConfirmedPassword()->get(route('admin.work-shifts.create'))->assertForbidden();
     }
 
     public function test_a_duplicate_shift_name_within_a_branch_is_refused(): void
@@ -197,7 +197,7 @@ class BranchGpsConfigTest extends TestCase
         $branch = Branch::factory()->create(['code' => 'CN-DUP']);
         WorkShift::factory()->atBranch($branch)->create(['name' => 'Ca sáng']);
 
-        $this->actingAs($this->owner)
+        $this->actingAs($this->owner)->withConfirmedPassword()
             ->from(route('admin.work-shifts.create'))
             ->post(route('admin.work-shifts.store'), [
                 'name' => 'Ca sáng',
@@ -215,7 +215,7 @@ class BranchGpsConfigTest extends TestCase
     {
         $branch = Branch::factory()->create(['code' => 'CN-SAME']);
 
-        $this->actingAs($this->owner)
+        $this->actingAs($this->owner)->withConfirmedPassword()
             ->from(route('admin.work-shifts.create'))
             ->post(route('admin.work-shifts.store'), [
                 'name' => 'Ca lỗi',

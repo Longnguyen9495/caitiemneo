@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\EmployeeRequest;
 use App\Models\Branch;
 use App\Models\User;
+use App\Services\Auth\SessionRevoker;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -15,6 +16,8 @@ use Illuminate\View\View;
 
 class EmployeeController extends Controller
 {
+    public function __construct(private SessionRevoker $sessionRevoker) {}
+
     public function index(Request $request): View
     {
         $this->authorize('viewAny', User::class);
@@ -86,8 +89,37 @@ class EmployeeController extends Controller
                 ->withErrors(['is_active' => 'Không thể vô hiệu hóa chủ tiệm cuối cùng của hệ thống.']);
         }
 
+        $trustChanged = $this->trustChanged($employee, $data);
+
         $employee->update($data);
 
+        // Vô hiệu hóa, đổi role hay đặt lại mật khẩu đều là lời khẳng định rằng
+        // trạng thái cũ của tài khoản không còn đáng tin. Nếu các phiên đang mở
+        // vẫn chạy thì những thay đổi đó chỉ có hiệu lực khi người kia tình cờ
+        // đăng xuất — đúng lúc không nên chờ đợi nhất.
+        if ($trustChanged) {
+            $this->sessionRevoker->revokeFor($employee, $request->session()->getId());
+        }
+
         return redirect()->route('admin.employees.index')->with('success', 'Đã cập nhật tài khoản nhân sự.');
+    }
+
+    /**
+     * Thay đổi khiến các phiên đang mở của tài khoản không còn đáng tin.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private function trustChanged(User $employee, array $data): bool
+    {
+        if (array_key_exists('password', $data) && filled($data['password'])) {
+            return true;
+        }
+
+        if (array_key_exists('is_active', $data) && ! $data['is_active'] && $employee->is_active) {
+            return true;
+        }
+
+        return array_key_exists('role', $data)
+            && (string) $data['role'] !== $employee->role->value;
     }
 }

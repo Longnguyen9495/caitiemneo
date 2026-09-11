@@ -90,4 +90,24 @@ class CashTransaction extends Model
     {
         return $query->whereNull('voided_at');
     }
+
+    /**
+     * The fields the audit trail compares before and after.
+     *
+     * @return array<string, mixed>
+     */
+    public function auditSnapshot(): array
+    {
+        return [
+            'type' => $this->type?->value,
+            'category' => $this->category?->value,
+            'amount' => (string) $this->amount,
+            'payment_method' => $this->payment_method?->value,
+            'reference' => $this->reference,
+            'note' => $this->note,
+            'occurred_at' => $this->occurred_at?->toDateTimeString(),
+            'voided_at' => $this->voided_at?->toDateTimeString(),
+            'void_reason' => $this->void_reason,
+        ];
+    }
 }

@@ -37,6 +37,7 @@
         </x-admin.filter-bar>
 
         <table class="table neo-table align-middle mb-0">
+            <caption class="visually-hidden">Danh sách nhân sự</caption>
             <thead>
                 <tr>
                     <th scope="col">Nhân sự</th>

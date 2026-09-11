@@ -35,6 +35,16 @@ class User extends Authenticatable
     use HasFactory, Notifiable;
 
     /**
+     * Kết quả {@see accessibleBranchIds()} đã tính trong request này.
+     *
+     * Chỉ sống trong một instance nên một lần ghi phân công mới vẫn thấy ngay
+     * ở request kế tiếp; không phải cache bền.
+     *
+     * @var array<string, array<int, int>>
+     */
+    private array $accessibleBranchIdCache = [];
+
+    /**
      * Get the attributes that should be cast.
      *
      * @return array<string, string>
@@ -68,6 +78,34 @@ class User extends Authenticatable
     public function isEmployee(): bool
     {
         return $this->role === UserRole::Employee;
+    }
+
+    /** Leadership: the two roles that run a branch or the company. */
+    public function isLeadership(): bool
+    {
+        return $this->isOwner() || $this->isManager();
+    }
+
+    /**
+     * May read takings — the money the shop has billed.
+     *
+     * Whoever rings up bills already sees every line they write, so hiding the
+     * day's total from them buys nothing; a plain operator gets no figure.
+     */
+    public function canViewRevenueFigures(): bool
+    {
+        return $this->isLeadership() || $this->can_create_invoices;
+    }
+
+    /**
+     * May read the cash fund position.
+     *
+     * Deliberately narrower than revenue: the fund balance is what a skim is
+     * measured against, so it stays with the people accountable for the float.
+     */
+    public function canViewCashPosition(): bool
+    {
+        return $this->isLeadership();
     }
 
     /** @param array<int, UserRole|string> $roles */
@@ -123,17 +161,43 @@ class User extends Authenticatable
      */
     public function accessibleBranchIds(mixed $onDate = null): array
     {
-        if ($this->isOwner()) {
-            return Branch::query()->active()->orderBy('id')->pluck('id')->all();
+        // Nhớ trong phạm vi một request. Mỗi dòng của danh sách đều gọi
+        // @can(...) và mỗi lần như vậy lại hỏi lại cơ sở dữ liệu — với owner
+        // thì đó là một truy vấn "mọi chi nhánh" cho từng dòng. Danh sách 18
+        // dòng từng chạy 37 truy vấn chỉ vì việc này.
+        $key = $onDate === null ? '*' : (string) ($onDate instanceof \DateTimeInterface ? $onDate->format('Y-m-d') : $onDate);
+
+        if (array_key_exists($key, $this->accessibleBranchIdCache)) {
+            return $this->accessibleBranchIdCache[$key];
         }
 
-        return $this->branchAssignments()
-            ->when($onDate !== null, fn ($query) => $query->covering($onDate))
-            ->orderBy('branch_id')
-            ->pluck('branch_id')
-            ->unique()
-            ->values()
-            ->all();
+        $ids = $this->isOwner()
+            ? Branch::query()->active()->orderBy('id')->pluck('id')->all()
+            : $this->branchAssignments()
+                ->when($onDate !== null, fn ($query) => $query->covering($onDate))
+                ->orderBy('branch_id')
+                ->pluck('branch_id')
+                ->unique()
+                ->values()
+                ->all();
+
+        return $this->accessibleBranchIdCache[$key] = $ids;
+    }
+
+    /**
+     * Whether this account has touched money the books still refer to.
+     *
+     * Deleting such an account would leave every invoice they raised and every
+     * entry they made pointing at nobody: the totals would still add up, but
+     * "who did this" would have no answer for the whole of their history.
+     */
+    public function hasFinancialHistory(): bool
+    {
+        return $this->createdInvoices()->exists()
+            || $this->cashTransactions()->exists()
+            || $this->invoiceItems()->exists()
+            || $this->inventoryMovements()->exists()
+            || $this->payrolls()->exists();
     }
 
     /** Whether this account may act in one branch on a given business date. */

@@ -11,6 +11,7 @@
 
     <section class="card overflow-hidden">
         <table class="table neo-table align-middle mb-0">
+            <caption class="visually-hidden">Danh sách chi nhánh</caption>
             <thead>
                 <tr>
                     <th scope="col">Chi nhánh</th>

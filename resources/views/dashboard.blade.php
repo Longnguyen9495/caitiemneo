@@ -4,13 +4,15 @@
         <h2 id="neo-today" class="visually-hidden">Chỉ số hôm nay</h2>
 
         <div class="row g-2 g-lg-3">
-            <div class="col-6 col-lg-3">
-                <dl class="neo-stat mb-0">
-                    <dt>Doanh thu hôm nay</dt>
-                    <dd>{{ \App\Support\Money::format($todayRevenue) }}</dd>
-                    <small>Hóa đơn đã thanh toán</small>
-                </dl>
-            </div>
+            @if ($mayViewRevenue)
+                <div class="col-6 col-lg-3">
+                    <dl class="neo-stat mb-0">
+                        <dt>Doanh thu hôm nay</dt>
+                        <dd>{{ \App\Support\Money::format($todayRevenue) }}</dd>
+                        <small>Hóa đơn đã thanh toán</small>
+                    </dl>
+                </div>
+            @endif
             <div class="col-6 col-lg-3">
                 <a href="{{ route('admin.appointments.index') }}" class="neo-stat">
                     <dl class="mb-0">
@@ -29,13 +31,15 @@
                     </dl>
                 </a>
             </div>
-            <div class="col-6 col-lg-3">
-                <dl class="neo-stat mb-0">
-                    <dt>Số dư thu chi</dt>
-                    <dd>{{ \App\Support\Money::format($cashBalance) }}</dd>
-                    <small>Tổng thu trừ tổng chi</small>
-                </dl>
-            </div>
+            @if ($mayViewCash)
+                <div class="col-6 col-lg-3">
+                    <dl class="neo-stat mb-0">
+                        <dt>Số dư thu chi</dt>
+                        <dd>{{ \App\Support\Money::format($cashBalance) }}</dd>
+                        <small>Tổng thu trừ tổng chi</small>
+                    </dl>
+                </div>
+            @endif
         </div>
     </section>
 

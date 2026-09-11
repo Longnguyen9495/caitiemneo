@@ -16,6 +16,7 @@
         </div>
 
         <table class="table neo-table align-middle mb-0">
+                <caption class="visually-hidden">Ca tăng ca chờ duyệt</caption>
             <thead>
                 <tr>
                     <th scope="col">Ngày</th>
@@ -71,6 +72,7 @@
         </div>
 
         <table class="table neo-table align-middle mb-0">
+                <caption class="visually-hidden">Ca chưa bấm ra</caption>
             <thead>
                 <tr>
                     <th scope="col">Ngày</th>
@@ -105,6 +107,45 @@
         </table>
     </section>
 
+    @if ($selfRecorded->isNotEmpty())
+        <section class="card overflow-hidden mb-3">
+            <div class="p-3 border-bottom d-flex align-items-center gap-2">
+                <x-admin.icon name="pin" size="18" />
+                <h2 class="fs-6 fw-semibold mb-0">Ca tự chấm cần soát lại</h2>
+                <span class="badge rounded-pill text-bg-warning">{{ $selfRecorded->count() }}</span>
+            </div>
+
+            <p class="px-3 pt-3 mb-0 small text-body-secondary">
+                Người ghi cũng chính là người được tính công. Quản lý đã bị chặn tự ghi,
+                nên các dòng dưới đây cần một người khác xác nhận lại.
+            </p>
+
+            <table class="table neo-table align-middle mb-0">
+                <caption class="visually-hidden">Ca tự chấm cần soát lại</caption>
+                <thead>
+                    <tr>
+                        <th scope="col">Ngày</th>
+                        <th scope="col">Nhân viên</th>
+                        <th scope="col">Ca</th>
+                        <th scope="col">Hệ số</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach ($selfRecorded as $record)
+                        <tr>
+                            <td class="neo-num fw-semibold">{{ $record->work_date->format('d/m/Y') }}</td>
+                            <td data-label="Nhân viên">
+                                {{ $record->employee?->name }}
+                                <span class="badge rounded-pill text-bg-warning ms-1">Tự chấm</span>
+                            </td>
+                            <td data-label="Ca">{{ $record->shift_name }}</td>
+                            <td data-label="Hệ số" class="neo-num">{{ $record->shift_value }}</td>
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </section>
+    @endif
     @if ($flaggedGps->isNotEmpty())
         <section class="card overflow-hidden mb-3">
             <div class="p-3 border-bottom d-flex align-items-center gap-2">
@@ -113,6 +154,7 @@
             </div>
 
             <table class="table neo-table align-middle mb-0">
+                <caption class="visually-hidden">Chấm công GPS cần kiểm tra</caption>
                 <thead>
                     <tr>
                         <th scope="col">Ngày</th>
@@ -155,6 +197,7 @@
         </div>
 
         <table class="table neo-table align-middle mb-0">
+                <caption class="visually-hidden">Nhật ký chỉnh sửa chấm công</caption>
             <thead>
                 <tr>
                     <th scope="col">Thời điểm</th>

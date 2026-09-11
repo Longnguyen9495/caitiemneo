@@ -58,6 +58,21 @@ return [
             'ignore_exceptions' => false,
         ],
 
+        /*
+         * Nhật ký bảo mật để riêng.
+         *
+         * Tách khỏi log ứng dụng vì hai thứ này có vòng đời và người đọc khác
+         * nhau: lỗi ứng dụng sẽ được dọn, còn dấu vết đăng nhập cần giữ lâu
+         * hơn và ít người được xem hơn. Giữ 90 ngày.
+         */
+        'security' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/security.log'),
+            'level' => 'info',
+            'days' => (int) env('SECURITY_LOG_DAYS', 90),
+            'replace_placeholders' => true,
+        ],
+
         'single' => [
             'driver' => 'single',
             'path' => storage_path('logs/laravel.log'),

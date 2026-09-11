@@ -11,9 +11,22 @@ import Alpine from 'alpinejs';
  * Editor cho các dòng dịch vụ của hóa đơn nháp.
  * Mọi con số hiển thị ở đây chỉ để xem trước; máy chủ luôn tính lại khi lưu.
  */
-Alpine.data('invoiceEditor', (initialRows = []) => ({
+Alpine.data('invoiceEditor', (initialRows = [], serverErrors = {}) => ({
     rows: initialRows.map((row, index) => ({ ...row, key: `existing-${index}` })),
     nextKey: 0,
+
+    /*
+     * Lỗi do server trả về, gắn đúng dòng đã gây ra lỗi.
+     * Alpine dựng các dòng bằng x-for nên Blade không biết chỉ số dòng lúc
+     * render; đưa nguyên mảng lỗi sang đây rồi tra theo `items.N.field`.
+     */
+    serverErrors,
+
+    rowError(index, field) {
+        const messages = this.serverErrors[`items.${index}.${field}`];
+
+        return messages && messages.length ? messages[0] : '';
+    },
 
     addRow() {
         this.rows.push({
@@ -27,6 +40,7 @@ Alpine.data('invoiceEditor', (initialRows = []) => ({
             commission_rate: '0',
             work_context: 'regular',
             commission_rate_reason: '',
+            price_override_reason: '',
             unit_label: '',
             range_label: '',
             price_min: null,
@@ -56,7 +70,10 @@ Alpine.data('invoiceEditor', (initialRows = []) => ({
 
     /**
      * Đơn giá đang nằm ngoài khoảng của bảng giá.
-     * Chỉ để cảnh báo gõ nhầm; máy chủ không chặn và vẫn lưu bình thường.
+     *
+     * Khoảng giá vẫn là khoảng tham chiếu chứ không phải rào cứng, nhưng ra
+     * ngoài khoảng là quyết định của quản lý và phải kèm lý do: máy chủ mới là
+     * nơi kiểm tra điều đó, phần này chỉ hiện ô lý do cho đúng lúc.
      */
     priceOutOfRange(row) {
         if (row.price_min === null || row.price_max === null || row.unit_price === '') {
@@ -82,10 +99,27 @@ Alpine.data('invoiceEditor', (initialRows = []) => ({
 }));
 
 /** Dòng vật tư của phiếu chuyển kho. */
-Alpine.data('transferEditor', (products = []) => ({
+Alpine.data('transferEditor', (products = [], initialRows = [], serverErrors = {}) => ({
     products,
-    rows: [{ key: 'row-0', product_id: '', quantity: '1', unit_cost: '0' }],
-    nextKey: 1,
+
+    /*
+     * Giữ lại đúng các dòng người dùng đã gõ khi form bị trả về vì lỗi.
+     * Dựng lại một dòng trống đồng nghĩa bắt họ gõ lại từ đầu, và đó là lúc
+     * người ta bỏ form rồi chuyển kho tay không giấy tờ.
+     */
+    rows: initialRows.length
+        ? initialRows.map((row, index) => ({ ...row, key: `old-${index}` }))
+        : [{ key: 'row-0', product_id: '', quantity: '1', unit_cost: '0' }],
+    nextKey: initialRows.length || 1,
+
+    serverErrors,
+
+    /** Lỗi của đúng dòng này, tra theo khóa `items.N.field`. */
+    rowError(index, field) {
+        const messages = this.serverErrors[`items.${index}.${field}`];
+
+        return messages && messages.length ? messages[0] : '';
+    },
 
     addRow() {
         this.rows.push({ key: `row-${this.nextKey++}`, product_id: '', quantity: '1', unit_cost: '0' });
@@ -222,20 +256,150 @@ document.addEventListener('click', (event) => {
     const modal = Modal.getOrCreateInstance(modalEl);
     const accept = modalEl.querySelector('[data-neo-confirm-accept]');
 
+    /*
+     * Thao tác phá hủy có thể yêu cầu lý do do người dùng gõ. Nút gọi tới khai
+     * báo data-neo-confirm-reason="tên input ẩn trong form"; giá trị chỉ được
+     * chép sang form khi hợp lệ, và server vẫn là nơi kiểm tra cuối cùng.
+     */
+    const reasonField = trigger.dataset.neoConfirmReason || null;
+    const wrap = modalEl.querySelector('[data-neo-confirm-reason-wrap]');
+    const textarea = modalEl.querySelector('[data-neo-confirm-reason]');
+    const error = modalEl.querySelector('[data-neo-confirm-reason-error]');
+    const label = modalEl.querySelector('[data-neo-confirm-reason-label]');
+    const minLength = Number(trigger.dataset.neoConfirmReasonMin || 10);
+
+    wrap.hidden = !reasonField;
+    textarea.value = '';
+    textarea.classList.remove('is-invalid');
+    textarea.setAttribute('aria-invalid', 'false');
+    textarea.minLength = minLength;
+    error.classList.add('d-none');
+
+    if (reasonField) {
+        label.textContent = trigger.dataset.neoConfirmReasonLabel || 'Lý do';
+    }
+
     const onAccept = () => {
+        if (reasonField) {
+            const value = textarea.value.trim();
+
+            if (value.length < minLength) {
+                textarea.classList.add('is-invalid');
+                textarea.setAttribute('aria-invalid', 'true');
+                error.classList.remove('d-none');
+                textarea.focus();
+
+                return;
+            }
+
+            let hidden = form.querySelector(`input[name="${reasonField}"]`);
+
+            if (!hidden) {
+                hidden = document.createElement('input');
+                hidden.type = 'hidden';
+                hidden.name = reasonField;
+                form.appendChild(hidden);
+            }
+
+            hidden.value = value;
+        }
+
         accept.disabled = true;
         modal.hide();
         form.requestSubmit();
     };
 
-    accept.addEventListener('click', onAccept, { once: true });
+    accept.addEventListener('click', onAccept);
 
     modalEl.addEventListener('hidden.bs.modal', () => {
         accept.removeEventListener('click', onAccept);
         accept.disabled = false;
     }, { once: true });
 
+    modalEl.addEventListener('shown.bs.modal', () => {
+        if (reasonField) {
+            textarea.focus();
+        }
+    }, { once: true });
+
     modal.show();
+});
+
+/*
+ * Cảnh báo trước khi rời trang mà chưa lưu.
+ *
+ * Gắn vào biểu mẫu bằng thuộc tính `data-neo-dirty-guard`. Chỉ cảnh báo khi
+ * người dùng đã thực sự gõ gì đó, và không cảnh báo khi chính họ bấm gửi —
+ * nếu không, hộp thoại sẽ bật ra ở mọi lần lưu và người ta sẽ học cách bấm
+ * qua nó mà không đọc.
+ */
+document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('[data-neo-dirty-guard]').forEach((form) => {
+        let dirty = false;
+        let submitting = false;
+
+        form.addEventListener('input', () => {
+            dirty = true;
+        });
+
+        form.addEventListener('submit', () => {
+            submitting = true;
+        });
+
+        window.addEventListener('beforeunload', (event) => {
+            if (!dirty || submitting) {
+                return;
+            }
+
+            // Trình duyệt hiện câu chữ của riêng nó; chỉ cần preventDefault.
+            event.preventDefault();
+            event.returnValue = '';
+        });
+    });
+});
+
+/*
+ * Nối lỗi biểu mẫu với đúng control, và đưa tiêu điểm tới chỗ cần sửa.
+ *
+ * Phần nhãn, câu lỗi và câu trợ giúp do Blade dựng (x-admin.field), nhưng bản
+ * thân ô nhập nằm trong slot nên Blade không gắn thuộc tính vào nó được. Ở đây
+ * đọc các dấu mốc `data-neo-*` mà component để lại rồi gắn `aria-invalid` cùng
+ * `aria-describedby` vào đúng control.
+ *
+ * Đây chỉ là phần hỗ trợ: câu lỗi đã hiển thị sẵn trong HTML kể cả khi không
+ * có JavaScript, và máy chủ vẫn là nơi quyết định.
+ */
+document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('[data-neo-describedby]').forEach((wrapper) => {
+        const control = wrapper.querySelector('input, select, textarea');
+
+        if (!control) {
+            return;
+        }
+
+        const existing = control.getAttribute('aria-describedby');
+        const ids = wrapper.dataset.neoDescribedby;
+
+        control.setAttribute('aria-describedby', existing ? `${existing} ${ids}` : ids);
+
+        if (wrapper.hasAttribute('data-neo-invalid')) {
+            control.setAttribute('aria-invalid', 'true');
+            control.classList.add('is-invalid');
+        }
+    });
+
+    // Đưa người dùng thẳng tới chỗ cần sửa thay vì để họ tự dò từ đầu trang.
+    const summary = document.querySelector('[data-neo-error-summary]');
+
+    if (!summary) {
+        return;
+    }
+
+    const firstInvalid = document.querySelector('[data-neo-invalid]');
+    const target = firstInvalid?.querySelector('input, select, textarea') ?? summary;
+
+    target.focus({ preventScroll: true });
+    target.scrollIntoView({ block: 'center', behavior: 'smooth' });
 });
 
 window.Alpine = Alpine;

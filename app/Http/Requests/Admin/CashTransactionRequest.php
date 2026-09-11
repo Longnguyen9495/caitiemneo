@@ -35,7 +35,13 @@ class CashTransactionRequest extends FormRequest
             ],
             'amount' => ['required', 'numeric', 'gt:0', 'max:99999999999'],
             'payment_method' => ['nullable', Rule::enum(PaymentMethod::class)],
-            'occurred_at' => ['required', 'date'],
+            // Giao dịch ghi ngày tương lai thì chưa xảy ra; ghi lùi quá ngưỡng
+            // là cách đẩy một con số vào kỳ sổ sách đã chốt.
+            'occurred_at' => [
+                'required', 'date',
+                'before_or_equal:'.now()->endOfDay()->toDateTimeString(),
+                'after_or_equal:'.now()->subDays((int) config('business.backdate_days'))->startOfDay()->toDateTimeString(),
+            ],
             'reference' => ['nullable', 'string', 'max:255'],
             'note' => ['nullable', 'string', 'max:2000'],
         ];
@@ -74,6 +80,8 @@ class CashTransactionRequest extends FormRequest
         return $this->branchMessages() + [
             'category.in' => 'Hạng mục này chỉ được sinh tự động từ hóa đơn hoặc bảng lương.',
             'amount.gt' => 'Số tiền phải lớn hơn 0. Chiều tiền do loại giao dịch quyết định.',
+            'occurred_at.before_or_equal' => 'Không ghi được giao dịch của ngày trong tương lai.',
+            'occurred_at.after_or_equal' => 'Giao dịch ghi lùi quá '.config('business.backdate_days').' ngày phải xử lý qua phiếu điều chỉnh có người duyệt.',
         ];
     }
 }

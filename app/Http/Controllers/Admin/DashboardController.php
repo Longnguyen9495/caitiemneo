@@ -9,6 +9,7 @@ use App\Models\Appointment;
 use App\Models\CashTransaction;
 use App\Models\Invoice;
 use App\Models\Product;
+use App\Models\User;
 use App\Support\BranchContext;
 use App\Support\Money;
 use Illuminate\View\View;
@@ -19,16 +20,23 @@ class DashboardController extends Controller
 
     public function __invoke(): View
     {
+        /** @var User $user */
+        $user = auth()->user();
+
         $today = now()->startOfDay();
         $branchIds = $this->branchContext->scopeIds() ?: [0];
         $lowStockBranchId = $this->branchContext->viewingAll() ? null : $this->branchContext->currentId();
 
+        $mayViewRevenue = $user->canViewRevenueFigures();
+        $mayViewCash = $user->canViewCashPosition();
+
         return view('dashboard', [
-            'todayRevenue' => Invoice::query()
-                ->whereIn('branch_id', $branchIds)
-                ->where('status', InvoiceStatus::Paid->value)
-                ->whereDate('paid_at', $today)
-                ->sum('total'),
+            'mayViewRevenue' => $mayViewRevenue,
+            'mayViewCash' => $mayViewCash,
+            // A figure the viewer may not see is never queried, so it cannot
+            // leak through a debug bar, a query log or a timing difference.
+            'todayRevenue' => $mayViewRevenue ? $this->todayRevenue($branchIds, $today) : null,
+            'cashBalance' => $mayViewCash ? $this->cashBalance($branchIds) : null,
             'todayAppointments' => Appointment::query()
                 ->whereIn('branch_id', $branchIds)
                 ->whereDate('starts_at', $today)
@@ -37,7 +45,6 @@ class DashboardController extends Controller
                 ->where('is_active', true)
                 ->lowStock($lowStockBranchId)
                 ->count(),
-            'cashBalance' => $this->cashBalance($branchIds),
             'upcomingAppointments' => Appointment::query()
                 ->with(['employee', 'branch'])
                 ->whereIn('branch_id', $branchIds)
@@ -50,6 +57,16 @@ class DashboardController extends Controller
                 ? 'Tất cả chi nhánh'
                 : ($this->branchContext->current()?->name ?? 'Chưa chọn chi nhánh'),
         ]);
+    }
+
+    /** @param  array<int, int>  $branchIds */
+    private function todayRevenue(array $branchIds, mixed $today): string
+    {
+        return (string) Invoice::query()
+            ->whereIn('branch_id', $branchIds)
+            ->where('status', InvoiceStatus::Paid->value)
+            ->whereDate('paid_at', $today)
+            ->sum('total');
     }
 
     /**

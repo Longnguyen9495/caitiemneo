@@ -10,7 +10,8 @@
         :breadcrumbs="['Sổ thu chi' => route('admin.cash.index'), ($transaction->exists ? 'Chỉnh sửa' : 'Thêm mới') => null]"
     />
 
-    <form method="POST" class="card p-3 p-lg-4"
+    {{-- data-neo-dirty-guard: cảnh báo nếu rời trang khi đã gõ mà chưa lưu. --}}
+    <form method="POST" class="card p-3 p-lg-4" data-neo-dirty-guard
           action="{{ $transaction->exists ? route('admin.cash.update', $transaction) : route('admin.cash.store') }}">
         @csrf
         @if ($transaction->exists)

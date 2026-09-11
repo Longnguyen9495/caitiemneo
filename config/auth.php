@@ -106,12 +106,14 @@ return [
     | Password Confirmation Timeout
     |--------------------------------------------------------------------------
     |
-    | Here you may define the number of seconds before a password confirmation
-    | window expires and users are asked to re-enter their password via the
-    | confirmation screen. By default, the timeout lasts for three hours.
+    | Số giây mà một lần xác nhận mật khẩu còn hiệu lực.
+    |
+    | Mặc định của framework là ba tiếng, quá dài cho các thao tác đụng tới
+    | tiền: gần như cả ca làm việc. Rút xuống 15 phút để một phiên bị bỏ quên
+    | trên máy ở quầy không còn dùng để trả lương hay đổi quyền được nữa.
     |
     */
 
-    'password_timeout' => env('AUTH_PASSWORD_TIMEOUT', 10800),
+    'password_timeout' => env('AUTH_PASSWORD_TIMEOUT', 900),
 
 ];

@@ -48,6 +48,7 @@
         </x-admin.filter-bar>
 
         <table class="table neo-table align-middle mb-0">
+            <caption class="visually-hidden">Danh sách bảng lương</caption>
             <thead>
                 <tr>
                     <th scope="col">Nhân viên</th>

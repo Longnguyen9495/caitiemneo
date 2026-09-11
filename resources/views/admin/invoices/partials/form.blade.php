@@ -1,6 +1,8 @@
 @php
     $editable = $invoice->isEditable() && auth()->user()->can('update', $invoice);
     $canApproveOvertime = auth()->user()->can('approveOvertime', $invoice);
+    // Giá ngoài khoảng bảng giá là quyết định của quản lý, và phải kèm lý do.
+    $canOverridePrice = auth()->user()->can('overridePrice', $invoice);
     // Chỉ chủ tiệm được tự đặt tỷ lệ hoa hồng, và bắt buộc kèm lý do.
     $canOverrideRate = auth()->user()->isOwner();
 
@@ -14,10 +16,13 @@
         'commission_rate' => \App\Support\Money::toDecimal(\App\Support\Money::toMinor($item->commission_rate)),
         'work_context' => $item->work_context->value,
         'commission_rate_reason' => $item->commission_rate_reason,
+        // Lý do chỉ tồn tại trong một lần gửi, không lưu trên dòng hóa đơn:
+        // nó đã nằm trong audit event của lần sửa tương ứng.
+        'price_override_reason' => '',
     ])->values()->all());
 @endphp
 
-<section class="card mb-3" x-data="invoiceEditor(@js($rows))">
+<section class="card mb-3" x-data="invoiceEditor(@js($rows), @js($errors->getMessages()))">
     <div class="card-header">
         <h2 class="neo-display fs-5 mb-0">Nội dung hóa đơn</h2>
         <p class="mb-0 small text-body-secondary">Thành tiền, hoa hồng và tổng cộng luôn do máy chủ tính lại khi lưu.</p>
@@ -31,11 +36,15 @@
         </div>
     @endunless
 
-    <form method="POST" action="{{ route('admin.invoices.update', $invoice) }}">
+    <form method="POST" data-neo-dirty-guard action="{{ route('admin.invoices.update', $invoice) }}">
         @csrf
         @method('PATCH')
         {{-- Cho phép xóa hết dòng dịch vụ: trình duyệt không gửi mảng rỗng. --}}
         <input type="hidden" name="items_submitted" value="1">
+
+        {{-- Phiên bản của hóa đơn lúc mở biểu mẫu. Nếu người khác đã lưu trong
+             lúc này, máy chủ từ chối thay vì lặng lẽ ghi đè công của họ. --}}
+        <input type="hidden" name="expected_version" value="{{ $invoice->updated_at?->timestamp }}">
 
         <div class="card-body pt-3">
             {{-- Mỗi dòng là một thẻ riêng: dễ đọc và đủ chỗ chạm trên điện thoại. --}}
@@ -101,9 +110,29 @@
                                 Bảng giá: <span class="neo-num" x-text="row.range_label"></span>
                             </div>
                             <div class="form-text text-warning-emphasis" x-show="priceOutOfRange(row)" x-cloak>
-                                Đang ngoài khoảng bảng giá, kiểm tra lại giúp mình.
+                                @if ($canOverridePrice)
+                                    Đang ngoài khoảng bảng giá. Hãy ghi lý do bên dưới.
+                                @else
+                                    Đang ngoài khoảng bảng giá. Mức giá này cần quản lý duyệt.
+                                @endif
                             </div>
+                            <div class="invalid-feedback d-block" role="alert" x-show="rowError(index, 'unit_price')" x-cloak
+                                 x-text="rowError(index, 'unit_price')"></div>
                         </div>
+
+                        @if ($canOverridePrice)
+                            {{-- Chỉ hiện khi giá ra ngoài khoảng, để không làm rối dòng bình thường. --}}
+                            <div class="col-12" x-show="priceOutOfRange(row)" x-cloak>
+                                <label class="form-label" :for="`price-reason-${index}`">Lý do giá ngoài khoảng</label>
+                                <input class="form-control" :class="rowError(index, 'price_override_reason') ? 'is-invalid' : ''"
+                                       :id="`price-reason-${index}`" type="text" maxlength="255"
+                                       :name="`items[${index}][price_override_reason]`" x-model="row.price_override_reason"
+                                       :aria-invalid="rowError(index, 'price_override_reason') ? 'true' : 'false'"
+                                       placeholder="Ví dụ: ca khó, làm lại phần bị lỗi" @disabled(! $editable)>
+                                <div class="invalid-feedback d-block" role="alert" x-show="rowError(index, 'price_override_reason')" x-cloak
+                                     x-text="rowError(index, 'price_override_reason')"></div>
+                            </div>
+                        @endif
 
                         <div class="col-6 col-lg-4">
                             <label class="form-label" :for="`ctx-${index}`">Bối cảnh</label>

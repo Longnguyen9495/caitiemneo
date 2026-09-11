@@ -15,6 +15,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 #[Fillable([
     'attendance_record_id',
+    'employee_id_snapshot',
+    'work_date_snapshot',
+    'shift_name_snapshot',
     'branch_id',
     'actor_id',
     'action',
@@ -28,6 +31,7 @@ class AttendanceAuditLog extends Model
     {
         return [
             'action' => AttendanceAuditAction::class,
+            'work_date_snapshot' => 'date',
             'before' => 'array',
             'after' => 'array',
         ];

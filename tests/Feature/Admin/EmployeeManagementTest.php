@@ -9,12 +9,29 @@ use App\Models\AttendanceRecord;
 use App\Models\Payroll;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
 class EmployeeManagementTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // Test dùng ngày cố định nên phải neo đồng hồ, nếu không chúng sẽ rơi
+        // ra ngoài cửa sổ ghi lùi khi thời gian thật trôi qua.
+        Carbon::setTestNow(Carbon::parse('2026-08-20 09:00:00'));
+    }
+
+    protected function tearDown(): void
+    {
+        Carbon::setTestNow();
+
+        parent::tearDown();
+    }
 
     /**
      * @param  array<string, mixed>  $extra
@@ -36,7 +53,7 @@ class EmployeeManagementTest extends TestCase
     {
         $owner = User::factory()->owner()->create();
 
-        $this->actingAs($owner)
+        $this->actingAs($owner)->withConfirmedPassword()
             ->post(route('admin.employees.store'), $this->payload([
                 'password' => 'matkhau-rat-manh',
                 'password_confirmation' => 'matkhau-rat-manh',
@@ -55,7 +72,7 @@ class EmployeeManagementTest extends TestCase
     {
         $owner = User::factory()->owner()->create();
 
-        $this->actingAs($owner)
+        $this->actingAs($owner)->withConfirmedPassword()
             ->from(route('admin.employees.create'))
             ->post(route('admin.employees.store'), $this->payload())
             ->assertSessionHasErrors('password');
@@ -63,7 +80,7 @@ class EmployeeManagementTest extends TestCase
         $employee = User::factory()->employee()->create(['email' => 'giu@caitiemneo.test']);
         $originalHash = $employee->password;
 
-        $this->actingAs($owner)
+        $this->actingAs($owner)->withConfirmedPassword()
             ->put(route('admin.employees.update', $employee), $this->payload([
                 'email' => 'giu@caitiemneo.test',
                 'password' => '',
@@ -79,7 +96,7 @@ class EmployeeManagementTest extends TestCase
     {
         $owner = User::factory()->owner()->create();
 
-        $this->actingAs($owner)
+        $this->actingAs($owner)->withConfirmedPassword()
             ->from(route('admin.employees.edit', $owner))
             ->put(route('admin.employees.update', $owner), $this->payload([
                 'email' => $owner->email,
@@ -95,7 +112,7 @@ class EmployeeManagementTest extends TestCase
         $owner = User::factory()->owner()->create();
         $secondOwner = User::factory()->owner()->create();
 
-        $this->actingAs($owner)
+        $this->actingAs($owner)->withConfirmedPassword()
             ->put(route('admin.employees.update', $secondOwner), $this->payload([
                 'email' => $secondOwner->email,
                 'role' => UserRole::Owner->value,
@@ -110,9 +127,9 @@ class EmployeeManagementTest extends TestCase
         $manager = User::factory()->manager()->create();
         $employee = User::factory()->employee()->create();
 
-        $this->actingAs($manager)->get(route('admin.employees.index'))->assertOk();
-        $this->actingAs($manager)->get(route('admin.employees.create'))->assertForbidden();
-        $this->actingAs($manager)->get(route('admin.employees.edit', $employee))->assertForbidden();
+        $this->actingAs($manager)->withConfirmedPassword()->get(route('admin.employees.index'))->assertOk();
+        $this->actingAs($manager)->withConfirmedPassword()->get(route('admin.employees.create'))->assertForbidden();
+        $this->actingAs($manager)->withConfirmedPassword()->get(route('admin.employees.edit', $employee))->assertForbidden();
     }
 
     public function test_attendance_is_unique_per_employee_date_and_shift(): void
@@ -129,9 +146,9 @@ class EmployeeManagementTest extends TestCase
             'reason' => 'Nhân viên quên bấm vào ca',
         ];
 
-        $this->actingAs($owner)->post(route('admin.attendance.store'), $payload);
+        $this->actingAs($owner)->withConfirmedPassword()->post(route('admin.attendance.store'), $payload);
 
-        $this->actingAs($owner)
+        $this->actingAs($owner)->withConfirmedPassword()
             ->from(route('admin.attendance.index'))
             ->post(route('admin.attendance.store'), $payload)
             ->assertSessionHasErrors('shift_name');
@@ -144,7 +161,7 @@ class EmployeeManagementTest extends TestCase
         $owner = User::factory()->owner()->create();
         $employee = User::factory()->employee()->create();
 
-        $this->actingAs($owner)
+        $this->actingAs($owner)->withConfirmedPassword()
             ->from(route('admin.attendance.index'))
             ->post(route('admin.attendance.store'), [
                 'employee_id' => $employee->id,
@@ -176,7 +193,7 @@ class EmployeeManagementTest extends TestCase
             'status' => PayrollStatus::Finalized,
         ]);
 
-        $this->actingAs($owner)
+        $this->actingAs($owner)->withConfirmedPassword()
             ->from(route('admin.attendance.index'))
             ->delete(route('admin.attendance.destroy', $record))
             ->assertSessionHasErrors('work_date');

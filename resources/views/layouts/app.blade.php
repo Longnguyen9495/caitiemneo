@@ -6,6 +6,11 @@
         <meta name="csrf-token" content="{{ csrf_token() }}">
 
         <title>{{ config('app.name', 'Cái Tiệm Neo') }}</title>
+        <link rel="icon" type="image/png" href="{{ asset('images/logo-neo.png') }}">
+        <link rel="apple-touch-icon" href="{{ asset('images/logo-neo.png') }}">
+        <meta property="og:title" content="{{ config('app.name', 'Cái Tiệm Neo') }}">
+        <meta property="og:image" content="{{ asset('images/logo-neo.png') }}">
+        <meta property="og:type" content="website">
 
         <link rel="preconnect" href="https://fonts.googleapis.com">
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

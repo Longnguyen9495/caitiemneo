@@ -92,7 +92,7 @@ class PayrollTest extends TestCase
         $owner = User::factory()->owner()->create();
         $employee = $this->employeeWithEarnings();
 
-        $this->actingAs($owner)
+        $this->actingAs($owner)->withConfirmedPassword()
             ->post(route('admin.payrolls.store'), $this->payload($employee, ['adjustment' => 100000, 'deduction' => 50000]))
             ->assertRedirect();
 
@@ -111,9 +111,9 @@ class PayrollTest extends TestCase
         $owner = User::factory()->owner()->create();
         $employee = $this->employeeWithEarnings();
 
-        $this->actingAs($owner)->post(route('admin.payrolls.store'), $this->payload($employee));
+        $this->actingAs($owner)->withConfirmedPassword()->post(route('admin.payrolls.store'), $this->payload($employee));
 
-        $this->actingAs($owner)
+        $this->actingAs($owner)->withConfirmedPassword()
             ->from(route('admin.payrolls.create'))
             ->post(route('admin.payrolls.store'), $this->payload($employee, ['period_start' => '2026-08-15', 'period_end' => '2026-09-15']))
             ->assertSessionHasErrors('period_start');
@@ -126,14 +126,14 @@ class PayrollTest extends TestCase
         $owner = User::factory()->owner()->create();
         $employee = $this->employeeWithEarnings();
 
-        $this->actingAs($owner)->post(route('admin.payrolls.store'), $this->payload($employee));
+        $this->actingAs($owner)->withConfirmedPassword()->post(route('admin.payrolls.store'), $this->payload($employee));
         $payroll = Payroll::query()->firstOrFail();
 
-        $this->actingAs($owner)->post(route('admin.payrolls.finalize', $payroll))->assertRedirect();
+        $this->actingAs($owner)->withConfirmedPassword()->post(route('admin.payrolls.finalize', $payroll))->assertRedirect();
         $this->assertSame(PayrollStatus::Finalized, $payroll->fresh()->status);
 
-        $this->actingAs($owner)->post(route('admin.payrolls.pay', $payroll), ['payment_method' => PaymentMethod::Transfer->value]);
-        $this->actingAs($owner)->post(route('admin.payrolls.pay', $payroll), ['payment_method' => PaymentMethod::Cash->value]);
+        $this->actingAs($owner)->withConfirmedPassword()->post(route('admin.payrolls.pay', $payroll), ['payment_method' => PaymentMethod::Transfer->value]);
+        $this->actingAs($owner)->withConfirmedPassword()->post(route('admin.payrolls.pay', $payroll), ['payment_method' => PaymentMethod::Cash->value]);
 
         $payroll->refresh();
         $this->assertSame(PayrollStatus::Paid, $payroll->status);
@@ -150,11 +150,11 @@ class PayrollTest extends TestCase
         $owner = User::factory()->owner()->create();
         $employee = $this->employeeWithEarnings();
 
-        $this->actingAs($owner)->post(route('admin.payrolls.store'), $this->payload($employee));
+        $this->actingAs($owner)->withConfirmedPassword()->post(route('admin.payrolls.store'), $this->payload($employee));
         $payroll = Payroll::query()->firstOrFail();
-        $this->actingAs($owner)->post(route('admin.payrolls.finalize', $payroll));
+        $this->actingAs($owner)->withConfirmedPassword()->post(route('admin.payrolls.finalize', $payroll));
 
-        $this->actingAs($owner)
+        $this->actingAs($owner)->withConfirmedPassword()
             ->patch(route('admin.payrolls.update', $payroll), ['adjustment' => 999000])
             ->assertForbidden();
 
@@ -166,10 +166,10 @@ class PayrollTest extends TestCase
         $owner = User::factory()->owner()->create();
         $employee = $this->employeeWithEarnings();
 
-        $this->actingAs($owner)->post(route('admin.payrolls.store'), $this->payload($employee));
+        $this->actingAs($owner)->withConfirmedPassword()->post(route('admin.payrolls.store'), $this->payload($employee));
         $payroll = Payroll::query()->firstOrFail();
 
-        $this->actingAs($owner)
+        $this->actingAs($owner)->withConfirmedPassword()
             ->from(route('admin.payrolls.show', $payroll))
             ->post(route('admin.payrolls.pay', $payroll), ['payment_method' => PaymentMethod::Cash->value])
             ->assertSessionHasErrors('status');
@@ -182,8 +182,8 @@ class PayrollTest extends TestCase
         $manager = User::factory()->payrollManager()->create();
         $payroll = Payroll::factory()->create();
 
-        $this->actingAs($manager)->post(route('admin.payrolls.finalize', $payroll))->assertForbidden();
-        $this->actingAs($manager)
+        $this->actingAs($manager)->withConfirmedPassword()->post(route('admin.payrolls.finalize', $payroll))->assertForbidden();
+        $this->actingAs($manager)->withConfirmedPassword()
             ->post(route('admin.payrolls.pay', $payroll), ['payment_method' => PaymentMethod::Cash->value])
             ->assertForbidden();
     }
@@ -196,7 +196,7 @@ class PayrollTest extends TestCase
         Payroll::factory()->create(['employee_id' => $mine->id, 'total' => 1234000]);
         Payroll::factory()->create(['employee_id' => $other->id, 'total' => 9999000]);
 
-        $this->actingAs($mine)
+        $this->actingAs($mine)->withConfirmedPassword()
             ->get(route('admin.payrolls.index'))
             ->assertOk()
             ->assertSee('1.234.000')
@@ -208,7 +208,7 @@ class PayrollTest extends TestCase
         $mine = User::factory()->employee()->create();
         $other = Payroll::factory()->create();
 
-        $this->actingAs($mine)->get(route('admin.payrolls.show', $other))->assertForbidden();
+        $this->actingAs($mine)->withConfirmedPassword()->get(route('admin.payrolls.show', $other))->assertForbidden();
     }
 
     public function test_recalculating_a_draft_picks_up_new_attendance(): void
@@ -216,7 +216,7 @@ class PayrollTest extends TestCase
         $owner = User::factory()->owner()->create();
         $employee = $this->employeeWithEarnings();
 
-        $this->actingAs($owner)->post(route('admin.payrolls.store'), $this->payload($employee));
+        $this->actingAs($owner)->withConfirmedPassword()->post(route('admin.payrolls.store'), $this->payload($employee));
         $payroll = Payroll::query()->firstOrFail();
 
         AttendanceRecord::factory()->create([
@@ -226,7 +226,7 @@ class PayrollTest extends TestCase
             'shift_value' => 2,
         ]);
 
-        $this->actingAs($owner)->post(route('admin.payrolls.recalculate', $payroll))->assertRedirect();
+        $this->actingAs($owner)->withConfirmedPassword()->post(route('admin.payrolls.recalculate', $payroll))->assertRedirect();
 
         $this->assertSame('4.50', $payroll->fresh()->shift_count);
         $this->assertSame('900000.00', $payroll->fresh()->shift_pay);
@@ -251,7 +251,7 @@ class PayrollTest extends TestCase
             'shift_value' => 1,
         ]);
 
-        $this->actingAs($owner)->post(route('admin.payrolls.store'), $this->payload($employee));
+        $this->actingAs($owner)->withConfirmedPassword()->post(route('admin.payrolls.store'), $this->payload($employee));
 
         $payroll = Payroll::query()->firstOrFail();
 

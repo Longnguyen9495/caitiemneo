@@ -8,8 +8,10 @@ use App\Models\BranchService;
 use App\Models\Customer;
 use App\Models\Service;
 use App\Models\User;
+use App\Notifications\NewOnlineBookingNotification;
 use Database\Factories\BranchFactory;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Notification;
 use Tests\TestCase;
 
 class BookingTest extends TestCase
@@ -59,6 +61,25 @@ class BookingTest extends TestCase
         $this->assertSame(1, Customer::query()->count());
     }
 
+    public function test_an_online_booking_notifies_active_owners_and_managers_only(): void
+    {
+        Notification::fake();
+
+        $employee = User::factory()->employee()->create();
+        $owner = User::factory()->owner()->create();
+        $manager = User::factory()->manager()->create();
+        $inactiveManager = User::factory()->manager()->inactive()->create();
+        $staffMember = User::factory()->employee()->create();
+
+        $this->post(route('booking.store'), $this->payload(
+            $employee,
+            now()->addDays(2)->startOfHour()->format('Y-m-d H:i:s'),
+        ))->assertRedirect(route('home'));
+
+        Notification::assertSentTo([$owner, $manager], NewOnlineBookingNotification::class);
+        Notification::assertNotSentTo([$inactiveManager, $staffMember], NewOnlineBookingNotification::class);
+    }
+
     public function test_the_public_form_rejects_a_slot_the_employee_already_holds(): void
     {
         $employee = User::factory()->employee()->create();
@@ -72,6 +93,20 @@ class BookingTest extends TestCase
             ->assertSessionHasErrors('starts_at');
 
         $this->assertSame(1, Appointment::query()->count());
+    }
+
+    public function test_an_invalid_online_booking_does_not_send_a_notification(): void
+    {
+        Notification::fake();
+
+        $employee = User::factory()->employee()->create();
+        User::factory()->owner()->create();
+
+        $this->from(route('home'))
+            ->post(route('booking.store'), $this->payload($employee, now()->subHour()->format('Y-m-d H:i:s')))
+            ->assertSessionHasErrors('starts_at');
+
+        Notification::assertNothingSent();
     }
 
     public function test_a_booking_in_the_past_is_rejected(): void

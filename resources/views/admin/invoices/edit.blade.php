@@ -19,4 +19,8 @@
     @include('admin.invoices.partials.bill-kpi')
 
     @include('admin.invoices.partials.transactions')
+
+    @isset($auditEvents)
+        <x-admin.audit-timeline :events="$auditEvents" />
+    @endisset
 </x-layouts.admin>

@@ -7,6 +7,7 @@ use App\Enums\InvoiceStatus;
 use App\Enums\PaymentMethod;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\UpdateInvoiceRequest;
+use App\Models\AuditEvent;
 use App\Models\Invoice;
 use App\Models\Service;
 use App\Models\User;
@@ -47,11 +48,26 @@ class InvoiceController extends Controller
             'cashTransactions.creator',
         ]);
 
+        $user = request()->user();
+
         return view('admin.invoices.edit', [
             'invoice' => $invoice,
             'services' => Service::query()->active()->inMenuOrder()->get(),
-            'employees' => User::query()->active()->orderBy('name')->get(['id', 'name']),
+            // The picker offers only staff posted to this branch; the rule in
+            // UpdateInvoiceRequest is what actually enforces it on submit.
+            'employees' => User::query()
+                ->active()
+                ->staff()
+                ->whereHas('branchAssignments', fn ($query) => $query
+                    ->where('branch_id', $invoice->branch_id)
+                    ->covering($invoice->created_at ?? now()))
+                ->orderBy('name')
+                ->get(['id', 'name']),
             'paymentMethods' => PaymentMethod::options(),
+            // The trail is management information, not an operator's tool.
+            'auditEvents' => $user?->isLeadership()
+                ? AuditEvent::query()->forSubject($invoice)->with('actor')->get()
+                : null,
         ]);
     }
 

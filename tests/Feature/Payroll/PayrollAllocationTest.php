@@ -150,13 +150,13 @@ class PayrollAllocationTest extends TestCase
         $payroll = $this->calculate();
         $before = $payroll->final_total;
 
-        $this->actingAs($owner)->post(route('admin.payrolls.finalize', $payroll))->assertRedirect();
+        $this->actingAs($owner)->withConfirmedPassword()->post(route('admin.payrolls.finalize', $payroll))->assertRedirect();
 
         // New revenue and a policy change land after the period was closed.
         $this->revenue($this->branchA, 9000000, 1350000);
         PayrollPolicy::query()->update(['attendance_bonus_amount' => 999000]);
 
-        $this->actingAs($owner)->post(route('admin.payrolls.recalculate', $payroll))->assertForbidden();
+        $this->actingAs($owner)->withConfirmedPassword()->post(route('admin.payrolls.recalculate', $payroll))->assertForbidden();
 
         $this->assertSame($before, $payroll->fresh()->final_total);
         $this->assertSame(PayrollStatus::Finalized, $payroll->fresh()->status);
@@ -167,9 +167,9 @@ class PayrollAllocationTest extends TestCase
         $owner = User::factory()->owner()->create();
         $payroll = $this->calculate();
 
-        $this->actingAs($owner)->post(route('admin.payrolls.finalize', $payroll));
-        $this->actingAs($owner)->post(route('admin.payrolls.pay', $payroll), ['payment_method' => PaymentMethod::Transfer->value]);
-        $this->actingAs($owner)->post(route('admin.payrolls.pay', $payroll), ['payment_method' => PaymentMethod::Cash->value]);
+        $this->actingAs($owner)->withConfirmedPassword()->post(route('admin.payrolls.finalize', $payroll));
+        $this->actingAs($owner)->withConfirmedPassword()->post(route('admin.payrolls.pay', $payroll), ['payment_method' => PaymentMethod::Transfer->value]);
+        $this->actingAs($owner)->withConfirmedPassword()->post(route('admin.payrolls.pay', $payroll), ['payment_method' => PaymentMethod::Cash->value]);
 
         $transactions = CashTransaction::query()->where('payroll_id', $payroll->id)->get();
 

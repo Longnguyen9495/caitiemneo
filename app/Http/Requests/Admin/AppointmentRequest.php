@@ -31,7 +31,13 @@ class AppointmentRequest extends FormRequest
             'customer_name' => ['required', 'string', 'max:255'],
             'customer_phone' => ['required', 'string', 'max:30'],
             'employee_id' => ['nullable', Rule::exists(User::class, 'id')->where('is_active', true)],
-            'starts_at' => ['required', 'date'],
+            // Chỉ chặn quá khứ khi **tạo mới**: sửa một lịch hẹn cũ đã diễn ra
+            // vẫn là việc bình thường, và chặn nó sẽ khóa luôn việc sửa lỗi.
+            'starts_at' => [
+                'required', 'date',
+                ...($this->route('appointment') instanceof Appointment ? [] : ['after:now']),
+                'before:'.now()->addDays((int) config('business.max_booking_days_ahead'))->toDateTimeString(),
+            ],
             'duration_minutes' => ['required', 'integer', 'min:15', 'max:480'],
             'status' => ['required', Rule::enum(AppointmentStatus::class)],
             'service_ids' => ['nullable', 'array'],
@@ -56,7 +62,10 @@ class AppointmentRequest extends FormRequest
     /** @return array<string, string> */
     public function messages(): array
     {
-        return $this->branchMessages();
+        return $this->branchMessages() + [
+            'starts_at.after' => 'Lịch hẹn phải nằm trong tương lai.',
+            'starts_at.before' => 'Lịch hẹn quá xa so với hiện tại, hãy kiểm tra lại ngày.',
+        ];
     }
 
     /** @return array<string, string> */

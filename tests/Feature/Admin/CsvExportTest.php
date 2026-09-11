@@ -22,7 +22,7 @@ class CsvExportTest extends TestCase
         CashTransaction::factory()->create(['note' => 'Trong kỳ', 'occurred_at' => '2026-08-10 09:00:00']);
         CashTransaction::factory()->create(['note' => 'Ngoài kỳ', 'occurred_at' => '2026-09-10 09:00:00']);
 
-        $content = $this->actingAs($owner)
+        $content = $this->actingAs($owner)->withConfirmedPassword()
             ->get(route('admin.reports.export.cash', ['from' => '2026-08-01', 'to' => '2026-08-31']))
             ->assertOk()
             ->streamedContent();
@@ -44,7 +44,7 @@ class CsvExportTest extends TestCase
             'reference' => 'PN-2026-01',
         ]);
 
-        $content = $this->actingAs($owner)
+        $content = $this->actingAs($owner)->withConfirmedPassword()
             ->get(route('admin.reports.export.inventory'))
             ->assertOk()
             ->streamedContent();
@@ -61,6 +61,7 @@ class CsvExportTest extends TestCase
         Payroll::factory()->create(['employee_id' => $employee->id, 'total' => 5000000]);
 
         $content = $this->actingAs(User::factory()->owner()->create())
+            ->withConfirmedPassword()
             ->get(route('admin.reports.export.payrolls'))
             ->assertOk()
             ->streamedContent();

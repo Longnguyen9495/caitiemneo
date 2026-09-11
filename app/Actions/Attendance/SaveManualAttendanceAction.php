@@ -42,6 +42,9 @@ class SaveManualAttendanceAction
             $record->forceFill([
                 'source' => AttendanceSource::Manual,
                 'overtime_status' => OvertimeStatus::None,
+                // Chỉ owner mới tới được đây với ca của chính mình (policy chặn
+                // quản lý), và khi đó dòng được đánh dấu để hàng đợi duyệt nêu lên.
+                'is_self_recorded' => (int) $record->employee_id === (int) $actor?->getKey(),
             ])->save();
 
             $this->auditor->record(

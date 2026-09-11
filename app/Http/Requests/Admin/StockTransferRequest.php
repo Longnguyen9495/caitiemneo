@@ -31,7 +31,7 @@ class StockTransferRequest extends FormRequest
             ],
             'note' => ['nullable', 'string', 'max:255'],
             'items' => ['required', 'array', 'min:1', 'max:100'],
-            'items.*.product_id' => ['required', Rule::exists(Product::class, 'id')],
+            'items.*.product_id' => ['required', 'integer', Rule::exists(Product::class, 'id')->where('is_active', true)],
             'items.*.quantity' => ['required', 'numeric', 'gt:0', 'max:9999999'],
             'items.*.unit_cost' => ['nullable', 'numeric', 'min:0', 'max:99999999999'],
         ];
@@ -40,10 +40,28 @@ class StockTransferRequest extends FormRequest
     public function withValidator(Validator $validator): void
     {
         $validator->after(function (Validator $validator): void {
-            $productIds = array_column($this->input('items', []), 'product_id');
+            // Báo lỗi vào **đúng dòng lặp lại**, không phải vào cả danh sách:
+            // một phiếu mười dòng báo "danh sách không hợp lệ" thì người thao
+            // tác không biết phải sửa dòng nào.
+            $seen = [];
 
-            if (count($productIds) !== count(array_unique($productIds))) {
-                $validator->errors()->add('items', 'Mỗi vật tư chỉ được xuất hiện một lần trong phiếu.');
+            foreach ((array) $this->input('items', []) as $index => $row) {
+                $productId = $row['product_id'] ?? null;
+
+                if ($productId === null || $productId === '') {
+                    continue;
+                }
+
+                if (isset($seen[$productId])) {
+                    $validator->errors()->add(
+                        "items.{$index}.product_id",
+                        'Vật tư này đã có ở dòng '.($seen[$productId] + 1).'. Mỗi vật tư chỉ được xuất hiện một lần.',
+                    );
+
+                    continue;
+                }
+
+                $seen[$productId] = $index;
             }
         });
     }

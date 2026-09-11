@@ -51,7 +51,8 @@ class CashTransactionController extends Controller
     {
         $record->handle($request->validated(), $request->user());
 
-        return redirect()->route('admin.cash.index')->with('success', 'Đã ghi nhận giao dịch.');
+        return redirect($this->backToList($request, 'admin.cash.index'))
+            ->with('success', 'Đã ghi nhận giao dịch.');
     }
 
     public function edit(CashTransaction $cashTransaction): View
@@ -68,7 +69,8 @@ class CashTransactionController extends Controller
     ): RedirectResponse {
         $record->handle($request->validated(), $request->user(), $cashTransaction);
 
-        return redirect()->route('admin.cash.index')->with('success', 'Đã cập nhật giao dịch.');
+        return redirect($this->backToList($request, 'admin.cash.index'))
+            ->with('success', 'Đã cập nhật giao dịch.');
     }
 
     public function destroy(
@@ -78,7 +80,8 @@ class CashTransactionController extends Controller
     ): RedirectResponse {
         $void->handle($cashTransaction, $request->user(), $request->validated('void_reason'));
 
-        return redirect()->route('admin.cash.index')->with('success', 'Đã hủy giao dịch và giữ lại dấu vết.');
+        return redirect($this->backToList($request, 'admin.cash.index'))
+            ->with('success', 'Đã hủy giao dịch và giữ lại dấu vết.');
     }
 
     /**

@@ -2,8 +2,10 @@
 
 namespace App\Actions\Cash;
 
+use App\Enums\AuditAction;
 use App\Models\CashTransaction;
 use App\Models\User;
+use App\Services\Audit\AuditRecorder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -15,6 +17,8 @@ use Illuminate\Validation\ValidationException;
  */
 class VoidCashTransactionAction
 {
+    public function __construct(private AuditRecorder $auditor) {}
+
     /** @throws ValidationException */
     public function handle(CashTransaction $transaction, User $actor, ?string $reason = null): CashTransaction
     {
@@ -31,11 +35,22 @@ class VoidCashTransactionAction
                 return $locked;
             }
 
+            $before = $locked->auditSnapshot();
+
             $locked->forceFill([
                 'voided_at' => now(),
                 'voided_by' => $actor->id,
                 'void_reason' => $reason,
             ])->save();
+
+            $this->auditor->record(
+                $locked,
+                $actor,
+                AuditAction::Voided,
+                $before,
+                $locked->auditSnapshot(),
+                $reason,
+            );
 
             return $locked;
         });

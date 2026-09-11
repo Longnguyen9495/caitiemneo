@@ -30,6 +30,11 @@ final class AttendanceAuditor
     ): AttendanceAuditLog {
         return AttendanceAuditLog::query()->create([
             'attendance_record_id' => $record->getKey(),
+            // Snapshotted so the entry stays readable once the shift it
+            // describes has been deleted and the relation is nulled out.
+            'employee_id_snapshot' => $record->employee_id,
+            'work_date_snapshot' => $record->work_date,
+            'shift_name_snapshot' => $record->shift_name,
             'branch_id' => $record->branch_id,
             'actor_id' => $actor?->getKey(),
             'action' => $action,

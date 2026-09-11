@@ -108,4 +108,42 @@ class Invoice extends Model
     {
         return $query->paid()->whereBetween('paid_at', [$from, $to]);
     }
+
+    /**
+     * The money-bearing fields the audit trail compares before and after.
+     *
+     * Lines are included because a total is meaningless without knowing which
+     * service, at which price, was credited to which member of staff.
+     *
+     * @return array<string, mixed>
+     */
+    public function auditSnapshot(): array
+    {
+        return [
+            'number' => $this->number,
+            'status' => $this->status?->value,
+            'customer_name' => $this->customer_name,
+            'customer_phone' => $this->customer_phone,
+            'subtotal' => (string) $this->subtotal,
+            'discount' => (string) $this->discount,
+            'total' => (string) $this->total,
+            'payment_method' => $this->payment_method?->value,
+            'paid_at' => $this->paid_at?->toDateTimeString(),
+            'cancelled_at' => $this->cancelled_at?->toDateTimeString(),
+            'qualified_for_bill_kpi' => (bool) $this->qualified_for_bill_kpi,
+            'note' => $this->note,
+            'items' => $this->items->map(fn (InvoiceItem $item): array => [
+                'id' => $item->getKey(),
+                'name' => $item->name,
+                'service_id' => $item->service_id,
+                'employee_id' => $item->employee_id,
+                'quantity' => (string) $item->quantity,
+                'unit_price' => (string) $item->unit_price,
+                'line_total' => (string) $item->line_total,
+                'commission_rate' => (string) $item->commission_rate,
+                'commission_amount' => (string) $item->commission_amount,
+                'work_context' => $item->work_context?->value,
+            ])->values()->all(),
+        ];
+    }
 }

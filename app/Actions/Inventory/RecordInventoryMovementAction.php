@@ -2,11 +2,13 @@
 
 namespace App\Actions\Inventory;
 
+use App\Enums\AuditAction;
 use App\Enums\InventoryMovementType;
 use App\Models\BranchProduct;
 use App\Models\InventoryMovement;
 use App\Models\Product;
 use App\Models\User;
+use App\Services\Audit\AuditRecorder;
 use App\Support\Money;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -23,6 +25,8 @@ use Illuminate\Validation\ValidationException;
  */
 class RecordInventoryMovementAction
 {
+    public function __construct(private AuditRecorder $auditor) {}
+
     /**
      * @param  array{branch_id: int|string, product_id: int|string, type: string, quantity?: mixed, adjustment_mode?: string|null, supplier_id?: int|string|null, unit_cost?: mixed, reference?: string|null, note?: string|null, occurred_at?: mixed}  $data
      *
@@ -53,7 +57,7 @@ class RecordInventoryMovementAction
                 ]);
             }
 
-            return InventoryMovement::query()->create([
+            $movement = InventoryMovement::query()->create([
                 'branch_id' => $branchId,
                 'product_id' => $product->id,
                 'supplier_id' => ($data['supplier_id'] ?? null) ?: null,
@@ -65,6 +69,32 @@ class RecordInventoryMovementAction
                 'note' => $data['note'] ?? null,
                 'occurred_at' => $data['occurred_at'] ?? now(),
             ]);
+
+            // Tồn trước và sau được ghi lại ngay tại đây vì chỉ ở trong lock
+            // này con số mới chắc chắn đúng. Với phiếu điều chỉnh, đó chính là
+            // bằng chứng để soát: đếm được bao nhiêu so với hệ thống đang ghi.
+            $this->auditor->record(
+                $movement,
+                $actor,
+                AuditAction::Created,
+                null,
+                [
+                    'type' => $type->value,
+                    'product_id' => (int) $product->id,
+                    'product_name' => $product->name,
+                    'quantity' => Money::toDecimal($deltaMinor),
+                    'stock_before' => Money::toDecimal($currentMinor),
+                    'stock_after' => Money::toDecimal($currentMinor + $deltaMinor),
+                    'unit_cost' => (string) $movement->unit_cost,
+                    'supplier_id' => $movement->supplier_id,
+                    'reference' => $movement->reference,
+                    'note' => $movement->note,
+                ],
+                $data['note'] ?? null,
+                $branchId,
+            );
+
+            return $movement;
         });
     }
 

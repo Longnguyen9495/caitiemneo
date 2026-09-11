@@ -12,8 +12,12 @@
     <meta property="og:title" content="Cái Tiệm Neo | Nail có gu ở Thái Hà" />
     <meta property="og:description" content="Một khoảng dừng nhỏ cho những bộ móng có câu chuyện riêng." />
     <meta property="og:url" content="{{ url('/') }}" />
+    <meta property="og:image" content="{{ asset('images/logo-neo.png') }}" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:image" content="{{ asset('images/logo-neo.png') }}" />
     <title>Cái Tiệm Neo | Nail có gu ở Thái Hà</title>
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2351212b'/%3E%3Cpath d='M22 43c0-14 3-23 10-23s10 9 10 23' fill='none' stroke='%23e1b77d' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E" />
+    <link rel="icon" type="image/png" href="{{ asset('images/logo-neo.png') }}" />
+    <link rel="apple-touch-icon" href="{{ asset('images/logo-neo.png') }}" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,400..600;1,400..600&display=swap" rel="stylesheet" />
@@ -67,16 +71,32 @@
           @endif
           <form action="{{ route('booking.store') }}" method="POST" class="booking-form">
             @csrf
+            {{-- Chi nhánh là trường bắt buộc ở phía máy chủ, nên form công khai
+                 phải hỏi; thiếu nó thì không đặt lịch nào gửi đi được. --}}
+            <label>Chi nhánh<select name="branch_id" required>
+              <option value="">Chọn chi nhánh</option>
+              @foreach ($branches as $branch)
+                <option value="{{ $branch->id }}" @selected(old('branch_id') == $branch->id)>{{ $branch->name }}</option>
+              @endforeach
+            </select></label>
+            @error('branch_id')<small>{{ $message }}</small>@enderror
             <label>Họ và tên<input name="customer_name" value="{{ old('customer_name') }}" required autocomplete="name" /></label>
             @error('customer_name')<small>{{ $message }}</small>@enderror
             <label>Số điện thoại<input name="customer_phone" value="{{ old('customer_phone') }}" required inputmode="tel" autocomplete="tel" /></label>
             @error('customer_phone')<small>{{ $message }}</small>@enderror
             <label>Nhân viên mong muốn<select name="employee_id"><option value="">Để tiệm sắp xếp</option>@foreach ($employees as $employee)<option value="{{ $employee->id }}" @selected(old('employee_id') == $employee->id)>{{ $employee->name }}</option>@endforeach</select></label>
+            @error('employee_id')<small>{{ $message }}</small>@enderror
             <label>Thời gian mong muốn<input type="datetime-local" name="starts_at" value="{{ old('starts_at') }}" min="{{ now()->addHour()->format('Y-m-d\\TH:i') }}" required /></label>
             @error('starts_at')<small>{{ $message }}</small>@enderror
             <label>Thời lượng dự kiến<select name="duration_minutes" required><option value="60" @selected(old('duration_minutes', 60) == 60)>60 phút</option><option value="90" @selected(old('duration_minutes') == 90)>90 phút</option><option value="120" @selected(old('duration_minutes') == 120)>120 phút</option><option value="150" @selected(old('duration_minutes') == 150)>150 phút</option></select></label>
-            <fieldset><legend>Dịch vụ bạn quan tâm <span>(có thể chọn nhiều)</span></legend><div class="service-options">@forelse ($services as $service)<label class="service-option"><input type="checkbox" name="service_ids[]" value="{{ $service->id }}" @checked(in_array($service->id, old('service_ids', []))) /><span>{{ $service->name }}</span><b>{{ number_format((float) $service->price, 0, ',', '.') }} đ</b></label>@empty<p class="empty-note">Tiệm sẽ tư vấn dịch vụ phù hợp khi xác nhận lịch.</p>@endforelse</div></fieldset>
+            @error('duration_minutes')<small>{{ $message }}</small>@enderror
+            <fieldset><legend>Dịch vụ bạn quan tâm <span>(có thể chọn nhiều)</span></legend><div class="service-options">@forelse ($services as $service)<label class="service-option"><input type="checkbox" name="service_ids[]" value="{{ $service->id }}" @checked(in_array($service->id, old('service_ids', []))) /><span>{{ $service->name }}</span><b>{{ number_format((float) $service->price, 0, ',', '.') }} đ</b></label>@empty<p class="empty-note">Tiệm sẽ tư vấn dịch vụ phù hợp khi xác nhận lịch.</p>@endforelse</div>@error('service_ids')<small>{{ $message }}</small>@enderror
+              {{-- Lỗi của từng dịch vụ được chọn: khóa là service_ids.N nên phải
+                   duyệt qua, @error không nhận ký tự đại diện. --}}
+              @foreach ($errors->get('service_ids.*') as $serviceErrors)<small>{{ $serviceErrors[0] }}</small>@endforeach
+            </fieldset>
             <label>Ghi chú<textarea name="note" rows="3" placeholder="Màu sắc, mẫu móng hoặc điều bạn muốn trao đổi…">{{ old('note') }}</textarea></label>
+            @error('note')<small>{{ $message }}</small>@enderror
             <button class="button button-primary" type="submit">Gửi yêu cầu đặt lịch <span aria-hidden="true">↗</span></button>
           </form>
         </div>

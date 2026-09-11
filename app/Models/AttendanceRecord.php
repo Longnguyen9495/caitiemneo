@@ -49,6 +49,7 @@ class AttendanceRecord extends Model
             'checked_out_at' => 'datetime',
             'status' => AttendanceStatus::class,
             'source' => AttendanceSource::class,
+            'is_self_recorded' => 'boolean',
             'check_in_latitude' => 'decimal:7',
             'check_in_longitude' => 'decimal:7',
             'check_in_accuracy_meters' => 'integer',
@@ -116,6 +117,17 @@ class AttendanceRecord extends Model
      * A refused clock event is never saved, so this is normally empty; it
      * catches rows left behind when a branch's coordinates or radius change.
      */
+    /**
+     * Ca do chính người đó tự ghi bằng tay.
+     *
+     * Quản lý đã bị chặn tự ghi, nên thực tế đây là ca của owner: giữ lại để
+     * hàng đợi duyệt đưa ra trước mắt người xem thay vì để trôi qua.
+     */
+    public function scopeSelfRecorded(Builder $query): Builder
+    {
+        return $query->where('is_self_recorded', true);
+    }
+
     public function scopeGpsNeedsReview(Builder $query): Builder
     {
         return $query

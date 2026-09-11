@@ -32,12 +32,17 @@ class StockTransferPolicy
     /**
      * Completing moves stock out of the source branch, so the user must be
      * allowed to act in that branch specifically, not merely see the transfer.
+     *
+     * The person who raised the transfer is never the one who completes it: a
+     * note that one person both wrote and signed says only that goods left,
+     * with nobody confirming it at either end.
      */
     public function complete(User $user, StockTransfer $transfer): bool
     {
         return $this->viewAny($user)
             && $transfer->status === StockTransferStatus::Draft
-            && $user->canAccessBranch($transfer->source_branch_id);
+            && $user->canAccessBranch($transfer->source_branch_id)
+            && (int) $transfer->created_by !== (int) $user->getKey();
     }
 
     public function cancel(User $user, StockTransfer $transfer): bool

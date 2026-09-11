@@ -8,6 +8,7 @@ use App\Models\CashTransaction;
 use App\Models\Invoice;
 use App\Models\Payroll;
 use App\Models\Product;
+use App\Models\RiskFlag;
 use App\Models\Service;
 use App\Models\User;
 use Illuminate\Support\Collection;
@@ -79,6 +80,12 @@ final class AdminNavigation
                 'route' => 'admin.employees.index', 'pattern' => 'admin.employees.*',
                 'icon' => 'people', 'primary' => false,
                 'visible' => $user->can('viewAny', User::class),
+            ],
+            [
+                'label' => 'Cảnh báo', 'short' => 'Cảnh báo',
+                'route' => 'admin.risk-flags.index', 'pattern' => 'admin.risk-flags.*',
+                'icon' => 'pin', 'primary' => false,
+                'visible' => $user->can('viewAny', RiskFlag::class),
             ],
             [
                 'label' => 'Báo cáo', 'short' => 'Báo cáo',

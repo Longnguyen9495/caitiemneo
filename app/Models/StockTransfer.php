@@ -72,4 +72,28 @@ class StockTransfer extends Model
             ->whereIn('source_branch_id', $branchIds)
             ->orWhereIn('destination_branch_id', $branchIds));
     }
+
+    /**
+     * Trạng thái phiếu ở hai phía của một thay đổi, cho nhật ký audit.
+     *
+     * @return array<string, mixed>
+     */
+    public function auditSnapshot(): array
+    {
+        return [
+            'number' => $this->number,
+            'status' => $this->status?->value,
+            'source_branch_id' => $this->source_branch_id,
+            'destination_branch_id' => $this->destination_branch_id,
+            'created_by' => $this->created_by,
+            'completed_by' => $this->completed_by,
+            'transferred_at' => $this->transferred_at?->toDateTimeString(),
+            'note' => $this->note,
+            'items' => $this->items->map(fn (StockTransferItem $item): array => [
+                'product_id' => $item->product_id,
+                'quantity' => (string) $item->quantity,
+                'unit_cost' => (string) $item->unit_cost,
+            ])->values()->all(),
+        ];
+    }
 }

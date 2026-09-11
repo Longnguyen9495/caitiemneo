@@ -50,7 +50,7 @@ class PayrollCorrectionTest extends TestCase
             'commission_amount' => $commission,
         ]);
 
-        $this->actingAs($this->owner)->post(route('admin.invoices.pay', $invoice), [
+        $this->actingAs($this->owner)->withConfirmedPassword()->post(route('admin.invoices.pay', $invoice), [
             'payment_method' => PaymentMethod::Cash->value,
         ]);
 
@@ -76,7 +76,7 @@ class PayrollCorrectionTest extends TestCase
 
         $this->assertSame('150000.00', $payroll->regular_commission_pay);
 
-        $this->actingAs($this->owner)->delete(route('admin.invoices.cancel', $invoice), ['cancel_reason' => 'Khách đổi ý']);
+        $this->actingAs($this->owner)->withConfirmedPassword()->delete(route('admin.invoices.cancel', $invoice), ['cancel_reason' => 'Khách đổi ý']);
 
         app(CalculatePayrollAction::class)->refresh($payroll);
 
@@ -91,9 +91,9 @@ class PayrollCorrectionTest extends TestCase
         $closed = $this->payrollFor(now()->startOfMonth()->toDateString(), now()->endOfMonth()->toDateString());
         $closedTotal = $closed->final_total;
 
-        $this->actingAs($this->owner)->post(route('admin.payrolls.finalize', $closed))->assertRedirect();
+        $this->actingAs($this->owner)->withConfirmedPassword()->post(route('admin.payrolls.finalize', $closed))->assertRedirect();
 
-        $this->actingAs($this->owner)->delete(route('admin.invoices.cancel', $invoice), ['cancel_reason' => 'Hoàn tiền sau khi chốt lương']);
+        $this->actingAs($this->owner)->withConfirmedPassword()->delete(route('admin.invoices.cancel', $invoice), ['cancel_reason' => 'Hoàn tiền sau khi chốt lương']);
 
         // The closed payroll is untouched.
         $this->assertSame($closedTotal, $closed->fresh()->final_total);
@@ -123,10 +123,10 @@ class PayrollCorrectionTest extends TestCase
     {
         $invoice = $this->paidInvoiceWithCommission();
         $closed = $this->payrollFor(now()->startOfMonth()->toDateString(), now()->endOfMonth()->toDateString());
-        $this->actingAs($this->owner)->post(route('admin.payrolls.finalize', $closed));
+        $this->actingAs($this->owner)->withConfirmedPassword()->post(route('admin.payrolls.finalize', $closed));
 
-        $this->actingAs($this->owner)->delete(route('admin.invoices.cancel', $invoice), ['cancel_reason' => 'Lần một']);
-        $this->actingAs($this->owner)->delete(route('admin.invoices.cancel', $invoice), ['cancel_reason' => 'Lần hai']);
+        $this->actingAs($this->owner)->withConfirmedPassword()->delete(route('admin.invoices.cancel', $invoice), ['cancel_reason' => 'Lần một']);
+        $this->actingAs($this->owner)->withConfirmedPassword()->delete(route('admin.invoices.cancel', $invoice), ['cancel_reason' => 'Lần hai']);
 
         $this->assertSame(1, PendingPayrollCorrection::query()->count());
     }
@@ -135,8 +135,8 @@ class PayrollCorrectionTest extends TestCase
     {
         $invoice = $this->paidInvoiceWithCommission();
         $closed = $this->payrollFor(now()->startOfMonth()->toDateString(), now()->endOfMonth()->toDateString());
-        $this->actingAs($this->owner)->post(route('admin.payrolls.finalize', $closed));
-        $this->actingAs($this->owner)->delete(route('admin.invoices.cancel', $invoice), ['cancel_reason' => 'Hoàn tiền']);
+        $this->actingAs($this->owner)->withConfirmedPassword()->post(route('admin.payrolls.finalize', $closed));
+        $this->actingAs($this->owner)->withConfirmedPassword()->delete(route('admin.invoices.cancel', $invoice), ['cancel_reason' => 'Hoàn tiền']);
 
         $next = $this->payrollFor(
             now()->addMonth()->startOfMonth()->toDateString(),

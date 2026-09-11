@@ -63,6 +63,7 @@
         </x-admin.filter-bar>
 
         <table class="table neo-table align-middle mb-0">
+            <caption class="visually-hidden">Danh sách giao dịch thu chi</caption>
             <thead>
                 <tr>
                     <th scope="col">Thời điểm</th>
@@ -111,14 +112,15 @@
                                         <a href="{{ route('admin.cash.edit', $transaction) }}" class="btn btn-sm btn-outline-secondary">Sửa</a>
                                     @endcan
                                     @can('void', $transaction)
+                                        {{-- Lý do do người dùng gõ trong hộp xác nhận, không có giá trị mặc định ẩn. --}}
                                         <x-admin.confirm-form
                                             :action="route('admin.cash.destroy', $transaction)"
                                             method="DELETE"
                                             label="Hủy"
-                                            message="Hủy giao dịch này? Dữ liệu vẫn được giữ lại để đối soát."
-                                        >
-                                            <input type="hidden" name="void_reason" value="Hủy bởi người dùng">
-                                        </x-admin.confirm-form>
+                                            :message="'Hủy giao dịch '.\App\Support\Money::format($transaction->amount).' ('.$transaction->category->label().') tại '.($transaction->branch?->name ?? 'chi nhánh này').'? Giao dịch vẫn được giữ lại để đối soát.'"
+                                            reason-field="void_reason"
+                                            reason-label="Lý do hủy"
+                                        />
                                     @endcan
                                 </span>
                             @endif

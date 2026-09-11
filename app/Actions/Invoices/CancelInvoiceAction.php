@@ -3,12 +3,14 @@
 namespace App\Actions\Invoices;
 
 use App\Actions\Payrolls\RecordInvoiceReversalCorrectionAction;
+use App\Enums\AuditAction;
 use App\Enums\CashTransactionCategory;
 use App\Enums\CashTransactionType;
 use App\Enums\InvoiceStatus;
 use App\Models\CashTransaction;
 use App\Models\Invoice;
 use App\Models\User;
+use App\Services\Audit\AuditRecorder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -21,7 +23,10 @@ use Illuminate\Validation\ValidationException;
  */
 class CancelInvoiceAction
 {
-    public function __construct(private RecordInvoiceReversalCorrectionAction $recordCorrection) {}
+    public function __construct(
+        private RecordInvoiceReversalCorrectionAction $recordCorrection,
+        private AuditRecorder $auditor,
+    ) {}
 
     /** @throws ValidationException */
     public function handle(Invoice $invoice, User $actor, ?string $reason = null): Invoice
@@ -34,6 +39,7 @@ class CancelInvoiceAction
             }
 
             $wasPaid = $locked->status === InvoiceStatus::Paid;
+            $before = $locked->load('items')->auditSnapshot();
 
             $locked->forceFill([
                 'status' => InvoiceStatus::Cancelled,
@@ -49,6 +55,15 @@ class CancelInvoiceAction
                 // in the next period rather than by editing the old snapshot.
                 $this->recordCorrection->handle($locked);
             }
+
+            $this->auditor->record(
+                $locked,
+                $actor,
+                AuditAction::Cancelled,
+                $before,
+                $locked->load('items')->auditSnapshot(),
+                $reason,
+            );
 
             return $locked;
         });
