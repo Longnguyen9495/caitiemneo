@@ -63,10 +63,23 @@
             <div class="booking-alert booking-success" role="status">{{ session('booking_success') }}</div>
           @endif
           @if ($errors->any())
-            <div class="booking-alert" role="alert">Vui lòng kiểm tra lại các thông tin được đánh dấu bên dưới.</div>
+            <div class="booking-alert" role="alert">
+              <p>Vui lòng kiểm tra lại các thông tin sau:</p>
+              <ul>
+                @foreach ($errors->all() as $error)
+                  <li>{{ $error }}</li>
+                @endforeach
+              </ul>
+            </div>
           @endif
           <form action="{{ route('booking.store') }}" method="POST" class="booking-form">
             @csrf
+            @if ($branches->count() === 1)
+              <input type="hidden" name="branch_id" value="{{ $branches->first()->id }}" />
+            @else
+              <label>Chi nhánh<select name="branch_id" required><option value="">Chọn chi nhánh</option>@foreach ($branches as $branch)<option value="{{ $branch->id }}" @selected((string) old('branch_id') === (string) $branch->id)>{{ $branch->name }}</option>@endforeach</select></label>
+              @error('branch_id')<small>{{ $message }}</small>@enderror
+            @endif
             <label>Họ và tên<input name="customer_name" value="{{ old('customer_name') }}" required autocomplete="name" /></label>
             @error('customer_name')<small>{{ $message }}</small>@enderror
             <label>Số điện thoại<input name="customer_phone" value="{{ old('customer_phone') }}" required inputmode="tel" autocomplete="tel" /></label>
