@@ -97,6 +97,23 @@ menuToggle?.addEventListener('click', () => {
 
 menu?.querySelectorAll('a').forEach((link) => link.addEventListener('click', closeMenu));
 
+const bookingForm = document.querySelector('[data-booking-form]');
+const bookingSubmitStatus = document.querySelector('[data-booking-submit-status]');
+
+bookingForm?.addEventListener('submit', () => {
+    const submitButton = bookingForm.querySelector('button[type="submit"]');
+
+    if (bookingSubmitStatus) {
+        bookingSubmitStatus.hidden = false;
+        bookingSubmitStatus.textContent = 'Đang gửi yêu cầu đặt lịch…';
+    }
+
+    if (submitButton) {
+        submitButton.disabled = true;
+        submitButton.setAttribute('aria-disabled', 'true');
+    }
+});
+
 window.addEventListener('scroll', () => {
     header?.classList.toggle('is-scrolled', window.scrollY > 8);
 }, { passive: true });

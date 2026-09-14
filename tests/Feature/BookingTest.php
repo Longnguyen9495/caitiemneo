@@ -51,7 +51,7 @@ class BookingTest extends TestCase
             $employee,
             now()->addDays(2)->startOfHour()->format('Y-m-d\TH:i'),
             ['service_ids' => [$service->id]],
-        ))->assertRedirect(route('home'))->assertSessionHas('booking_success');
+        ))->assertRedirect(route('home').'#dat-lich')->assertSessionHas('booking_success');
 
         $appointment = Appointment::query()->firstOrFail();
 
@@ -90,7 +90,7 @@ class BookingTest extends TestCase
 
         $this->from(route('home'))
             ->post(route('booking.store'), $this->payload($employee, $startsAt->copy()->addMinutes(30)->format('Y-m-d\TH:i')))
-            ->assertRedirect(route('home'))
+            ->assertRedirect(route('home').'#dat-lich')
             ->assertSessionHasErrors('starts_at');
 
         $this->assertSame(1, Appointment::query()->count());

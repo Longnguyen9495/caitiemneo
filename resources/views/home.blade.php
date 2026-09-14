@@ -76,7 +76,8 @@
               </ul>
             </div>
           @endif
-          <form action="{{ route('booking.store') }}" method="POST" class="booking-form">
+          <form action="{{ route('booking.store') }}" method="POST" class="booking-form" data-booking-form>
+            <p class="booking-submit-status" data-booking-submit-status role="status" aria-live="polite" hidden></p>
             @csrf
             @if ($branches->count() === 1)
               <input type="hidden" name="branch_id" value="{{ $branches->first()->id }}" />
