@@ -21,6 +21,7 @@ use App\Services\CompensationResolver;
 use App\Services\Payroll\AttendanceEvaluator;
 use App\Services\Payroll\BillKpiEvaluator;
 use App\Services\Payroll\DailyKpiEvaluator;
+use App\Services\Payroll\PaidLeaveEvaluator;
 use App\Support\Allocator;
 use App\Support\Money;
 use Carbon\CarbonInterface;
@@ -48,6 +49,7 @@ class CalculatePayrollAction
         private AttendanceEvaluator $attendance,
         private DailyKpiEvaluator $dailyKpi,
         private BillKpiEvaluator $billKpi,
+        private PaidLeaveEvaluator $paidLeave,
     ) {}
 
     public function refresh(Payroll $payroll): Payroll
@@ -71,12 +73,18 @@ class CalculatePayrollAction
             $bill = $this->billKpi->evaluate($employeeId, $branchIds, $policy, $periodStart, $periodEnd);
 
             $baseProfile = $this->compensation->profileFor($employeeId, $payroll->paying_branch_id, $periodStart);
+            $baseSalaryMinor = Money::toMinor($baseProfile->base_salary);
+            $paidLeave = $this->paidLeave->evaluate($employeeId, $periodStart, $periodEnd, $baseSalaryMinor);
             $weights = $this->allocationWeights($branchIds, $shiftCounts);
 
-            $baseShares = Allocator::distribute(Money::toMinor($baseProfile->base_salary), $weights);
+            // The unpaid-leave amount is recorded as a deduction adjustment below.
+            // Keep allocations at the gross base so that deduction is applied exactly once.
+            $baseShares = Allocator::distribute($baseSalaryMinor, $weights);
             $attendanceShares = Allocator::distribute(Money::toMinor($attendance['bonus_amount']), $weights);
             $billRewardShares = Allocator::distribute(Money::toMinor($bill['reward_amount']), $weights);
             $billPenaltyShares = Allocator::distribute(Money::toMinor($bill['penalty_amount']), $weights);
+            $workedPaidLeaveBonusShares = Allocator::distribute($paidLeave['worked_paid_leave_bonus_minor'], $weights);
+            $unpaidLeaveDeductionShares = Allocator::distribute($paidLeave['unpaid_leave_deduction_minor'], $weights);
 
             $allocations = [];
 
@@ -92,6 +100,8 @@ class CalculatePayrollAction
                     (int) ($attendanceShares[$branchId] ?? 0),
                     (int) ($billRewardShares[$branchId] ?? 0),
                     (int) ($billPenaltyShares[$branchId] ?? 0),
+                    (int) ($workedPaidLeaveBonusShares[$branchId] ?? 0),
+                    (int) ($unpaidLeaveDeductionShares[$branchId] ?? 0),
                     $policy,
                     $attendance,
                     $bill,
@@ -100,7 +110,7 @@ class CalculatePayrollAction
 
             $this->applyPendingCorrections($payroll, $allocations);
             $this->applyManualAdjustmentTotals($payroll, $allocations);
-            $this->finaliseTotals($payroll, $allocations, $attendance, $bill, $policy);
+            $this->finaliseTotals($payroll, $allocations, $attendance, $bill, $policy, $baseSalaryMinor, $paidLeave);
 
             return $payroll->refresh();
         });
@@ -218,6 +228,8 @@ class CalculatePayrollAction
         int $attendanceShareMinor,
         int $billRewardMinor,
         int $billPenaltyMinor,
+        int $workedPaidLeaveBonusMinor,
+        int $unpaidLeaveDeductionMinor,
         ?PayrollPolicy $policy,
         array $attendance,
         array $bill,
@@ -257,6 +269,8 @@ class CalculatePayrollAction
             $dailyKpiMinor,
             $billRewardMinor,
             $billPenaltyMinor,
+            $workedPaidLeaveBonusMinor,
+            $unpaidLeaveDeductionMinor,
             $attendance,
             $bill,
         );
@@ -361,6 +375,8 @@ class CalculatePayrollAction
         int $dailyKpiMinor,
         int $billRewardMinor,
         int $billPenaltyMinor,
+        int $workedPaidLeaveBonusMinor,
+        int $unpaidLeaveDeductionMinor,
         array $attendance,
         array $bill,
     ): void {
@@ -368,6 +384,8 @@ class CalculatePayrollAction
         $this->writeAdjustment($payroll, $allocation, Category::DailyKpiBonus, Direction::Earning, $dailyKpiMinor, 'Thưởng KPI doanh thu theo ngày.', null);
         $this->writeAdjustment($payroll, $allocation, Category::BillKpiBonus, Direction::Earning, $billRewardMinor, 'Thưởng KPI số bill. '.$bill['reason'], $bill['source_policy_id']);
         $this->writeAdjustment($payroll, $allocation, Category::MissingBillPenalty, Direction::Deduction, $billPenaltyMinor, 'Phạt không đạt KPI số bill. '.$bill['reason'], $bill['source_policy_id']);
+        $this->writeAdjustment($payroll, $allocation, Category::WorkedPaidLeaveBonus, Direction::Earning, $workedPaidLeaveBonusMinor, 'Thưởng đi làm vào ngày nghỉ hưởng lương đã được xếp.', null);
+        $this->writeAdjustment($payroll, $allocation, Category::UnpaidLeaveDeduction, Direction::Deduction, $unpaidLeaveDeductionMinor, 'Khấu trừ lương cơ bản cho ngày chưa làm ngoài ngày nghỉ hưởng lương đã xếp.', null);
     }
 
     private function writeAdjustment(
@@ -465,8 +483,15 @@ class CalculatePayrollAction
      * @param  array<string, mixed>  $attendance
      * @param  array<string, mixed>  $bill
      */
-    private function finaliseTotals(Payroll $payroll, array $allocations, array $attendance, array $bill, ?PayrollPolicy $policy): void
-    {
+    private function finaliseTotals(
+        Payroll $payroll,
+        array $allocations,
+        array $attendance,
+        array $bill,
+        ?PayrollPolicy $policy,
+        int $baseSalaryMinor,
+        array $paidLeave,
+    ): void {
         $sum = fn (string $field): int => array_reduce(
             $allocations,
             fn (int $carry, PayrollAllocation $allocation): int => $carry + Money::toMinor($allocation->{$field}),
@@ -482,7 +507,17 @@ class CalculatePayrollAction
         $finalMinor = Money::ceilToStep($unroundedMinor, $rule->stepInDong());
 
         $payroll->forceFill([
-            'base_salary' => Money::toDecimal($sum('base_salary_amount')),
+            'base_salary' => Money::toDecimal($baseSalaryMinor),
+            'calendar_days' => $paidLeave['calendar_days'],
+            'required_work_days' => $paidLeave['required_work_days'],
+            'paid_leave_days' => $paidLeave['paid_leave_days'],
+            'unpaid_leave_days' => $paidLeave['unpaid_leave_days'],
+            'daily_base_salary_rate' => Money::toDecimal($paidLeave['daily_base_salary_rate_minor']),
+            'unpaid_leave_deduction' => Money::toDecimal($paidLeave['unpaid_leave_deduction_minor']),
+            'worked_paid_leave_days' => $paidLeave['worked_paid_leave_days'],
+            'worked_paid_leave_bonus_rate' => Money::toDecimal($paidLeave['worked_paid_leave_bonus_rate_minor']),
+            'worked_paid_leave_bonus' => Money::toDecimal($paidLeave['worked_paid_leave_bonus_minor']),
+            'net_base_salary' => Money::toDecimal($paidLeave['net_base_salary_minor']),
             'shift_count' => Money::toDecimal($sum('shift_count')),
             'shift_rate' => Money::toDecimal(Money::toMinor($this->compensation->profileFor((int) $payroll->employee_id, $payroll->paying_branch_id, $payroll->period_start)->shift_rate)),
             'shift_pay' => Money::toDecimal($sum('shift_pay')),

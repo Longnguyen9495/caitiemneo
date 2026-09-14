@@ -13,7 +13,9 @@ use App\Models\Branch;
 use App\Models\CashTransaction;
 use App\Models\Invoice;
 use App\Models\InvoiceItem;
+use App\Models\MonthlyPaidLeaveDay;
 use App\Models\Payroll;
+use App\Models\PayrollAdjustment;
 use App\Models\PayrollPolicy;
 use App\Models\User;
 use App\Support\Money;
@@ -142,6 +144,55 @@ class PayrollAllocationTest extends TestCase
 
         // 4.000.000 lương cứng + 800.000 tiền ca + 450.000 hoa hồng + 200.000 chuyên cần.
         $this->assertSame('5450000.00', $payroll->calculated_total);
+    }
+
+    public function test_paid_leave_snapshots_and_adjustments_are_applied_once(): void
+    {
+        MonthlyPaidLeaveDay::factory()->create([
+            'employee_id' => $this->employee->id,
+            'branch_id' => $this->branchA->id,
+            'leave_date' => '2026-08-10',
+        ]);
+        MonthlyPaidLeaveDay::factory()->create([
+            'employee_id' => $this->employee->id,
+            'branch_id' => $this->branchA->id,
+            'leave_date' => '2026-08-20',
+        ]);
+
+        $this->shift($this->branchA, '2026-08-10');
+        AttendanceRecord::factory()->status(AttendanceStatus::Absent)->create([
+            'branch_id' => $this->branchA->id,
+            'employee_id' => $this->employee->id,
+            'work_date' => '2026-08-25',
+            'shift_value' => 0,
+        ]);
+
+        $payroll = $this->calculate();
+
+        $this->assertSame(31, $payroll->calendar_days);
+        $this->assertSame(29, $payroll->required_work_days);
+        $this->assertSame(2, $payroll->paid_leave_days);
+        $this->assertSame(1, $payroll->unpaid_leave_days);
+        $this->assertSame(1, $payroll->worked_paid_leave_days);
+        $this->assertSame('129032.25', $payroll->daily_base_salary_rate);
+        $this->assertSame('129032.25', $payroll->unpaid_leave_deduction);
+        $this->assertSame('3870967.75', $payroll->net_base_salary);
+        $this->assertSame('200000.00', $payroll->worked_paid_leave_bonus);
+
+        $this->assertSame(Money::toMinor('4000000'), $payroll->allocations
+            ->sum(fn ($allocation): int => Money::toMinor($allocation->base_salary_amount)));
+        $this->assertSame(Money::toMinor('129032.25'), PayrollAdjustment::query()
+            ->where('payroll_id', $payroll->id)
+            ->where('category', 'unpaid_leave_deduction')
+            ->get()
+            ->sum(fn (PayrollAdjustment $adjustment): int => Money::toMinor($adjustment->amount)));
+        $this->assertSame(Money::toMinor('200000'), PayrollAdjustment::query()
+            ->where('payroll_id', $payroll->id)
+            ->where('category', 'worked_paid_leave_bonus')
+            ->get()
+            ->sum(fn (PayrollAdjustment $adjustment): int => Money::toMinor($adjustment->amount)));
+        $this->assertSame('5270967.75', $payroll->calculated_total);
+        $this->assertSame('5271000.00', $payroll->final_total);
     }
 
     public function test_a_finalized_payroll_does_not_move_when_the_source_data_changes(): void

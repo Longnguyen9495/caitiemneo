@@ -58,7 +58,13 @@ class CsvExportTest extends TestCase
     public function test_the_payroll_export_is_limited_to_payroll_managers(): void
     {
         $employee = User::factory()->employee()->create(['name' => 'Chị Thu']);
-        Payroll::factory()->create(['employee_id' => $employee->id, 'total' => 5000000]);
+        Payroll::factory()->create([
+            'employee_id' => $employee->id,
+            'total' => 5000000,
+            'paid_leave_days' => 2,
+            'unpaid_leave_days' => 1,
+            'worked_paid_leave_bonus' => 150000,
+        ]);
 
         $content = $this->actingAs(User::factory()->owner()->create())
             ->withConfirmedPassword()
@@ -67,6 +73,9 @@ class CsvExportTest extends TestCase
             ->streamedContent();
 
         $this->assertStringContainsString('Chị Thu', $content);
+        $this->assertStringContainsString('Ngày nghỉ hưởng lương', $content);
+        $this->assertStringContainsString('Thưởng làm ngày nghỉ', $content);
+        $this->assertStringContainsString(',2,1,150000', $content);
 
         $this->actingAs(User::factory()->manager()->create())
             ->get(route('admin.reports.export.payrolls'))

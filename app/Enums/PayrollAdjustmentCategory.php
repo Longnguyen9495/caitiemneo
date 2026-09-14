@@ -5,6 +5,8 @@ namespace App\Enums;
 enum PayrollAdjustmentCategory: string
 {
     case AttendanceBonus = 'attendance_bonus';
+    case WorkedPaidLeaveBonus = 'worked_paid_leave_bonus';
+    case UnpaidLeaveDeduction = 'unpaid_leave_deduction';
     case DailyKpiBonus = 'daily_kpi_bonus';
     case BillKpiBonus = 'bill_kpi_bonus';
     case Allowance = 'allowance';
@@ -20,6 +22,8 @@ enum PayrollAdjustmentCategory: string
     {
         return match ($this) {
             self::AttendanceBonus => 'Thưởng chuyên cần',
+            self::WorkedPaidLeaveBonus => 'Thưởng đi làm ngày nghỉ hưởng lương',
+            self::UnpaidLeaveDeduction => 'Khấu trừ nghỉ không hưởng lương',
             self::DailyKpiBonus => 'Thưởng KPI doanh thu ngày',
             self::BillKpiBonus => 'Thưởng KPI số bill',
             self::Allowance => 'Phụ cấp',
@@ -43,6 +47,8 @@ enum PayrollAdjustmentCategory: string
     {
         return in_array($this, [
             self::AttendanceBonus,
+            self::WorkedPaidLeaveBonus,
+            self::UnpaidLeaveDeduction,
             self::DailyKpiBonus,
             self::BillKpiBonus,
             self::MissingBillPenalty,
@@ -88,7 +94,7 @@ enum PayrollAdjustmentCategory: string
     public function defaultDirection(): PayrollAdjustmentDirection
     {
         return match ($this) {
-            self::Penalty, self::MissingBillPenalty, self::SalaryAdvance => PayrollAdjustmentDirection::Deduction,
+            self::UnpaidLeaveDeduction, self::Penalty, self::MissingBillPenalty, self::SalaryAdvance => PayrollAdjustmentDirection::Deduction,
             default => PayrollAdjustmentDirection::Earning,
         };
     }

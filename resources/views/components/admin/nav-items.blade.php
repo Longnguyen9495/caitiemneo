@@ -7,6 +7,11 @@
         @if (request()->routeIs($item['pattern'])) aria-current="page" @endif
     >
         <x-admin.icon :name="$item['icon']" />
-        <span>{{ $item['label'] }}</span>
+        <span class="flex-grow-1">{{ $item['label'] }}</span>
+        @if ($item['badge'] > 0)
+            <span class="badge rounded-pill text-bg-warning" aria-label="{{ $item['badge'] }} đơn cần xử lý">
+                {{ $item['badge'] }}
+            </span>
+        @endif
     </a>
 @endforeach

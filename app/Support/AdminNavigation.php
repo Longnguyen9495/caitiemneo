@@ -2,6 +2,8 @@
 
 namespace App\Support;
 
+use App\Enums\ShiftRequestStatus;
+use App\Enums\ShiftRequestType;
 use App\Models\Appointment;
 use App\Models\Branch;
 use App\Models\CashTransaction;
@@ -10,6 +12,7 @@ use App\Models\Payroll;
 use App\Models\Product;
 use App\Models\RiskFlag;
 use App\Models\Service;
+use App\Models\ShiftRequest;
 use App\Models\User;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Gate;
@@ -25,10 +28,13 @@ final class AdminNavigation
     /**
      * Every destination the user can open, in menu order.
      *
-     * @return Collection<int, array{label: string, short: string, route: string, pattern: array<int, string>|string, icon: string, primary: bool}>
+     * @return Collection<int, array{label: string, short: string, route: string, pattern: array<int, string>|string, icon: string, primary: bool, badge: int}>
      */
     public static function for(User $user): Collection
     {
+        $shiftRequestBadge = self::shiftRequestBadge($user);
+        $notificationBadge = $user->unreadNotifications()->count();
+
         return collect([
             [
                 'label' => 'Tổng quan', 'short' => 'Tổng quan',
@@ -43,6 +49,13 @@ final class AdminNavigation
                 'route' => 'attendance.board', 'pattern' => 'attendance.board',
                 'icon' => 'pin', 'primary' => $user->isEmployee(),
                 'visible' => true,
+            ],
+            [
+                'label' => 'Thông báo', 'short' => 'Thông báo',
+                'route' => 'admin.notifications.index', 'pattern' => 'admin.notifications.*',
+                'icon' => 'alert', 'primary' => false,
+                'visible' => true,
+                'badge' => $notificationBadge,
             ],
             [
                 'label' => 'Lịch hẹn', 'short' => 'Lịch hẹn',
@@ -61,6 +74,13 @@ final class AdminNavigation
                 'route' => 'admin.attendance.index', 'pattern' => ['admin.attendance.*', 'admin.payrolls.*'],
                 'icon' => 'clock', 'primary' => true,
                 'visible' => $user->can('viewAny', Payroll::class),
+            ],
+            [
+                'label' => 'Đơn ca & nghỉ', 'short' => 'Đơn ca',
+                'route' => 'admin.shift-requests.index', 'pattern' => 'admin.shift-requests.*',
+                'icon' => 'alert', 'primary' => false,
+                'visible' => $user->can('viewAny', ShiftRequest::class),
+                'badge' => $shiftRequestBadge,
             ],
             [
                 'label' => 'Kho vật tư', 'short' => 'Kho',
@@ -99,7 +119,39 @@ final class AdminNavigation
                 'icon' => 'branch', 'primary' => false,
                 'visible' => $user->can('viewAny', Branch::class),
             ],
-        ])->where('visible', true)->values();
+        ])->map(fn (array $item): array => $item + ['badge' => 0])
+            ->where('visible', true)
+            ->values();
+    }
+
+    private static function shiftRequestBadge(User $user): int
+    {
+        if (! $user->isOwner() && ! $user->isManager()) {
+            return 0;
+        }
+
+        $branchIds = app(BranchContext::class)->scopeIds();
+
+        if ($branchIds === []) {
+            return 0;
+        }
+
+        $awaitingDecision = ShiftRequest::query()
+            ->whereIn('branch_id', $branchIds)
+            ->whereIn('status', [
+                ShiftRequestStatus::PendingApproval,
+                ShiftRequestStatus::RecipientConfirmed,
+            ])
+            ->count();
+
+        $awaitingReplacement = ShiftRequest::query()
+            ->whereIn('branch_id', $branchIds)
+            ->where('type', ShiftRequestType::Leave)
+            ->where('status', ShiftRequestStatus::Approved)
+            ->whereDoesntHave('replacement')
+            ->count();
+
+        return $awaitingDecision + $awaitingReplacement;
     }
 
     /**

@@ -6,6 +6,12 @@
     @can('viewAny', App\Models\ShiftAssignment::class)
         <a href="{{ route('admin.shift-schedule.index') }}" @class(['neo-chip', 'is-active' => request()->routeIs('admin.shift-schedule.*')])>Lịch ca</a>
     @endcan
+    @can('viewAny', App\Models\EmployeeFixedShift::class)
+        <a href="{{ route('admin.employee-shift-plans.index') }}" @class(['neo-chip', 'is-active' => request()->routeIs('admin.employee-shift-plans.*')])>Ca cố định & nghỉ</a>
+    @endcan
+    @can('viewAny', App\Models\ShiftRequest::class)
+        <a href="{{ route('admin.shift-requests.index') }}" @class(['neo-chip', 'is-active' => request()->routeIs('admin.shift-requests.*')])>Đơn nghỉ / đổi ca</a>
+    @endcan
     @can('viewAny', App\Models\WorkShift::class)
         <a href="{{ route('admin.work-shifts.index') }}" @class(['neo-chip', 'is-active' => request()->routeIs('admin.work-shifts.*')])>Danh mục ca</a>
     @endcan

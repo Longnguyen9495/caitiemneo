@@ -10,18 +10,21 @@ use App\Http\Controllers\Admin\CashTransactionController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\EmployeeAssignmentController;
 use App\Http\Controllers\Admin\EmployeeController;
+use App\Http\Controllers\Admin\EmployeeShiftPlanController;
 use App\Http\Controllers\Admin\InventoryMovementController;
 use App\Http\Controllers\Admin\InvoiceController;
 use App\Http\Controllers\Admin\InvoicePaymentController;
 use App\Http\Controllers\Admin\PayrollAdjustmentController;
 use App\Http\Controllers\Admin\PayrollController;
 use App\Http\Controllers\Admin\PayrollStatusController;
+use App\Http\Controllers\Admin\NotificationController;
 use App\Http\Controllers\Admin\ProductController;
 use App\Http\Controllers\Admin\ReportController;
 use App\Http\Controllers\Admin\ReportExportController;
 use App\Http\Controllers\Admin\RiskFlagController;
 use App\Http\Controllers\Admin\ServiceController;
 use App\Http\Controllers\Admin\ShiftScheduleController;
+use App\Http\Controllers\Admin\ShiftRequestController;
 use App\Http\Controllers\Admin\StockTransferController;
 use App\Http\Controllers\Admin\SupplierController;
 use App\Http\Controllers\Admin\WorkShiftController;
@@ -117,6 +120,24 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
         Route::post('shift-schedule', [ShiftScheduleController::class, 'store'])->name('shift-schedule.store');
         Route::delete('shift-schedule/{shift_assignment}', [ShiftScheduleController::class, 'destroy'])
             ->name('shift-schedule.destroy');
+
+        Route::get('employee-shift-plans', [EmployeeShiftPlanController::class, 'index'])->name('employee-shift-plans.index');
+        Route::post('employee-shift-plans/fixed-shifts', [EmployeeShiftPlanController::class, 'storeFixedShift'])
+            ->name('employee-shift-plans.fixed-shifts.store');
+        Route::post('employee-shift-plans/generate', [EmployeeShiftPlanController::class, 'generate'])
+            ->name('employee-shift-plans.generate');
+        Route::post('employee-shift-plans/paid-leave-days', [EmployeeShiftPlanController::class, 'storePaidLeaveDays'])
+            ->name('employee-shift-plans.paid-leave-days.store');
+
+        Route::get('notifications', [NotificationController::class, 'index'])->name('notifications.index');
+
+        Route::get('shift-requests', [ShiftRequestController::class, 'index'])->name('shift-requests.index');
+        Route::post('shift-requests/leave', [ShiftRequestController::class, 'storeLeave'])->name('shift-requests.leave.store');
+        Route::post('shift-requests/swap', [ShiftRequestController::class, 'storeSwap'])->name('shift-requests.swap.store');
+        Route::post('shift-requests/{shift_request}/cancel', [ShiftRequestController::class, 'cancel'])->name('shift-requests.cancel');
+        Route::post('shift-requests/{shift_request}/respond', [ShiftRequestController::class, 'respond'])->name('shift-requests.respond');
+        Route::post('shift-requests/{shift_request}/decide', [ShiftRequestController::class, 'decide'])->name('shift-requests.decide');
+        Route::post('shift-requests/{shift_request}/replacement', [ShiftRequestController::class, 'assignReplacement'])->name('shift-requests.replacement.assign');
 
         Route::get('attendance/review', [AttendanceReviewController::class, 'index'])->name('attendance.review');
         Route::patch('attendance/{attendance}/overtime', [AttendanceReviewController::class, 'update'])

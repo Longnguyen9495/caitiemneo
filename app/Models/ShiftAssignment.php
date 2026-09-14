@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
 /**
@@ -77,6 +78,21 @@ class ShiftAssignment extends Model
     public function attendanceRecord(): HasOne
     {
         return $this->hasOne(AttendanceRecord::class, 'shift_assignment_id');
+    }
+
+    public function shiftRequests(): HasMany
+    {
+        return $this->hasMany(ShiftRequest::class);
+    }
+
+    public function counterShiftRequests(): HasMany
+    {
+        return $this->hasMany(ShiftRequest::class, 'counter_shift_assignment_id');
+    }
+
+    public function replacement(): HasOne
+    {
+        return $this->hasOne(ShiftReplacement::class, 'original_shift_assignment_id');
     }
 
     public function scopeForDate(Builder $query, mixed $date): Builder

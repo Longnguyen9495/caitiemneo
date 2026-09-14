@@ -6,7 +6,7 @@
 @php
     $user = auth()->user();
     $navigation = App\Support\AdminNavigation::for($user);
-    $primaryNav = App\Support\AdminNavigation::primaryFor($user);
+    $primaryNav = $navigation->where('primary', true)->take(4)->values();
 @endphp
 
 <!doctype html>

@@ -9,7 +9,7 @@
 
     $groups = [
         'Thu nhập cố định' => [
-            ['1. Lương cứng', $payroll->base_salary, null],
+            ['1. Lương cứng', $payroll->base_salary, $payroll->calendar_days ? $payroll->calendar_days.' ngày theo lịch · '.\App\Support\Money::format($payroll->daily_base_salary_rate).'/ngày' : null],
             ['2. Tiền ca', $payroll->shift_pay, rtrim(rtrim((string) $payroll->shift_count, '0'), '.').' ca × '.\App\Support\Money::format($payroll->shift_rate)],
             ['3. Thưởng chuyên cần', $payroll->attendance_bonus, null],
         ],
@@ -22,14 +22,16 @@
             ['7. KPI số bill', $payroll->bill_kpi_bonus, $payroll->qualified_bill_count.' bill hợp lệ'.($payroll->policy?->required_bill_count ? ' / cần '.$payroll->policy->required_bill_count : '')],
         ],
         'Khoản cộng thêm' => [
-            ['8. Phụ cấp', $byCategory(Category::Allowance, Direction::Earning), null],
-            ['9. Thưởng khác', $byCategory(Category::ManualBonus, Direction::Earning) + $byCategory(Category::OvertimeBonus, Direction::Earning), null],
-            ['13. Điều chỉnh kỳ trước', $byCategory(Category::Correction, Direction::Earning), 'Khoản cộng'],
+            ['8. Thưởng đi làm ngày nghỉ hưởng lương', $byCategory(Category::WorkedPaidLeaveBonus, Direction::Earning), $payroll->worked_paid_leave_days ? $payroll->worked_paid_leave_days.' ngày × '.\App\Support\Money::format($payroll->worked_paid_leave_bonus_rate) : null],
+            ['9. Phụ cấp', $byCategory(Category::Allowance, Direction::Earning), null],
+            ['10. Thưởng khác', $byCategory(Category::ManualBonus, Direction::Earning) + $byCategory(Category::OvertimeBonus, Direction::Earning), null],
+            ['14. Điều chỉnh kỳ trước', $byCategory(Category::Correction, Direction::Earning), 'Khoản cộng'],
         ],
         'Khoản trừ' => [
-            ['10. Phạt', $byCategory(Category::Penalty, Direction::Deduction) + $byCategory(Category::MissingBillPenalty, Direction::Deduction), null],
-            ['11. Tạm ứng', $byCategory(Category::SalaryAdvance, Direction::Deduction), null],
-            ['12. Khấu trừ khác', $byCategory(Category::Other, Direction::Deduction), null],
+            ['11. Nghỉ không hưởng lương', $byCategory(Category::UnpaidLeaveDeduction, Direction::Deduction), $payroll->unpaid_leave_days ? $payroll->unpaid_leave_days.' ngày · còn '.$payroll->required_work_days.' ngày công yêu cầu sau '.$payroll->paid_leave_days.' ngày nghỉ hưởng lương đã xếp' : null],
+            ['12. Phạt', $byCategory(Category::Penalty, Direction::Deduction) + $byCategory(Category::MissingBillPenalty, Direction::Deduction), null],
+            ['13. Tạm ứng', $byCategory(Category::SalaryAdvance, Direction::Deduction), null],
+            ['Khấu trừ khác', $byCategory(Category::Other, Direction::Deduction), null],
             ['Điều chỉnh kỳ trước', $byCategory(Category::Correction, Direction::Deduction), 'Khoản trừ'],
         ],
     ];

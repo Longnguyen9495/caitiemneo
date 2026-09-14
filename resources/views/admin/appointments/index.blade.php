@@ -82,15 +82,16 @@
 
                     <div class="d-flex flex-wrap align-items-center gap-2 mt-3">
                         @can('update', $appointment)
-                            <form method="POST" action="{{ route('admin.appointments.status', $appointment) }}" class="flex-grow-1" style="max-width:13rem">
+                            <form method="POST" action="{{ route('admin.appointments.status', $appointment) }}" class="d-flex flex-grow-1 gap-2" style="max-width:18rem">
                                 @csrf
                                 @method('PATCH')
                                 <label class="visually-hidden" for="status-{{ $appointment->id }}">Trạng thái của {{ $appointment->customer_name }}</label>
-                                <select class="form-select form-select-sm" id="status-{{ $appointment->id }}" name="status" onchange="this.form.submit()">
+                                <select class="form-select form-select-sm" id="status-{{ $appointment->id }}" name="status">
                                     @foreach ($statuses as $value => $label)
                                         <option value="{{ $value }}" @selected($appointment->status->value === $value)>{{ $label }}</option>
                                     @endforeach
                                 </select>
+                                <button type="submit" class="btn btn-sm btn-outline-primary flex-shrink-0">Cập nhật</button>
                             </form>
                         @else
                             <x-admin.status-badge :status="$appointment->status" />

@@ -151,6 +151,26 @@ class User extends Authenticatable
         return $this->hasMany(EmployeePolicyAssignment::class, 'user_id');
     }
 
+    public function fixedShifts(): HasMany
+    {
+        return $this->hasMany(EmployeeFixedShift::class, 'employee_id');
+    }
+
+    public function monthlyPaidLeaveDays(): HasMany
+    {
+        return $this->hasMany(MonthlyPaidLeaveDay::class, 'employee_id');
+    }
+
+    public function submittedShiftRequests(): HasMany
+    {
+        return $this->hasMany(ShiftRequest::class, 'requester_id');
+    }
+
+    public function receivedShiftRequests(): HasMany
+    {
+        return $this->hasMany(ShiftRequest::class, 'recipient_id');
+    }
+
     /**
      * Ids of the branches this account may act in on a given business date.
      *

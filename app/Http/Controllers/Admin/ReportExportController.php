@@ -112,13 +112,16 @@ class ReportExportController extends Controller
 
         return $this->exporter->stream(
             $this->filename('bang-luong'),
-            ['Nhân viên', 'Từ ngày', 'Đến ngày', 'Lương cứng', 'Số ca', 'Đơn giá ca', 'Lương ca', 'Chuyên cần', 'HH trong giờ', 'HH ngoài giờ', 'KPI ngày', 'KPI bill', 'Phụ cấp', 'Khấu trừ', 'Tổng hệ thống', 'Làm tròn', 'Thực lĩnh', 'Trạng thái', 'Ngày trả'],
+            ['Nhân viên', 'Từ ngày', 'Đến ngày', 'Lương cứng', 'Ngày nghỉ hưởng lương', 'Ngày nghỉ không lương', 'Thưởng làm ngày nghỉ', 'Số ca', 'Đơn giá ca', 'Lương ca', 'Chuyên cần', 'HH trong giờ', 'HH ngoài giờ', 'KPI ngày', 'KPI bill', 'Phụ cấp', 'Khấu trừ', 'Tổng hệ thống', 'Làm tròn', 'Thực lĩnh', 'Trạng thái', 'Ngày trả'],
             $payrolls->build($request, $request->user())->with('employee')->orderBy('payrolls.id'),
             fn (Payroll $payroll): array => [
                 $payroll->employee?->name,
                 $payroll->period_start->format('d/m/Y'),
                 $payroll->period_end->format('d/m/Y'),
                 $payroll->base_salary,
+                $payroll->paid_leave_days,
+                $payroll->unpaid_leave_days,
+                $payroll->worked_paid_leave_bonus,
                 $payroll->shift_count,
                 $payroll->shift_rate,
                 $payroll->shift_pay,
