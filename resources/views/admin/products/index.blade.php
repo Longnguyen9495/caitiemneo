@@ -64,7 +64,7 @@
                             @if ($isLow)<x-admin.status-badge tone="is-warning" label="Tồn thấp" class="ms-1" />@endif
                         </td>
                         <td data-label="Định mức" class="text-end neo-num">{{ rtrim(rtrim((string) $product->effective_minimum_stock, '0'), '.') }}</td>
-                        <td data-label="Trạng thái">
+                        <td data-label="Trạng thái" class="neo-table__status">
                             <x-admin.status-badge :tone="$product->is_active ? 'is-success' : 'is-muted'" :label="$product->is_active ? 'Đang dùng' : 'Đã ngưng'" />
                         </td>
                         <td>

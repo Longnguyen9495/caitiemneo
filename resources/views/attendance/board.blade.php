@@ -128,7 +128,7 @@
                             <tr>
                                 <td class="neo-num fw-semibold">{{ $record->work_date->format('d/m/Y') }}</td>
                                 <td data-label="Ca">{{ $record->shift_name }}</td>
-                                <td data-label="Trạng thái"><x-admin.status-badge :status="$record->status" /></td>
+                                <td data-label="Trạng thái" class="neo-table__status"><x-admin.status-badge :status="$record->status" /></td>
                                 <td data-label="Giờ vào / ra" class="neo-num">
                                     {{ $record->checked_in_at?->format('H:i') ?? '—' }} / {{ $record->checked_out_at?->format('H:i') ?? '—' }}
                                 </td>

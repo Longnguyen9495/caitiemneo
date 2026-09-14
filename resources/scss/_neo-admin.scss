@@ -175,9 +175,16 @@ body.neo {
         display: block;
 
         thead { display: none; }
-        tbody, tr, td { display: block; width: 100%; }
+        tbody, td { display: block; width: 100%; }
 
+        // Thẻ là một lưới hai cột: cột trái cho nội dung, cột phải dành riêng
+        // cho chip trạng thái ở hàng đầu. Cột phải co về 0 khi bảng không có
+        // cột trạng thái, nên mọi bảng dùng chung đúng một bố cục này.
         tr {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            align-items: start;
+            width: 100%;
             padding: .85rem 1rem;
             border-bottom: 1px solid $border-color;
 
@@ -185,6 +192,7 @@ body.neo {
         }
 
         td {
+            grid-column: 1 / -1;
             display: flex;
             align-items: baseline;
             justify-content: space-between;
@@ -213,14 +221,38 @@ body.neo {
 
         // Ô đầu tiên đóng vai trò tiêu đề của thẻ.
         td:first-child {
+            grid-column: 1;
+            grid-row: 1;
             margin-bottom: .35rem;
             font-size: 1rem;
             font-weight: 600;
             color: $neo-ink;
         }
 
+        // Trạng thái là thứ mắt cần thấy trước tiên, nên nó rời khỏi dòng
+        // nhãn/giá trị và trở thành chip ghim ở góc trên bên phải, ngang hàng
+        // với tiêu đề thẻ. Nhãn "Trạng thái" bỏ đi vì chip đã tự nói rõ.
+        td.neo-table__status {
+            grid-column: 2;
+            grid-row: 1;
+            justify-content: flex-end;
+            width: auto;
+            // Nhãn dài ("Chờ người nhận xác nhận") không được phép bóp cột tiêu
+            // đề xuống còn một ký tự mỗi dòng: chip tự xuống dòng trước.
+            max-width: 45%;
+            margin-bottom: .35rem;
+            padding: 0 0 0 .75rem;
+            gap: .35rem;
+            text-align: right;
+
+            &::before { display: none; }
+
+            .badge { white-space: normal; }
+        }
+
         // Hàng "không có dữ liệu" giữ nguyên dạng khối căn giữa.
         td.neo-table__empty {
+            grid-column: 1 / -1;
             justify-content: center;
             text-align: center;
             font-size: inherit;

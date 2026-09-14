@@ -47,7 +47,7 @@
                         <td data-label="Từ chi nhánh"><span class="badge rounded-pill text-bg-light border fw-normal">{{ $transfer->sourceBranch?->code }}</span> {{ $transfer->sourceBranch?->name }}</td>
                         <td data-label="Đến chi nhánh"><span class="badge rounded-pill text-bg-light border fw-normal">{{ $transfer->destinationBranch?->code }}</span> {{ $transfer->destinationBranch?->name }}</td>
                         <td data-label="Số dòng" class="text-end neo-num">{{ $transfer->items_count }}</td>
-                        <td data-label="Trạng thái"><x-admin.status-badge :status="$transfer->status" /></td>
+                        <td data-label="Trạng thái" class="neo-table__status"><x-admin.status-badge :status="$transfer->status" /></td>
                         <td data-label="Người tạo">{{ $transfer->creator?->name ?? '—' }}</td>
                         <td><a href="{{ route('admin.stock-transfers.show', $transfer) }}" class="btn btn-sm btn-outline-secondary">Chi tiết</a></td>
                     </tr>

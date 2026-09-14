@@ -102,7 +102,7 @@
                             @if ($item->note)<small class="d-block text-body-secondary">{{ $item->note }}</small>@endif
                         </td>
                         <td data-label="Hệ số" class="text-end neo-num">{{ rtrim(rtrim((string) $item->shift_value, '0'), '.') }}</td>
-                        <td data-label="Trạng thái"><x-admin.status-badge :status="$item->status" /></td>
+                        <td data-label="Trạng thái" class="neo-table__status"><x-admin.status-badge :status="$item->status" /></td>
                         <td data-label="Giờ vào / ra" class="neo-num">{{ $item->checked_in_at?->format('H:i') ?? '—' }} / {{ $item->checked_out_at?->format('H:i') ?? '—' }}</td>
                         <td data-label="Trễ / tăng ca" class="neo-num">
                             {{ $item->late_minutes > 0 ? $item->late_minutes.'p trễ' : '—' }}

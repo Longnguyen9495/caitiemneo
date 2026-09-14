@@ -38,7 +38,7 @@
                         <td data-label="Phạm vi">{{ $shift->branch?->name ?? 'Dùng chung mọi chi nhánh' }}</td>
                         <td data-label="Hệ số" class="text-end neo-num">{{ rtrim(rtrim((string) $shift->shift_value, '0'), '.') }}</td>
                         <td data-label="Ân hạn" class="text-end neo-num">{{ $shift->grace_minutes }} phút</td>
-                        <td data-label="Trạng thái">
+                        <td data-label="Trạng thái" class="neo-table__status">
                             <x-admin.status-badge
                                 :label="$shift->is_active ? 'Đang dùng' : 'Ngừng dùng'"
                                 :tone="$shift->is_active ? 'is-success' : 'is-muted'"

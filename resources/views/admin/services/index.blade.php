@@ -66,7 +66,7 @@
                                 <x-admin.money :value="$service->price" />
                             @endif
                         </td>
-                        <td data-label="Trạng thái">
+                        <td data-label="Trạng thái" class="neo-table__status">
                             <x-admin.status-badge :tone="$service->is_active ? 'is-success' : 'is-muted'" :label="$service->is_active ? 'Đang áp dụng' : 'Đã ẩn'" />
                         </td>
                         <td>

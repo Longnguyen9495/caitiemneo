@@ -69,7 +69,7 @@
                         </td>
                         <td data-label="Ngày tạo" class="neo-num">{{ $invoice->created_at?->format('d/m/Y H:i') }}</td>
                         <td data-label="Tổng tiền" class="text-end fw-semibold"><x-admin.money :value="$invoice->total" /></td>
-                        <td data-label="Trạng thái"><x-admin.status-badge :status="$invoice->status" /></td>
+                        <td data-label="Trạng thái" class="neo-table__status"><x-admin.status-badge :status="$invoice->status" /></td>
                         <td data-label="Phương thức">{{ $invoice->payment_method?->label() ?? '—' }}</td>
                         <td data-label="Người tạo">{{ $invoice->creator?->name ?? '—' }}</td>
                         <td>

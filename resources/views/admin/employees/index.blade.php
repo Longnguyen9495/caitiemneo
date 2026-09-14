@@ -68,7 +68,7 @@
                                 @if ($employee->can_manage_payroll)<span class="badge rounded-pill text-bg-light border fw-normal">Bảng lương</span>@endif
                             </span>
                         </td>
-                        <td data-label="Trạng thái">
+                        <td data-label="Trạng thái" class="neo-table__status">
                             <x-admin.status-badge :tone="$employee->is_active ? 'is-success' : 'is-muted'" :label="$employee->is_active ? 'Đang làm' : 'Đã nghỉ'" />
                         </td>
                         <td>

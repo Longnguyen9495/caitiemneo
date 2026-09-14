@@ -73,22 +73,26 @@
 
     <section class="card overflow-hidden">
         <table class="table neo-table align-middle mb-0">
-            <thead><tr><th>Loại</th><th>Nhân viên</th><th>Ngày / ca</th><th>Trạng thái</th><th>Quyền lợi</th><th>Thao tác</th></tr></thead>
+            <thead><tr><th>Loại</th><th>Nhân viên</th><th>Ngày / ca</th><th>Trạng thái</th><th>Quyền lợi / người thay</th><th>Thao tác</th></tr></thead>
             <tbody>
                 @forelse ($requests as $shiftRequest)
                     <tr>
                         <td>{{ $shiftRequest->type->label() }}</td>
                         <td>{{ $shiftRequest->requester->name }}</td>
                         <td>{{ $shiftRequest->work_date->format('d/m/Y') }} · {{ $shiftRequest->shiftAssignment->shift_name }}</td>
-                        <td>
+                        <td data-label="Trạng thái" class="neo-table__status">
                             <x-admin.status-badge :status="$shiftRequest->status" />
-                            @if ($shiftRequest->replacement)
-                                <span class="d-block small text-success mt-1">Người thay: {{ $shiftRequest->replacement->replacementEmployee?->name }}</span>
-                            @elseif ($shiftRequest->status === \App\Enums\ShiftRequestStatus::Approved && $shiftRequest->type->value === 'leave')
-                                <span class="d-block small text-warning-emphasis mt-1">Cần phân người thay</span>
-                            @endif
                         </td>
-                        <td>{{ $shiftRequest->leave_entitlement?->label() ?? '—' }}</td>
+                        <td data-label="Quyền lợi / người thay">
+                            <div>
+                                {{ $shiftRequest->leave_entitlement?->label() ?? '—' }}
+                                @if ($shiftRequest->replacement)
+                                    <span class="d-block small text-success">Người thay: {{ $shiftRequest->replacement->replacementEmployee?->name }}</span>
+                                @elseif ($shiftRequest->status === \App\Enums\ShiftRequestStatus::Approved && $shiftRequest->type->value === 'leave')
+                                    <span class="d-block small text-warning-emphasis">Cần phân người thay</span>
+                                @endif
+                            </div>
+                        </td>
                         <td class="d-flex flex-wrap gap-1">
                             @can('cancel', $shiftRequest)
                                 <form method="POST" action="{{ route('admin.shift-requests.cancel', $shiftRequest) }}">@csrf<button class="btn btn-sm btn-outline-secondary">Hủy</button></form>

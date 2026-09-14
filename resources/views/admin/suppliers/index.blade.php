@@ -48,7 +48,7 @@
                             @if ($supplier->email)<small class="d-block text-body-secondary">{{ $supplier->email }}</small>@endif
                         </td>
                         <td data-label="Số phiếu" class="text-end neo-num">{{ $supplier->inventory_movements_count }}</td>
-                        <td data-label="Trạng thái">
+                        <td data-label="Trạng thái" class="neo-table__status">
                             <x-admin.status-badge :tone="$supplier->is_active ? 'is-success' : 'is-muted'" :label="$supplier->is_active ? 'Đang hợp tác' : 'Đã ngưng'" />
                         </td>
                         <td>

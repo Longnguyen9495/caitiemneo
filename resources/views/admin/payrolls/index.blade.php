@@ -75,7 +75,7 @@
                         <td data-label="Lương ca" class="text-end"><x-admin.money :value="$payroll->shift_pay" /></td>
                         <td data-label="Hoa hồng" class="text-end"><x-admin.money :value="$payroll->commission_pay" /></td>
                         <td data-label="Thực nhận" class="text-end fw-bold"><x-admin.money :value="$payroll->total" /></td>
-                        <td data-label="Trạng thái"><x-admin.status-badge :status="$payroll->status" /></td>
+                        <td data-label="Trạng thái" class="neo-table__status"><x-admin.status-badge :status="$payroll->status" /></td>
                         <td>
                             <a href="{{ route('admin.payrolls.show', $payroll) }}" class="btn btn-sm btn-outline-secondary">Chi tiết</a>
                         </td>

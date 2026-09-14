@@ -35,7 +35,7 @@
                         <td data-label="Liên hệ" class="neo-num">{{ $branch->phone ?: '—' }}</td>
                         <td data-label="Nhân sự" class="text-end neo-num">{{ $branch->assignments_count }}</td>
                         <td data-label="Hóa đơn" class="text-end neo-num">{{ $branch->invoices_count }}</td>
-                        <td data-label="Trạng thái">
+                        <td data-label="Trạng thái" class="neo-table__status">
                             <x-admin.status-badge :tone="$branch->is_active ? 'is-success' : 'is-muted'" :label="$branch->is_active ? 'Đang hoạt động' : 'Đã ngừng'" />
                         </td>
                         <td>
