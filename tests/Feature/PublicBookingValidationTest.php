@@ -88,7 +88,7 @@ class PublicBookingValidationTest extends TestCase
 
         $this->post(route('booking.store'), $this->payload([
             'branch_id' => $closed->getKey(),
-        ]))->assertSessionHasErrors('branch_id');
+        ]))->assertRedirect(route('home').'#dat-lich')->assertSessionHasErrors('branch_id');
     }
 
     /** Every field the form accepts has to be able to report its own error. */
@@ -96,6 +96,7 @@ class PublicBookingValidationTest extends TestCase
     {
         $this->from(route('home'))
             ->post(route('booking.store'), [])
+            ->assertRedirect(route('home').'#dat-lich')
             ->assertSessionHasErrors(['branch_id', 'customer_name', 'customer_phone', 'starts_at']);
 
         // Đi theo đúng chuyển hướng: lỗi nằm trong session flash nên một request
@@ -133,7 +134,7 @@ class PublicBookingValidationTest extends TestCase
     {
         $this->post(route('booking.store'), $this->payload([
             'starts_at' => now()->subDay()->format('Y-m-d\TH:i'),
-        ]))->assertSessionHasErrors('starts_at');
+        ]))->assertRedirect(route('home').'#dat-lich')->assertSessionHasErrors('starts_at');
     }
 
     /**
