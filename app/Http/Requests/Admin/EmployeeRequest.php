@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Admin;
 
 use App\Enums\UserRole;
+use App\Models\Branch;
 use App\Models\User;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -26,6 +27,11 @@ class EmployeeRequest extends FormRequest
         $ignoreId = $employee instanceof User ? $employee->getKey() : null;
 
         return [
+            // A brand new account is posted to a branch in the same step, because an
+            // account without a posting cannot reach the admin area at all.
+            'branch_id' => $ignoreId
+                ? ['prohibited']
+                : ['required', Rule::exists(Branch::class, 'id')->where('is_active', true)],
             'name' => ['required', 'string', 'max:255'],
             'username' => ['nullable', 'string', 'max:60', 'alpha_dash', Rule::unique(User::class, 'username')->ignore($ignoreId)],
             'email' => ['required', 'email', 'max:255', Rule::unique(User::class, 'email')->ignore($ignoreId)],
@@ -56,6 +62,7 @@ class EmployeeRequest extends FormRequest
     public function attributes(): array
     {
         return [
+            'branch_id' => 'chi nhánh',
             'name' => 'họ tên',
             'username' => 'tên đăng nhập',
             'email' => 'email',

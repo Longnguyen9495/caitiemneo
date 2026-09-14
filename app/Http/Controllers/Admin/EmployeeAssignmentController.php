@@ -2,13 +2,13 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Actions\Employees\AssignEmployeeToBranchAction;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\EmployeeAssignmentRequest;
 use App\Models\EmployeeBranchAssignment;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 
 /**
  * Posting staff to branches.
@@ -18,30 +18,20 @@ use Illuminate\Support\Facades\DB;
  */
 class EmployeeAssignmentController extends Controller
 {
+    public function __construct(private AssignEmployeeToBranchAction $assignToBranch) {}
+
     public function store(EmployeeAssignmentRequest $request, User $employee): RedirectResponse
     {
         $data = $request->validated();
 
-        DB::transaction(function () use ($data, $employee, $request): void {
-            // One primary posting at a time: close the previous one the day
-            // before the new one starts.
-            if ($data['is_primary'] ?? false) {
-                EmployeeBranchAssignment::query()
-                    ->where('user_id', $employee->getKey())
-                    ->where('is_primary', true)
-                    ->whereNull('ends_on')
-                    ->update(['ends_on' => now()->parse($data['starts_on'])->subDay()->toDateString()]);
-            }
-
-            EmployeeBranchAssignment::query()->create([
-                'branch_id' => $data['branch_id'],
-                'user_id' => $employee->getKey(),
-                'is_primary' => (bool) ($data['is_primary'] ?? false),
-                'starts_on' => $data['starts_on'],
-                'ends_on' => $data['ends_on'] ?? null,
-                'created_by' => $request->user()->getKey(),
-            ]);
-        });
+        $this->assignToBranch->handle(
+            employee: $employee,
+            branchId: (int) $data['branch_id'],
+            startsOn: $data['starts_on'],
+            endsOn: $data['ends_on'] ?? null,
+            isPrimary: (bool) ($data['is_primary'] ?? false),
+            actor: $request->user(),
+        );
 
         return redirect()
             ->route('admin.employees.edit', $employee)

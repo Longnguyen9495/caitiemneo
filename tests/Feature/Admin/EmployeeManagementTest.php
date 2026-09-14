@@ -6,8 +6,10 @@ use App\Enums\AttendanceStatus;
 use App\Enums\PayrollStatus;
 use App\Enums\UserRole;
 use App\Models\AttendanceRecord;
+use App\Models\Branch;
 use App\Models\Payroll;
 use App\Models\User;
+use Database\Factories\BranchFactory;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Hash;
@@ -55,6 +57,7 @@ class EmployeeManagementTest extends TestCase
 
         $this->actingAs($owner)->withConfirmedPassword()
             ->post(route('admin.employees.store'), $this->payload([
+                'branch_id' => BranchFactory::resolveId(),
                 'password' => 'matkhau-rat-manh',
                 'password_confirmation' => 'matkhau-rat-manh',
                 'can_manage_appointments' => '1',
@@ -68,13 +71,81 @@ class EmployeeManagementTest extends TestCase
         $this->assertTrue(Hash::check('matkhau-rat-manh', $employee->password));
     }
 
+    /**
+     * Access to the admin area is decided by the posting, not by the role, so a
+     * new account is only usable if the two are created together.
+     */
+    public function test_creating_an_account_posts_it_to_the_chosen_branch(): void
+    {
+        $owner = User::factory()->owner()->create();
+        $branch = Branch::factory()->create();
+
+        $this->actingAs($owner)->withConfirmedPassword()
+            ->post(route('admin.employees.store'), $this->payload([
+                'branch_id' => $branch->id,
+                'password' => 'matkhau-rat-manh',
+                'password_confirmation' => 'matkhau-rat-manh',
+            ]))
+            ->assertRedirect(route('admin.employees.index'));
+
+        $employee = User::query()->where('email', 'mai@caitiemneo.test')->firstOrFail();
+
+        $this->assertDatabaseHas('employee_branch_assignments', [
+            'user_id' => $employee->id,
+            'branch_id' => $branch->id,
+            'is_primary' => true,
+            'starts_on' => '2026-08-20 00:00:00',
+            'ends_on' => null,
+            'created_by' => $owner->id,
+        ]);
+
+        $this->assertTrue($employee->canAccessBranch($branch, '2026-08-20'));
+    }
+
+    public function test_an_account_cannot_be_created_without_a_branch(): void
+    {
+        $owner = User::factory()->owner()->create();
+
+        $this->actingAs($owner)->withConfirmedPassword()
+            ->from(route('admin.employees.create'))
+            ->post(route('admin.employees.store'), $this->payload([
+                'password' => 'matkhau-rat-manh',
+                'password_confirmation' => 'matkhau-rat-manh',
+            ]))
+            ->assertSessionHasErrors('branch_id');
+
+        $this->assertDatabaseMissing('users', ['email' => 'mai@caitiemneo.test']);
+    }
+
+    /** Transfers belong to the assignment panel, which keeps the history. */
+    public function test_the_edit_form_cannot_move_an_account_to_another_branch(): void
+    {
+        $owner = User::factory()->owner()->create();
+        $employee = User::factory()->employee()->create(['email' => 'giu@caitiemneo.test']);
+        $otherBranch = Branch::factory()->create();
+
+        $this->actingAs($owner)->withConfirmedPassword()
+            ->from(route('admin.employees.edit', $employee))
+            ->put(route('admin.employees.update', $employee), $this->payload([
+                'email' => 'giu@caitiemneo.test',
+                'branch_id' => $otherBranch->id,
+                'is_active' => '1',
+            ]))
+            ->assertSessionHasErrors('branch_id');
+
+        $this->assertDatabaseMissing('employee_branch_assignments', [
+            'user_id' => $employee->id,
+            'branch_id' => $otherBranch->id,
+        ]);
+    }
+
     public function test_a_password_is_required_on_create_but_optional_on_edit(): void
     {
         $owner = User::factory()->owner()->create();
 
         $this->actingAs($owner)->withConfirmedPassword()
             ->from(route('admin.employees.create'))
-            ->post(route('admin.employees.store'), $this->payload())
+            ->post(route('admin.employees.store'), $this->payload(['branch_id' => BranchFactory::resolveId()]))
             ->assertSessionHasErrors('password');
 
         $employee = User::factory()->employee()->create(['email' => 'giu@caitiemneo.test']);

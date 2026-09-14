@@ -2,21 +2,28 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Actions\Employees\AssignEmployeeToBranchAction;
 use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\EmployeeRequest;
 use App\Models\Branch;
 use App\Models\User;
 use App\Services\Auth\SessionRevoker;
+use App\Support\BranchContext;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
 class EmployeeController extends Controller
 {
-    public function __construct(private SessionRevoker $sessionRevoker) {}
+    public function __construct(
+        private SessionRevoker $sessionRevoker,
+        private BranchContext $branchContext,
+        private AssignEmployeeToBranchAction $assignToBranch,
+    ) {}
 
     public function index(Request $request): View
     {
@@ -52,14 +59,33 @@ class EmployeeController extends Controller
             'employee' => new User(['role' => UserRole::Employee, 'is_active' => true]),
             'roles' => UserRole::options(),
             'branches' => Branch::query()->active()->orderBy('code')->get(),
+            'defaultBranchId' => $this->branchContext->requireWritableBranchId(),
         ]);
     }
 
+    /**
+     * Create the account and its first posting together.
+     *
+     * Splitting the two used to leave a usable account that could not enter the
+     * admin area, because access is decided by the posting and not by the role.
+     */
     public function store(EmployeeRequest $request): RedirectResponse
     {
-        User::query()->create($request->validated() + ['email_verified_at' => now()]);
+        $data = $request->validated();
+        $branchId = (int) $data['branch_id'];
 
-        return redirect()->route('admin.employees.index')->with('success', 'Đã tạo tài khoản nhân sự.');
+        DB::transaction(function () use ($data, $branchId, $request): void {
+            $employee = User::query()->create(Arr::except($data, ['branch_id']) + ['email_verified_at' => now()]);
+
+            $this->assignToBranch->handle(
+                employee: $employee,
+                branchId: $branchId,
+                startsOn: now()->toDateString(),
+                actor: $request->user(),
+            );
+        });
+
+        return redirect()->route('admin.employees.index')->with('success', 'Đã tạo tài khoản nhân sự và phân công chi nhánh.');
     }
 
     public function edit(User $employee): View
@@ -72,6 +98,7 @@ class EmployeeController extends Controller
             'employee' => $employee,
             'roles' => UserRole::options(),
             'branches' => Branch::query()->active()->orderBy('code')->get(),
+            'defaultBranchId' => $this->branchContext->requireWritableBranchId(),
         ]);
     }
 

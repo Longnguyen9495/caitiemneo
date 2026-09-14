@@ -53,6 +53,21 @@
                 </select>
             </x-admin.field>
 
+            @unless ($employee->exists)
+                {{-- Một tài khoản chưa có phân công thì không vào được khu vực quản trị,
+                     nên chi nhánh đầu tiên được chọn ngay khi tạo. --}}
+                <x-admin.field name="branch_id" label="Chi nhánh làm việc" required>
+                    <select class="form-select @error('branch_id') is-invalid @enderror" id="branch_id" name="branch_id" required>
+                        @if ($defaultBranchId === null)
+                            <option value="" selected disabled>Chọn chi nhánh</option>
+                        @endif
+                        @foreach ($branches as $branch)
+                            <option value="{{ $branch->id }}" @selected((string) old('branch_id', $defaultBranchId) === (string) $branch->id)>{{ $branch->name }}</option>
+                        @endforeach
+                    </select>
+                </x-admin.field>
+            @endunless
+
             <x-admin.field name="base_salary" label="Lương cứng theo kỳ" required>
                 <x-admin.money-input name="base_salary" :value="$employee->base_salary ?? 0" required />
             </x-admin.field>

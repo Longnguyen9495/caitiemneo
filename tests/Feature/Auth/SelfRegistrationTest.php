@@ -3,6 +3,7 @@
 namespace Tests\Feature\Auth;
 
 use App\Models\User;
+use Database\Factories\BranchFactory;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -52,6 +53,7 @@ class SelfRegistrationTest extends TestCase
                 'password' => 'mat-khau-rat-dai-123',
                 'password_confirmation' => 'mat-khau-rat-dai-123',
                 'role' => 'employee',
+                'branch_id' => BranchFactory::resolveId(),
                 'is_active' => 1,
                 'base_salary' => 0,
                 'shift_rate' => 0,
