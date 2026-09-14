@@ -107,7 +107,7 @@
                             @if ($transaction->isVoided())
                                 <x-admin.status-badge tone="is-danger" label="Đã hủy" />
                             @else
-                                <span class="d-inline-flex flex-wrap gap-2">
+                                <span class="neo-actions">
                                     @can('update', $transaction)
                                         <a href="{{ route('admin.cash.edit', $transaction) }}" class="btn btn-sm btn-outline-secondary">Sửa</a>
                                     @endcan

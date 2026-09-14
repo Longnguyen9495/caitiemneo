@@ -236,10 +236,13 @@ body.neo {
             grid-column: 2;
             grid-row: 1;
             justify-content: flex-end;
+            // Chip cao hơn hay thấp hơn dòng tiêu đề tùy nhãn dài ngắn, nên nếu
+            // chỉ căn mép trên thì mỗi bảng lại lệch một kiểu. Cho ô một hộp cao
+            // đúng bằng dòng đầu của tiêu đề (1rem × line-height 1.5) rồi căn
+            // giữa trong đó: chip luôn nằm đúng tâm dòng tiêu đề, ở mọi màn hình.
+            align-items: center;
+            min-height: 1.5rem;
             width: auto;
-            // Nhãn dài ("Chờ người nhận xác nhận") không được phép bóp cột tiêu
-            // đề xuống còn một ký tự mỗi dòng: chip tự xuống dòng trước.
-            max-width: 45%;
             margin-bottom: .35rem;
             padding: 0 0 0 .75rem;
             gap: .35rem;
@@ -247,7 +250,12 @@ body.neo {
 
             &::before { display: none; }
 
-            .badge { white-space: normal; }
+            // Chip phải nằm gọn một dòng. Cho phép nó xuống dòng thì cột lưới
+            // `auto` co về min-content — bề rộng của từ dài nhất — và ngay cả
+            // "Đã duyệt" cũng bị bẻ đôi. Nhãn dài nhất hiện có là "Chờ người
+            // nhận xác nhận"; cột tiêu đề bên trái là `minmax(0, 1fr)` nên nó
+            // nhường chỗ bằng cách tự xuống dòng, đúng thứ tự ưu tiên mong muốn.
+            .badge { white-space: nowrap; }
         }
 
         // Hàng "không có dữ liệu" giữ nguyên dạng khối căn giữa.
@@ -272,6 +280,20 @@ body.neo {
 .neo-table-scroll {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
+}
+
+// Dấu tròn ở đầu hộp thoại thông báo: nhận ra thành công hay hỏng từ xa,
+// trước cả khi đọc chữ. Tông đỏ do JavaScript gắn theo loại thông báo.
+.neo-notice__mark {
+    width: 3rem;
+    height: 3rem;
+    color: var(--bs-success);
+    background: rgba(var(--bs-success-rgb), .12);
+
+    &.neo-notice__mark--danger {
+        color: var(--bs-danger);
+        background: rgba(var(--bs-danger-rgb), .12);
+    }
 }
 
 // --- Trạng thái --------------------------------------------------------------
@@ -399,7 +421,7 @@ body.neo {
     &:active { transform: translateY(1px); }
 }
 
-.btn-sm { min-height: 36px; }
+.btn-sm { min-height: $neo-tap-target-sm; }
 
 .form-control, .form-select {
     min-height: $neo-tap-target;
@@ -408,6 +430,38 @@ body.neo {
     @include media-breakpoint-up(lg) {
         font-size: .9375rem;
     }
+}
+
+// Bản nhỏ của ô nhập phải cao đúng bằng nút nhỏ. Thiếu quy tắc này thì chúng
+// thừa hưởng chiều cao 44px ở trên và đứng cao hơn nút cạnh nó 8px — đó là lý
+// do hàng thao tác trông chỗ cao chỗ thấp.
+//
+// Cỡ chữ giữ 1rem chứ không lấy .875rem của Bootstrap: ô chọn dưới 16px vẫn
+// khiến iOS phóng to trang khi chạm vào, dù nó là bản nhỏ.
+.form-control-sm, .form-select-sm {
+    min-height: $neo-tap-target-sm;
+    font-size: 1rem;
+
+    @include media-breakpoint-up(lg) {
+        font-size: .875rem;
+    }
+}
+
+// Hàng thao tác dùng chung.
+//
+// Một hàng thao tác thường trộn nút, liên kết dạng nút và ô chọn nhỏ. Trước
+// đây mỗi màn tự ghép lấy `d-flex flex-wrap gap-1` hay `gap-2` theo trí nhớ,
+// nên khoảng cách và cách xuống dòng mỗi nơi một khác. Gom về một lớp để màn
+// mới không phải nhớ lại công thức.
+//
+// Phải nêu tên cả `.neo-table td` vì trong bảng, quy tắc của ô dữ liệu có độ
+// ưu tiên cao hơn một lớp đơn và sẽ đè mất `gap` cùng cách căn ở đây.
+.neo-actions,
+.neo-table td.neo-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .5rem;
 }
 
 .form-label {

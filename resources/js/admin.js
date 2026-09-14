@@ -402,5 +402,39 @@ document.addEventListener('DOMContentLoaded', () => {
     target.scrollIntoView({ block: 'center', behavior: 'smooth' });
 });
 
+/*
+ * Thông báo kết quả hiện thành hộp thoại.
+ *
+ * Blade render thông báo thẳng vào trang để nó vẫn đọc được khi JavaScript
+ * hỏng hoặc chưa tải xong. Ở đây ta nhấc nội dung đó vào hộp thoại dùng chung
+ * rồi mở lên, nên mọi màn hình trong khu quản trị báo theo đúng một cách mà
+ * không màn nào phải tự khai báo gì.
+ */
+document.addEventListener('DOMContentLoaded', () => {
+    const source = document.querySelector('[data-neo-notice]');
+    const modalEl = document.getElementById('neoNotice');
+
+    if (!source || !modalEl) {
+        return;
+    }
+
+    const isError = source.dataset.neoNoticeTone === 'danger';
+    const dismiss = modalEl.querySelector('[data-neo-notice-dismiss]');
+
+    modalEl.querySelector('[data-neo-notice-title]').textContent = isError ? 'Chưa thực hiện được' : 'Đã xong';
+    modalEl.querySelector('[data-neo-notice-text]').textContent = source.querySelector('[data-neo-notice-text]').textContent.trim();
+    modalEl.querySelector('[data-neo-notice-icon-check]').classList.toggle('d-none', isError);
+    modalEl.querySelector('[data-neo-notice-icon-alert]').classList.toggle('d-none', !isError);
+    modalEl.querySelector('[data-neo-notice-mark]').classList.toggle('neo-notice__mark--danger', isError);
+    dismiss.classList.toggle('btn-danger', isError);
+    dismiss.classList.toggle('btn-primary', !isError);
+
+    // Gỡ bản nằm trong trang đi. Không gỡ thì thông báo hiện hai lần: một
+    // trong hộp thoại, một nằm lại phía sau lớp phủ khi người dùng đóng.
+    source.remove();
+
+    Modal.getOrCreateInstance(modalEl).show();
+});
+
 window.Alpine = Alpine;
 Alpine.start();

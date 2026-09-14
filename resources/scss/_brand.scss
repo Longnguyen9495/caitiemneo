@@ -37,4 +37,9 @@ $neo-shadow-lg: 0 18px 40px rgba(92, 41, 65, .14);
 // --- Kích thước chạm --------------------------------------------------------
 // Tối thiểu 44px theo hướng dẫn tiếp xúc ngón tay của Apple và Google.
 $neo-tap-target: 44px;
+
+// Cỡ nhỏ dùng trong hàng thao tác của bảng và thẻ. Nút nhỏ và ô chọn nhỏ phải
+// đọc cùng một biến này: khi mỗi bên tự giữ con số riêng thì chúng lệch nhau
+// mà không ai thấy cho tới lúc đứng cạnh nhau trên cùng một hàng.
+$neo-tap-target-sm: 36px;
 $neo-bottom-nav-height: 60px;

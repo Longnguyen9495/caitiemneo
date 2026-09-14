@@ -112,7 +112,7 @@
                             @endif
                         </td>
                         <td>
-                            <span class="d-inline-flex flex-wrap gap-2">
+                            <span class="neo-actions">
                                 @can('update', $item)
                                     <a href="{{ route('admin.attendance.edit', $item) }}" class="btn btn-sm btn-outline-secondary">Sửa</a>
                                 @endcan

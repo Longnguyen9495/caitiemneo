@@ -39,7 +39,7 @@
                             <x-admin.status-badge :tone="$branch->is_active ? 'is-success' : 'is-muted'" :label="$branch->is_active ? 'Đang hoạt động' : 'Đã ngừng'" />
                         </td>
                         <td>
-                            <span class="d-inline-flex flex-wrap gap-2">
+                            <span class="neo-actions">
                                 @can('update', $branch)
                                     <a href="{{ route('admin.branches.edit', $branch) }}" class="btn btn-sm btn-outline-secondary">Sửa</a>
                                 @endcan

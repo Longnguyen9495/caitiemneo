@@ -93,5 +93,6 @@
     </nav>
 
     <x-admin.confirm-modal />
+    <x-admin.notice-modal />
 </body>
 </html>

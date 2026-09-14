@@ -68,7 +68,7 @@
                             <x-admin.status-badge :tone="$product->is_active ? 'is-success' : 'is-muted'" :label="$product->is_active ? 'Đang dùng' : 'Đã ngưng'" />
                         </td>
                         <td>
-                            <span class="d-inline-flex flex-wrap gap-2">
+                            <span class="neo-actions">
                                 @can('update', $product)
                                     <a href="{{ route('admin.products.edit', $product) }}" class="btn btn-sm btn-outline-secondary">Sửa</a>
                                 @endcan

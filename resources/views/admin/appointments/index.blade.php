@@ -80,7 +80,7 @@
                         </div>
                     </div>
 
-                    <div class="d-flex flex-wrap align-items-center gap-2 mt-3">
+                    <div class="neo-actions mt-3">
                         @can('update', $appointment)
                             <form method="POST" action="{{ route('admin.appointments.status', $appointment) }}" class="d-flex flex-grow-1 gap-2" style="max-width:18rem">
                                 @csrf
@@ -111,7 +111,7 @@
                         @endif
 
                         @can('update', $appointment)
-                            <a href="{{ route('admin.appointments.edit', $appointment) }}" class="btn btn-sm btn-link text-decoration-none ms-auto">Sửa</a>
+                            <a href="{{ route('admin.appointments.edit', $appointment) }}" class="btn btn-sm btn-link text-decoration-none">Sửa</a>
                         @endcan
                     </div>
                 </li>
