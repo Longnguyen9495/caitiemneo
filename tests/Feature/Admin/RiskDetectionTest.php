@@ -2,14 +2,17 @@
 
 namespace Tests\Feature\Admin;
 
+use App\Enums\AppointmentStatus;
 use App\Enums\AttendanceStatus;
 use App\Enums\AuditAction;
 use App\Enums\InvoiceStatus;
 use App\Enums\RiskReviewStatus;
 use App\Enums\RiskSeverity;
+use App\Models\Appointment;
 use App\Models\AuditEvent;
 use App\Models\Branch;
 use App\Models\Invoice;
+use App\Models\InvoiceItem;
 use App\Models\RiskFlag;
 use App\Models\User;
 use App\Services\Risk\RiskDetector;
@@ -80,12 +83,19 @@ class RiskDetectionTest extends TestCase
         Carbon::setTestNow(Carbon::parse('2026-09-12 03:30:00'));
 
         $this->auditEvents(AuditAction::Paid, 1);
+        $invoice = Invoice::query()->firstOrFail();
 
         app(RiskDetector::class)->sweep(now()->subDays(7));
 
         $flag = RiskFlag::query()->where('rule', 'out_of_hours_money')->firstOrFail();
 
         $this->assertStringContainsString('ngoài giờ mở cửa', $flag->summary);
+
+        $this->actingAs($this->owner)
+            ->withSession([BranchContext::SESSION_KEY => $this->branch->getKey()])
+            ->get(route('admin.risk-flags.index'))
+            ->assertOk()
+            ->assertSee(route('admin.invoices.edit', $invoice), false);
     }
 
     public function test_money_moved_during_opening_hours_is_not_flagged(): void
@@ -99,19 +109,41 @@ class RiskDetectionTest extends TestCase
         $this->assertSame(0, RiskFlag::query()->where('rule', 'out_of_hours_money')->count());
     }
 
+    public function test_an_appointment_warning_links_to_its_appointment(): void
+    {
+        $appointment = Appointment::factory()
+            ->status(AppointmentStatus::Completed)
+            ->create(['branch_id' => $this->branch->getKey()]);
+
+        $this->actingAs($this->owner)
+            ->withSession([BranchContext::SESSION_KEY => $this->branch->getKey()])
+            ->get(route('admin.risk-flags.index'))
+            ->assertOk()
+            ->assertSee(route('admin.appointments.edit', $appointment), false)
+            ->assertSee('Mở lịch hẹn');
+    }
+
     /** An owner writing their own shift cannot be blocked, so it is flagged. */
     public function test_self_recorded_attendance_is_flagged(): void
     {
-        $this->actingAs($this->owner)->post(route('admin.attendance.store'), [
-            'employee_id' => $this->owner->getKey(),
-            'work_date' => now()->toDateString(),
-            'shift_name' => 'Ca chinh',
-            'shift_value' => 1,
-            'status' => AttendanceStatus::Present->value,
-            'reason' => 'Tu ghi ca cua minh',
-        ])->assertSessionHasNoErrors();
+        $this->actingAs($this->owner)
+            ->withSession([BranchContext::SESSION_KEY => $this->branch->getKey()])
+            ->post(route('admin.attendance.store'), [
+                'employee_id' => $this->owner->getKey(),
+                'work_date' => now()->toDateString(),
+                'shift_name' => 'Ca chinh',
+                'shift_value' => 1,
+                'status' => AttendanceStatus::Present->value,
+                'reason' => 'Tu ghi ca cua minh',
+            ])->assertSessionHasNoErrors();
 
         app(RiskDetector::class)->sweep(now()->subDays(7));
+
+        $this->actingAs($this->owner)
+            ->withSession([BranchContext::SESSION_KEY => $this->branch->getKey()])
+            ->get(route('admin.risk-flags.index'))
+            ->assertOk()
+            ->assertSee('Mở chấm công');
 
         $this->assertSame(1, RiskFlag::query()->where('rule', 'self_recorded_attendance')->count());
     }
@@ -164,6 +196,27 @@ class RiskDetectionTest extends TestCase
             ->get(route('admin.risk-flags.index'))
             ->assertOk()
             ->assertSee('Hủy 3 hóa đơn', false);
+    }
+
+    public function test_an_invoice_warning_links_to_its_invoice(): void
+    {
+        $invoice = Invoice::factory()->create([
+            'branch_id' => $this->branch->getKey(),
+            'created_by' => $this->owner->getKey(),
+            'status' => InvoiceStatus::Paid,
+            'paid_at' => now(),
+        ]);
+        InvoiceItem::factory()->create([
+            'invoice_id' => $invoice->getKey(),
+            'employee_id' => null,
+        ]);
+
+        $this->actingAs($this->owner)
+            ->withSession([BranchContext::SESSION_KEY => $this->branch->getKey()])
+            ->get(route('admin.risk-flags.index'))
+            ->assertOk()
+            ->assertSee(route('admin.invoices.edit', $invoice), false)
+            ->assertSee('Mở hóa đơn');
     }
 
     /** The queue names people by implication, so operators must not see it. */
@@ -240,6 +293,98 @@ class RiskDetectionTest extends TestCase
             ])
             ->assertSessionHasErrors('review_note');
 
+        $this->assertTrue($flag->fresh()->isOpen());
+    }
+
+    public function test_a_reviewer_can_quickly_assign_missing_invoice_commission(): void
+    {
+        $invoice = Invoice::factory()->create([
+            'branch_id' => $this->branch->getKey(),
+            'created_by' => $this->owner->getKey(),
+            'status' => InvoiceStatus::Paid,
+            'paid_at' => now(),
+            'subtotal' => 100000,
+            'total' => 100000,
+        ]);
+        $missingItem = InvoiceItem::factory()->create([
+            'invoice_id' => $invoice->getKey(),
+            'employee_id' => null,
+            'unit_price' => 100000,
+            'line_total' => 100000,
+            'commission_rate' => 0,
+        ]);
+        $alreadyAssigned = InvoiceItem::factory()->create([
+            'invoice_id' => $invoice->getKey(),
+            'employee_id' => $this->owner->getKey(),
+            'unit_price' => 50000,
+            'line_total' => 50000,
+            'commission_rate' => 5,
+        ]);
+        $invoice->forceFill(['subtotal' => 150000, 'total' => 150000])->save();
+
+        app(RiskDetector::class)->sweep(now()->subDays(7));
+        $flag = RiskFlag::query()->where('rule', 'invoice_line_without_employee')->firstOrFail();
+        $reviewer = User::factory()->owner()->atBranch($this->branch)->create();
+        $employee = User::factory()->employee()->atBranch($this->branch)->create(['commission_rate' => 12]);
+
+        $this->actingAs($reviewer)
+            ->patch(route('admin.risk-flags.assign-employee', $flag), ['employee_id' => $employee->getKey()])
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame($employee->getKey(), $missingItem->fresh()->employee_id);
+        $this->assertSame('12.00', (string) $missingItem->fresh()->commission_rate);
+        $this->assertSame($this->owner->getKey(), $alreadyAssigned->fresh()->employee_id);
+        $this->assertSame('150000.00', (string) $invoice->fresh()->total);
+        $this->assertSame(RiskReviewStatus::Accepted, $flag->fresh()->review_status);
+        $this->assertDatabaseHas('audit_events', [
+            'auditable_type' => Invoice::class,
+            'auditable_id' => $invoice->getKey(),
+            'action' => AuditAction::Updated->value,
+            'actor_id' => $reviewer->getKey(),
+        ]);
+    }
+
+    public function test_the_flagged_person_cannot_quickly_assign_their_own_warning(): void
+    {
+        $invoice = Invoice::factory()->create([
+            'branch_id' => $this->branch->getKey(),
+            'created_by' => $this->owner->getKey(),
+            'status' => InvoiceStatus::Paid,
+            'paid_at' => now(),
+        ]);
+        $item = InvoiceItem::factory()->create(['invoice_id' => $invoice->getKey(), 'employee_id' => null]);
+        app(RiskDetector::class)->sweep(now()->subDays(7));
+        $flag = RiskFlag::query()->where('rule', 'invoice_line_without_employee')->firstOrFail();
+        $employee = User::factory()->employee()->atBranch($this->branch)->create();
+
+        $this->actingAs($this->owner)
+            ->patch(route('admin.risk-flags.assign-employee', $flag), ['employee_id' => $employee->getKey()])
+            ->assertForbidden();
+
+        $this->assertNull($item->fresh()->employee_id);
+        $this->assertTrue($flag->fresh()->isOpen());
+    }
+
+    public function test_a_reviewer_cannot_assign_an_employee_from_another_branch(): void
+    {
+        $invoice = Invoice::factory()->create([
+            'branch_id' => $this->branch->getKey(),
+            'created_by' => $this->owner->getKey(),
+            'status' => InvoiceStatus::Paid,
+            'paid_at' => now(),
+        ]);
+        $item = InvoiceItem::factory()->create(['invoice_id' => $invoice->getKey(), 'employee_id' => null]);
+        app(RiskDetector::class)->sweep(now()->subDays(7));
+        $flag = RiskFlag::query()->where('rule', 'invoice_line_without_employee')->firstOrFail();
+        $reviewer = User::factory()->owner()->atBranch($this->branch)->create();
+        $otherBranchEmployee = User::factory()->employee()->atBranch(Branch::factory()->create())->create();
+
+        $this->actingAs($reviewer)
+            ->from(route('admin.risk-flags.index'))
+            ->patch(route('admin.risk-flags.assign-employee', $flag), ['employee_id' => $otherBranchEmployee->getKey()])
+            ->assertSessionHasErrors('employee_id');
+
+        $this->assertNull($item->fresh()->employee_id);
         $this->assertTrue($flag->fresh()->isOpen());
     }
 

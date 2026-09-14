@@ -32,7 +32,15 @@
                     </time>
                 </div>
 
-                <p class="mb-0 mt-2">{{ $flag->summary }}</p>
+                <div class="d-flex flex-wrap align-items-center gap-2 mt-2">
+                    <p class="mb-0">{{ $flag->summary }}</p>
+
+                    @if ($subjectLink = $subjectLinks->get($flag->getKey()))
+                        <a href="{{ $subjectLink['url'] }}" class="btn btn-sm btn-outline-secondary">
+                            {{ $subjectLink['label'] }}
+                        </a>
+                    @endif
+                </div>
 
                 @if ($flag->review_note)
                     <p class="mb-0 mt-2 small text-body-secondary">
@@ -41,6 +49,36 @@
                 @endif
 
                 @can('review', $flag)
+                    @if ($flag->isOpen() && $flag->rule === 'invoice_line_without_employee')
+                        @php($eligibleEmployees = $employeesByBranch->get($flag->branch_id, collect()))
+
+                        <form method="POST" action="{{ route('admin.risk-flags.assign-employee', $flag) }}" class="row g-2 mt-2 align-items-end rounded border bg-body-tertiary p-2">
+                            @csrf
+                            @method('PATCH')
+
+                            <div class="col-12 col-lg-7">
+                                <label class="form-label" for="employee_id_{{ $flag->id }}">Phân công nhanh cho nhân viên</label>
+                                <select class="form-select" id="employee_id_{{ $flag->id }}" name="employee_id" required>
+                                    <option value="">Chọn nhân viên nhận hoa hồng</option>
+                                    @foreach ($eligibleEmployees as $employee)
+                                        <option value="{{ $employee->id }}">{{ $employee->name }}</option>
+                                    @endforeach
+                                </select>
+                                <div class="form-text">Chỉ gán các dòng còn thiếu nhân viên; số tiền hóa đơn không thay đổi.</div>
+                            </div>
+
+                            <div class="col-12 col-lg-5">
+                                <button type="submit" class="btn btn-primary w-100" @disabled($eligibleEmployees->isEmpty())>
+                                    Phân công và tính hoa hồng
+                                </button>
+                            </div>
+                        </form>
+
+                        @if ($eligibleEmployees->isEmpty())
+                            <p class="mb-0 mt-2 small text-danger">Chưa có nhân viên đang làm việc tại chi nhánh này để phân công.</p>
+                        @endif
+                    @endif
+
                     @if ($flag->isOpen())
                         <form method="POST" action="{{ route('admin.risk-flags.update', $flag) }}" class="row g-2 mt-2 align-items-end">
                             @csrf

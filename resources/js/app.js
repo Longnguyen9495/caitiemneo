@@ -117,3 +117,18 @@ if ('IntersectionObserver' in window) {
 } else {
     revealItems.forEach((item) => item.classList.add('is-visible'));
 }
+
+const bookingSuccessDialog = document.querySelector('[data-booking-success-dialog]');
+const bookingSuccessClose = document.querySelector('[data-booking-success-close]');
+
+if (bookingSuccessDialog instanceof HTMLDialogElement) {
+    bookingSuccessDialog.showModal();
+
+    bookingSuccessClose?.addEventListener('click', () => bookingSuccessDialog.close());
+
+    bookingSuccessDialog.addEventListener('click', (event) => {
+        if (event.target === bookingSuccessDialog) {
+            bookingSuccessDialog.close();
+        }
+    });
+}

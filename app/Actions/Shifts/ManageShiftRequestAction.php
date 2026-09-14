@@ -189,13 +189,29 @@ class ManageShiftRequestAction
             }
 
             if ($request->type === ShiftRequestType::Leave) {
-                $request->leave_entitlement = MonthlyPaidLeaveDay::query()
+                User::query()->lockForUpdate()->findOrFail($request->requester_id);
+
+                $paidLeaveDaysThisMonth = MonthlyPaidLeaveDay::query()
                     ->where('employee_id', $request->requester_id)
-                    ->whereDate('leave_date', $request->work_date)
+                    ->whereBetween('leave_date', [
+                        $request->work_date->copy()->startOfMonth()->toDateString(),
+                        $request->work_date->copy()->endOfMonth()->toDateString(),
+                    ])
                     ->lockForUpdate()
-                    ->exists()
+                    ->count();
+
+                $request->leave_entitlement = $paidLeaveDaysThisMonth < 2
                     ? LeaveEntitlement::Paid
                     : LeaveEntitlement::Unpaid;
+
+                if ($request->leave_entitlement === LeaveEntitlement::Paid) {
+                    MonthlyPaidLeaveDay::query()->create([
+                        'employee_id' => $request->requester_id,
+                        'branch_id' => $request->branch_id,
+                        'leave_date' => $request->work_date,
+                        'scheduled_by' => $actor->getKey(),
+                    ]);
+                }
             } else {
                 $this->swapEmployees($assignment, $counter);
             }

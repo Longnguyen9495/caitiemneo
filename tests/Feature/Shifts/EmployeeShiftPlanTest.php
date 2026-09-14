@@ -4,7 +4,8 @@ namespace Tests\Feature\Shifts;
 
 use App\Actions\Shifts\ConfigureEmployeeFixedShiftAction;
 use App\Actions\Shifts\GenerateMonthlyFixedShiftScheduleAction;
-use App\Actions\Shifts\ScheduleMonthlyPaidLeaveDaysAction;
+use App\Actions\Shifts\ManageShiftRequestAction;
+use App\Enums\LeaveEntitlement;
 use App\Enums\PayrollStatus;
 use App\Models\Branch;
 use App\Models\EmployeeFixedShift;
@@ -44,7 +45,8 @@ class EmployeeShiftPlanTest extends TestCase
         $this->actingAs($this->manager)
             ->get(route('admin.employee-shift-plans.index', ['month' => '2026-10']))
             ->assertOk()
-            ->assertSee('Ca cố định & nghỉ hưởng lương')
+            ->assertSee('Ca cố định')
+            ->assertDontSee('Xếp 2 ngày nghỉ hưởng lương')
             ->assertSee($this->employee->name);
     }
 
@@ -106,34 +108,44 @@ class EmployeeShiftPlanTest extends TestCase
         $this->assertSame('Lịch thủ công cần được giữ lại.', ShiftAssignment::query()->whereDate('work_date', '2026-10-05')->sole()->note);
     }
 
-    public function test_paid_leave_schedule_requires_exactly_two_distinct_dates(): void
+    public function test_first_two_approved_leave_requests_in_a_month_are_paid_without_manual_scheduling(): void
     {
-        $action = app(ScheduleMonthlyPaidLeaveDaysAction::class);
+        $action = app(ManageShiftRequestAction::class);
+        $entitlements = collect(['2026-10-10', '2026-10-20', '2026-10-25'])
+            ->map(function (string $date) use ($action): LeaveEntitlement {
+                $assignment = ShiftAssignment::factory()
+                    ->forEmployee($this->employee)
+                    ->atBranch($this->branch)
+                    ->usingShift($this->shift)
+                    ->on($date)
+                    ->create();
 
-        try {
-            $action->handle($this->manager, $this->employee, $this->branch, '2026-10', ['2026-10-10']);
-            $this->fail('Expected an invalid paid-leave count to be rejected.');
-        } catch (ValidationException $exception) {
-            $this->assertArrayHasKey('leave_dates', $exception->errors());
-        }
+                $request = $action->createLeave($this->employee, $assignment->id);
 
-        $action->handle($this->manager, $this->employee, $this->branch, '2026-10', ['2026-10-10', '2026-10-20']);
+                return $action->decide($this->manager, $request, true)->leave_entitlement;
+            });
 
-        $this->assertSame(2, MonthlyPaidLeaveDay::query()->count());
+        $this->assertSame([
+            LeaveEntitlement::Paid,
+            LeaveEntitlement::Paid,
+            LeaveEntitlement::Unpaid,
+        ], $entitlements->all());
+        $this->assertSame(['2026-10-10', '2026-10-20'], MonthlyPaidLeaveDay::query()
+            ->orderBy('leave_date')
+            ->pluck('leave_date')
+            ->map(fn ($date) => $date->toDateString())
+            ->all());
     }
 
-    public function test_paid_leave_schedule_cannot_change_a_finalized_payroll_period(): void
+    public function test_approving_leave_in_a_finalized_payroll_period_is_rejected(): void
     {
-        MonthlyPaidLeaveDay::factory()->create([
-            'employee_id' => $this->employee->id,
-            'branch_id' => $this->branch->id,
-            'leave_date' => '2026-10-10',
-        ]);
-        MonthlyPaidLeaveDay::factory()->create([
-            'employee_id' => $this->employee->id,
-            'branch_id' => $this->branch->id,
-            'leave_date' => '2026-10-20',
-        ]);
+        $assignment = ShiftAssignment::factory()
+            ->forEmployee($this->employee)
+            ->atBranch($this->branch)
+            ->usingShift($this->shift)
+            ->on('2026-10-10')
+            ->create();
+        $request = app(ManageShiftRequestAction::class)->createLeave($this->employee, $assignment->id);
         Payroll::factory()->create([
             'employee_id' => $this->employee->id,
             'paying_branch_id' => $this->branch->id,
@@ -142,23 +154,8 @@ class EmployeeShiftPlanTest extends TestCase
             'status' => PayrollStatus::Finalized,
         ]);
 
-        try {
-            app(ScheduleMonthlyPaidLeaveDaysAction::class)->handle(
-                $this->manager,
-                $this->employee,
-                $this->branch,
-                '2026-10',
-                ['2026-10-11', '2026-10-21'],
-            );
-            $this->fail('Expected a finalized payroll period to be locked.');
-        } catch (ValidationException $exception) {
-            $this->assertArrayHasKey('leave_dates', $exception->errors());
-        }
+        $this->expectException(ValidationException::class);
 
-        $this->assertSame(['2026-10-10', '2026-10-20'], MonthlyPaidLeaveDay::query()
-            ->orderBy('leave_date')
-            ->pluck('leave_date')
-            ->map(fn ($date) => $date->toDateString())
-            ->all());
+        app(ManageShiftRequestAction::class)->decide($this->manager, $request, true);
     }
 }

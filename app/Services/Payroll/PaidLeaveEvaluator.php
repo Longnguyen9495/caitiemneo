@@ -5,16 +5,15 @@ namespace App\Services\Payroll;
 use App\Enums\AttendanceStatus;
 use App\Models\AttendanceRecord;
 use App\Models\MonthlyPaidLeaveDay;
-use App\Support\Money;
 use Carbon\CarbonInterface;
 
 /**
  * Produces immutable paid-leave facts for one payroll refresh.
  *
- * Paid leave is entitlement planned by an administrator, never inferred from a
- * leave request. A planned paid-leave day worked by the employee is an extra
- * work day: it receives normal shift pay through the attendance engine plus the
- * fixed paid-leave-work bonus here.
+ * A paid-leave day is created when a manager approves one of an employee's
+ * first two leave requests in a calendar month. Working on that approved day
+ * is an extra work day: it receives normal shift pay through the attendance
+ * engine plus the fixed paid-leave-work bonus here.
  */
 final class PaidLeaveEvaluator
 {

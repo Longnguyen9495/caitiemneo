@@ -152,6 +152,12 @@ body.neo {
 // Dưới lg, mỗi hàng trở thành một thẻ và từng ô tự gắn nhãn từ data-label.
 // Một DOM duy nhất cho cả hai bề rộng: không nhân đôi markup, không lệch dữ liệu.
 .neo-table {
+    // Bootstrap tô màu nền vào từng ô bằng biến --bs-table-bg. Đặt rõ về nền
+    // giấy để thẻ dữ liệu trên mobile không bị ám hồng từ nền khu quản trị.
+    --bs-table-bg: #{$neo-paper};
+    --bs-table-striped-bg: #{$neo-paper};
+    --bs-table-hover-bg: rgba(189, 78, 120, .04);
+
     margin-bottom: 0;
 
     th {

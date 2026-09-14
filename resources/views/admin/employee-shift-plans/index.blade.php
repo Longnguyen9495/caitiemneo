@@ -1,9 +1,9 @@
-<x-layouts.admin title="Ca cố định & nghỉ hưởng lương" heading="Ca cố định & nghỉ hưởng lương">
+<x-layouts.admin title="Ca cố định" heading="Ca cố định">
     @include('admin.partials.staff-nav')
 
     <x-admin.page-header
         title="Kế hoạch nhân sự tháng {{ $month->format('m/Y') }}"
-        description="Ca cố định được dùng để tạo lịch tháng. Mỗi nhân viên phải được quản lý xếp trước đúng 2 ngày nghỉ hưởng lương trong tháng."
+        description="Ca cố định được dùng để tạo lịch tháng. Ngày nghỉ hưởng lương được xác định tự động khi quản lý duyệt đơn nghỉ của nhân viên."
     >
         <x-slot:actions>
             <form method="GET" action="{{ route('admin.employee-shift-plans.index') }}" class="d-flex gap-2">
@@ -63,33 +63,10 @@
             </section>
         </div>
 
-        <section class="card p-3 mb-3">
-            <h2 class="fs-6 fw-semibold mb-1">Xếp 2 ngày nghỉ hưởng lương</h2>
-            <p class="small text-body-secondary mb-3">Quyền lợi chỉ được áp dụng cho đúng các ngày quản lý đã xếp trước; một đơn nghỉ được duyệt không tự tạo thêm ngày có lương.</p>
-            <form method="POST" action="{{ route('admin.employee-shift-plans.paid-leave-days.store') }}" class="row g-2 align-items-end">
-                @csrf
-                <input name="month" type="hidden" value="{{ $month->format('Y-m') }}">
-                <x-admin.field name="employee_id" label="Nhân viên" col="col-12 col-lg-4" required>
-                    <select class="form-select @error('employee_id') is-invalid @enderror" id="paid_leave_employee_id" name="employee_id" required>
-                        <option value="">Chọn nhân viên</option>
-                        @foreach ($employees as $employee)
-                            <option value="{{ $employee->id }}">{{ $employee->name }}</option>
-                        @endforeach
-                    </select>
-                </x-admin.field>
-                <x-admin.field name="leave_dates.0" label="Ngày nghỉ thứ nhất" col="col-6 col-lg-3" required>
-                    <input class="form-control neo-num @error('leave_dates.0') is-invalid @enderror" id="leave_date_1" name="leave_dates[]" type="date" required value="{{ old('leave_dates.0') }}">
-                </x-admin.field>
-                <x-admin.field name="leave_dates.1" label="Ngày nghỉ thứ hai" col="col-6 col-lg-3" required>
-                    <input class="form-control neo-num @error('leave_dates.1') is-invalid @enderror" id="leave_date_2" name="leave_dates[]" type="date" required value="{{ old('leave_dates.1') }}">
-                </x-admin.field>
-                <div class="col-12 col-lg-2"><x-admin.submit-button label="Xếp ngày" class="w-100" /></div>
-            </form>
-        </section>
     @endif
 
     <div class="row g-3">
-        <section class="col-12 col-xl-6">
+        <section class="col-12">
             <div class="card overflow-hidden h-100">
                 <div class="card-header bg-white"><h2 class="fs-6 fw-semibold mb-0">Ca cố định đang hiệu lực</h2></div>
                 <table class="table neo-table align-middle mb-0">
@@ -109,24 +86,5 @@
             </div>
         </section>
 
-        <section class="col-12 col-xl-6">
-            <div class="card overflow-hidden h-100">
-                <div class="card-header bg-white"><h2 class="fs-6 fw-semibold mb-0">Ngày nghỉ hưởng lương đã xếp</h2></div>
-                <table class="table neo-table align-middle mb-0">
-                    <thead><tr><th>Nhân viên</th><th>Ngày nghỉ</th><th>Trạng thái</th></tr></thead>
-                    <tbody>
-                        @forelse ($paidLeaveDays as $days)
-                            <tr>
-                                <td>{{ $days->first()->employee?->name }}</td>
-                                <td class="neo-num">{{ $days->map(fn ($day) => $day->leave_date->format('d/m/Y'))->join(', ') }}</td>
-                                <td><span class="badge text-bg-{{ $days->count() === 2 ? 'success' : 'warning' }}">{{ $days->count() }}/2 ngày</span></td>
-                            </tr>
-                        @empty
-                            <tr><td colspan="3" class="text-center text-body-secondary py-4">Chưa xếp ngày nghỉ hưởng lương.</td></tr>
-                        @endforelse
-                    </tbody>
-                </table>
-            </div>
-        </section>
     </div>
 </x-layouts.admin>

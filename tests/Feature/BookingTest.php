@@ -62,6 +62,21 @@ class BookingTest extends TestCase
         $this->assertSame(1, Customer::query()->count());
     }
 
+    public function test_the_success_redirect_renders_a_booking_confirmation_dialog(): void
+    {
+        $employee = User::factory()->employee()->create();
+
+        $this->followingRedirects()
+            ->post(route('booking.store'), $this->payload(
+                $employee,
+                now()->addDays(2)->startOfHour()->format('Y-m-d\TH:i'),
+            ))
+            ->assertOk()
+            ->assertSee('data-booking-success-dialog', false)
+            ->assertSee('Đặt lịch thành công', false)
+            ->assertSee('Tiệm đã nhận yêu cầu của bạn.', false);
+    }
+
     public function test_an_online_booking_notifies_active_owners_and_managers_only(): void
     {
         Notification::fake();

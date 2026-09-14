@@ -14,17 +14,17 @@ use App\Http\Controllers\Admin\EmployeeShiftPlanController;
 use App\Http\Controllers\Admin\InventoryMovementController;
 use App\Http\Controllers\Admin\InvoiceController;
 use App\Http\Controllers\Admin\InvoicePaymentController;
+use App\Http\Controllers\Admin\NotificationController;
 use App\Http\Controllers\Admin\PayrollAdjustmentController;
 use App\Http\Controllers\Admin\PayrollController;
 use App\Http\Controllers\Admin\PayrollStatusController;
-use App\Http\Controllers\Admin\NotificationController;
 use App\Http\Controllers\Admin\ProductController;
 use App\Http\Controllers\Admin\ReportController;
 use App\Http\Controllers\Admin\ReportExportController;
 use App\Http\Controllers\Admin\RiskFlagController;
 use App\Http\Controllers\Admin\ServiceController;
-use App\Http\Controllers\Admin\ShiftScheduleController;
 use App\Http\Controllers\Admin\ShiftRequestController;
+use App\Http\Controllers\Admin\ShiftScheduleController;
 use App\Http\Controllers\Admin\StockTransferController;
 use App\Http\Controllers\Admin\SupplierController;
 use App\Http\Controllers\Admin\WorkShiftController;
@@ -126,8 +126,6 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
             ->name('employee-shift-plans.fixed-shifts.store');
         Route::post('employee-shift-plans/generate', [EmployeeShiftPlanController::class, 'generate'])
             ->name('employee-shift-plans.generate');
-        Route::post('employee-shift-plans/paid-leave-days', [EmployeeShiftPlanController::class, 'storePaidLeaveDays'])
-            ->name('employee-shift-plans.paid-leave-days.store');
 
         Route::get('notifications', [NotificationController::class, 'index'])->name('notifications.index');
 
@@ -167,6 +165,8 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
         // Hàng đợi cảnh báo bất thường.
         Route::get('risk-flags', [RiskFlagController::class, 'index'])->name('risk-flags.index');
         Route::patch('risk-flags/{risk_flag}', [RiskFlagController::class, 'update'])->name('risk-flags.update');
+        Route::patch('risk-flags/{risk_flag}/assign-employee', [RiskFlagController::class, 'assignEmployee'])
+            ->name('risk-flags.assign-employee');
 
         Route::get('reports', ReportController::class)->name('reports.index');
 

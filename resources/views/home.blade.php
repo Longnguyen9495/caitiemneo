@@ -105,6 +105,20 @@
           </form>
         </div>
       </section>
+
+      @if (session('booking_success'))
+        <dialog class="booking-success-dialog" data-booking-success-dialog aria-labelledby="booking-success-title">
+          <div class="booking-success-dialog__content">
+            <span class="booking-success-dialog__mark" aria-hidden="true">✓</span>
+            <p class="eyebrow">Đặt lịch thành công</p>
+            <h2 id="booking-success-title">Tiệm đã nhận yêu cầu của bạn.</h2>
+            <p>{{ session('booking_success') }}</p>
+            <button class="button button-primary" type="button" data-booking-success-close autofocus>
+              Đã hiểu <span aria-hidden="true">→</span>
+            </button>
+          </div>
+        </dialog>
+      @endif
     </main>
     <footer class="site-footer"><div class="section-shell footer-inner"><a class="brand" href="#dau-trang" aria-label="Cái Tiệm Neo — về đầu trang"><span class="brand-mark" aria-hidden="true">N</span><span class="brand-name">Cái Tiệm Neo</span></a><p>nail studio · Hà Nội</p><nav class="social-links" aria-label="Mạng xã hội"><a href="https://www.instagram.com/caitiemneo/" target="_blank" rel="noopener noreferrer">Instagram <span aria-hidden="true">↗</span></a><a href="https://www.tiktok.com/@caitiemneo_" target="_blank" rel="noopener noreferrer">TikTok <span aria-hidden="true">↗</span></a></nav></div></footer>
   </body>
