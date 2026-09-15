@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Auth;
 
+use App\Models\Branch;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -56,6 +57,17 @@ class AuthenticationTest extends TestCase
         ]);
 
         $this->assertGuest();
+    }
+
+    public function test_the_first_dashboard_load_resolves_the_users_branch_context(): void
+    {
+        $branch = Branch::factory()->create();
+        $owner = User::factory()->owner()->atBranch($branch)->create();
+
+        $this->actingAs($owner)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSessionHas('admin.current_branch_id', $branch->getKey());
     }
 
     public function test_an_owner_can_render_the_admin_dashboard(): void

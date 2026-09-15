@@ -47,7 +47,9 @@ Route::get('/', HomeController::class)->name('home');
 Route::post('/dat-lich', [BookingController::class, 'store'])->name('booking.store');
 
 Route::middleware(['auth', 'verified'])->group(function (): void {
-    Route::get('/dashboard', DashboardController::class)->name('dashboard');
+    Route::get('/dashboard', DashboardController::class)
+        ->middleware('branch.context')
+        ->name('dashboard');
 
     /*
      * Chấm công của nhân viên.
