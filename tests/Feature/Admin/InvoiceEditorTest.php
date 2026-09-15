@@ -7,6 +7,7 @@ use App\Models\Invoice;
 use App\Models\InvoiceItem;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Tests\TestCase;
 
 class InvoiceEditorTest extends TestCase
@@ -68,7 +69,10 @@ class InvoiceEditorTest extends TestCase
         $owner = User::factory()->owner()->create();
         $invoice = Invoice::factory()->create();
         InvoiceItem::factory()->create(['invoice_id' => $invoice->id, 'unit_price' => 100000, 'line_total' => 100000]);
-        $this->actingAs($owner)->post(route('admin.invoices.pay', $invoice), ['payment_method' => PaymentMethod::Cash->value]);
+        $this->actingAs($owner)->post(route('admin.invoices.pay', $invoice), [
+            'payment_method' => PaymentMethod::Cash->value,
+            'payment_proof_image' => UploadedFile::fake()->image('payment-proof.jpg'),
+        ]);
 
         $this->actingAs($owner)
             ->get(route('admin.invoices.edit', $invoice))
@@ -89,5 +93,40 @@ class InvoiceEditorTest extends TestCase
             ->assertOk()
             ->assertSee('Lưu hóa đơn')
             ->assertDontSee('disabled="disabled"', false);
+    }
+
+    public function test_an_invoice_shows_the_commission_rate_and_calculated_amount_for_each_line(): void
+    {
+        $owner = User::factory()->owner()->create();
+        $invoice = Invoice::factory()->create();
+        InvoiceItem::factory()->create([
+            'invoice_id' => $invoice->id,
+            'unit_price' => 100000,
+            'line_total' => 100000,
+            'commission_rate' => 15,
+            'commission_amount' => 15000,
+        ]);
+
+        $this->actingAs($owner)
+            ->get(route('admin.invoices.edit', $invoice))
+            ->assertOk()
+            ->assertSee('Hoa hồng')
+            ->assertSee('formatPercent(row.commission_rate)', false)
+            ->assertSee('commissionAmount(row)', false);
+    }
+
+    public function test_an_invoice_rejects_payment_methods_other_than_cash_or_transfer(): void
+    {
+        $owner = User::factory()->owner()->create();
+        $invoice = Invoice::factory()->create();
+
+        $this->actingAs($owner)
+            ->from(route('admin.invoices.edit', $invoice))
+            ->post(route('admin.invoices.pay', $invoice), [
+                'payment_method' => PaymentMethod::Card->value,
+                'payment_proof_image' => UploadedFile::fake()->image('payment-proof.jpg'),
+            ])
+            ->assertRedirect(route('admin.invoices.edit', $invoice))
+            ->assertSessionHasErrors('payment_method');
     }
 }

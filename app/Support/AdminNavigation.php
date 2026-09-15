@@ -5,6 +5,7 @@ namespace App\Support;
 use App\Enums\ShiftRequestStatus;
 use App\Enums\ShiftRequestType;
 use App\Models\Appointment;
+use App\Models\AttendanceRecord;
 use App\Models\Branch;
 use App\Models\CashTransaction;
 use App\Models\Invoice;
@@ -14,6 +15,7 @@ use App\Models\RiskFlag;
 use App\Models\Service;
 use App\Models\ShiftRequest;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Gate;
 
@@ -33,7 +35,6 @@ final class AdminNavigation
     public static function for(User $user): Collection
     {
         $shiftRequestBadge = self::shiftRequestBadge($user);
-        $notificationBadge = $user->unreadNotifications()->count();
 
         return collect([
             [
@@ -51,13 +52,6 @@ final class AdminNavigation
                 'visible' => true,
             ],
             [
-                'label' => 'Thông báo', 'short' => 'Thông báo',
-                'route' => 'admin.notifications.index', 'pattern' => 'admin.notifications.*',
-                'icon' => 'alert', 'primary' => false,
-                'visible' => true,
-                'badge' => $notificationBadge,
-            ],
-            [
                 'label' => 'Lịch hẹn', 'short' => 'Lịch hẹn',
                 'route' => 'admin.appointments.index', 'pattern' => 'admin.appointments.*',
                 'icon' => 'calendar', 'primary' => true,
@@ -70,8 +64,12 @@ final class AdminNavigation
                 'visible' => $user->can('viewAny', Invoice::class) || $user->can('viewAny', CashTransaction::class),
             ],
             [
-                'label' => 'Chấm công & lương', 'short' => 'Chấm công',
-                'route' => 'admin.attendance.index', 'pattern' => ['admin.attendance.*', 'admin.payrolls.*'],
+                // Nhân viên chỉ có thể xem bảng lương của chính mình. Không dẫn
+                // họ đến màn hình chấm công quản trị vì policy sẽ trả về 403.
+                'label' => $user->can('viewAny', AttendanceRecord::class) ? 'Chấm công & lương' : 'Lương của tôi',
+                'short' => $user->can('viewAny', AttendanceRecord::class) ? 'Chấm công' : 'Lương',
+                'route' => $user->can('viewAny', AttendanceRecord::class) ? 'admin.attendance.index' : 'admin.payrolls.index',
+                'pattern' => $user->can('viewAny', AttendanceRecord::class) ? ['admin.attendance.*', 'admin.payrolls.*'] : 'admin.payrolls.*',
                 'icon' => 'clock', 'primary' => true,
                 'visible' => $user->can('viewAny', Payroll::class),
             ],
@@ -136,34 +134,35 @@ final class AdminNavigation
             return 0;
         }
 
-        $awaitingDecision = ShiftRequest::query()
+        // Hai nhóm dưới đây rời nhau về mặt trạng thái nên đếm hợp của chúng
+        // bằng một truy vấn cho ra đúng tổng của hai lần đếm riêng lẻ.
+        return ShiftRequest::query()
             ->whereIn('branch_id', $branchIds)
-            ->whereIn('status', [
-                ShiftRequestStatus::PendingApproval,
-                ShiftRequestStatus::RecipientConfirmed,
-            ])
+            ->where(function (Builder $query): void {
+                $query->whereIn('status', [
+                    ShiftRequestStatus::PendingApproval,
+                    ShiftRequestStatus::RecipientConfirmed,
+                ])->orWhere(function (Builder $approved): void {
+                    $approved->where('type', ShiftRequestType::Leave)
+                        ->where('status', ShiftRequestStatus::Approved)
+                        ->whereDoesntHave('replacement');
+                });
+            })
             ->count();
-
-        $awaitingReplacement = ShiftRequest::query()
-            ->whereIn('branch_id', $branchIds)
-            ->where('type', ShiftRequestType::Leave)
-            ->where('status', ShiftRequestStatus::Approved)
-            ->whereDoesntHave('replacement')
-            ->count();
-
-        return $awaitingDecision + $awaitingReplacement;
     }
 
     /**
      * The four destinations that get a slot in the phone tab bar.
      *
      * The fifth slot is always "more", which opens the full menu, so a user
-     * never loses access to anything that did not fit.
+     * never loses access to anything that did not fit. Takes the menu that
+     * {@see self::for()} already built so the badge queries are not repeated.
      *
+     * @param  Collection<int, array<string, mixed>>  $navigation
      * @return Collection<int, array<string, mixed>>
      */
-    public static function primaryFor(User $user): Collection
+    public static function primary(Collection $navigation): Collection
     {
-        return self::for($user)->where('primary', true)->take(4)->values();
+        return $navigation->where('primary', true)->take(4)->values();
     }
 }

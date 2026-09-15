@@ -128,6 +128,7 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
             ->name('employee-shift-plans.generate');
 
         Route::get('notifications', [NotificationController::class, 'index'])->name('notifications.index');
+        Route::get('notifications/{notification}', [NotificationController::class, 'show'])->name('notifications.show');
 
         Route::get('shift-requests', [ShiftRequestController::class, 'index'])->name('shift-requests.index');
         Route::post('shift-requests/leave', [ShiftRequestController::class, 'storeLeave'])->name('shift-requests.leave.store');

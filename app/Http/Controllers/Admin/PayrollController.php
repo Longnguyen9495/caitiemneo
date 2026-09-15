@@ -102,14 +102,9 @@ class PayrollController extends Controller
     /** @return Collection<int, User> */
     private function employees()
     {
-        $branchIds = $this->branchContext->scopeIds();
-
         return User::query()
             ->active()
-            ->when($branchIds !== [], fn ($query) => $query->whereHas(
-                'branchAssignments',
-                fn ($assignment) => $assignment->whereIn('branch_id', $branchIds)
-            ))
+            ->postedTo($this->branchContext->scopeIds())
             ->orderBy('name')
             ->get(['id', 'name']);
     }

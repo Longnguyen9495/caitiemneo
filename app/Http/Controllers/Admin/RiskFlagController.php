@@ -57,16 +57,8 @@ class RiskFlagController extends Controller
                 ->staff()
                 ->with(['branchAssignments' => fn ($query) => $query
                     ->whereIn('branch_id', $branchIds)
-                    ->whereDate('starts_on', '<=', now()->toDateString())
-                    ->where(fn ($period) => $period
-                        ->whereNull('ends_on')
-                        ->orWhereDate('ends_on', '>=', now()->toDateString()))])
-                ->whereHas('branchAssignments', fn ($query) => $query
-                    ->whereIn('branch_id', $branchIds)
-                    ->whereDate('starts_on', '<=', now()->toDateString())
-                    ->where(fn ($period) => $period
-                        ->whereNull('ends_on')
-                        ->orWhereDate('ends_on', '>=', now()->toDateString())))
+                    ->covering(now()->toDateString())])
+                ->postedTo($branchIds, now()->toDateString())
                 ->orderBy('name')
                 ->get(['id', 'name'])
                 ->flatMap(fn (User $employee) => $employee->branchAssignments

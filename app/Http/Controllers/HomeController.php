@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Models\Branch;
 use App\Models\BranchService;
-use App\Models\User;
 use Illuminate\View\View;
 
 class HomeController extends Controller
@@ -32,11 +31,6 @@ class HomeController extends Controller
                 ->unique('id')
                 ->sortBy('name')
                 ->values(),
-            'employees' => User::query()
-                ->active()
-                ->where('role', 'employee')
-                ->orderBy('name')
-                ->get(['id', 'name']),
         ]);
     }
 }

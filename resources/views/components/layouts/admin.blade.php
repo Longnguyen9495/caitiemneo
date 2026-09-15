@@ -6,7 +6,7 @@
 @php
     $user = auth()->user();
     $navigation = App\Support\AdminNavigation::for($user);
-    $primaryNav = $navigation->where('primary', true)->take(4)->values();
+    $primaryNav = App\Support\AdminNavigation::primary($navigation);
 @endphp
 
 <!doctype html>
@@ -58,7 +58,20 @@
 
                 <h1 class="neo-topbar__title mb-0 flex-grow-1 text-truncate">{{ $heading }}</h1>
 
-                <x-admin.branch-switcher />
+                <div class="neo-topbar__actions">
+                    @php($unreadNotificationCount = $user->unreadNotifications()->count())
+                    <a href="{{ route('admin.notifications.index') }}"
+                       @class(['neo-notification-button', 'position-relative', 'is-active' => request()->routeIs('admin.notifications.*')])
+                       aria-label="Thông báo{{ $unreadNotificationCount ? ': '.$unreadNotificationCount.' chưa đọc' : '' }}"
+                       @if (request()->routeIs('admin.notifications.*')) aria-current="page" @endif>
+                        <x-admin.icon name="bell" size="18" />
+                        @if ($unreadNotificationCount > 0)
+                            <span class="neo-notification-button__badge" aria-hidden="true">{{ min($unreadNotificationCount, 99) }}</span>
+                        @endif
+                    </a>
+
+                    <x-admin.branch-switcher />
+                </div>
             </header>
 
             <main id="neo-main" class="p-3 p-lg-4">

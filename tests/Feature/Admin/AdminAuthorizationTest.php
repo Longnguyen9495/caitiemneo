@@ -60,7 +60,19 @@ class AdminAuthorizationTest extends TestCase
             ->assertOk();
     }
 
-    public function test_employee_is_limited_to_granted_areas(): void
+    public function test_employee_navigation_links_payroll_instead_of_restricted_attendance_admin_page(): void
+    {
+        $employee = User::factory()->employee()->create();
+
+        $this->actingAs($employee)
+            ->get(route('admin.dashboard'))
+            ->assertOk()
+            ->assertSee('Lương của tôi')
+            ->assertSee('href="'.route('admin.payrolls.index').'"', false)
+            ->assertDontSee('href="'.route('admin.attendance.index').'"', false);
+    }
+
+    public function test_employee_is_limited_to_their_operational_areas(): void
     {
         $employee = User::factory()->employee()->create([
             'can_manage_appointments' => true,
@@ -68,7 +80,9 @@ class AdminAuthorizationTest extends TestCase
         ]);
 
         $this->actingAs($employee)->withConfirmedPassword()->get(route('admin.appointments.index'))->assertOk();
-        $this->actingAs($employee)->withConfirmedPassword()->get(route('admin.invoices.index'))->assertForbidden();
+        // Nhân viên được mở danh sách để xem hóa đơn của lịch mình care;
+        // InvoiceQuery tiếp tục giới hạn các dòng nhìn thấy theo phân công.
+        $this->actingAs($employee)->withConfirmedPassword()->get(route('admin.invoices.index'))->assertOk();
         $this->actingAs($employee)->withConfirmedPassword()->get(route('admin.cash.index'))->assertForbidden();
         $this->actingAs($employee)->withConfirmedPassword()->get(route('admin.employees.index'))->assertForbidden();
         $this->actingAs($employee)->withConfirmedPassword()->get(route('admin.reports.index'))->assertForbidden();

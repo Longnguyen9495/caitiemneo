@@ -15,6 +15,7 @@ use App\Models\PayrollPolicy;
 use App\Models\PendingPayrollCorrection;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Tests\TestCase;
 
 class PayrollCorrectionTest extends TestCase
@@ -52,6 +53,7 @@ class PayrollCorrectionTest extends TestCase
 
         $this->actingAs($this->owner)->withConfirmedPassword()->post(route('admin.invoices.pay', $invoice), [
             'payment_method' => PaymentMethod::Cash->value,
+            'payment_proof_image' => UploadedFile::fake()->image('payment-proof.jpg'),
         ]);
 
         return $invoice->fresh();

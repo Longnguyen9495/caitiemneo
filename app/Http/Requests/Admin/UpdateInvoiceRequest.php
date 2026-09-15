@@ -41,7 +41,7 @@ class UpdateInvoiceRequest extends FormRequest
             'customer_name' => ['nullable', 'string', 'max:255'],
             'customer_phone' => ['nullable', 'string', 'max:30'],
             'discount' => ['required', 'numeric', 'min:0', 'max:99999999999'],
-            'payment_method' => ['nullable', Rule::enum(PaymentMethod::class)],
+            'payment_method' => ['nullable', Rule::in(array_keys(PaymentMethod::invoiceOptions()))],
             'note' => ['nullable', 'string', 'max:2000'],
             'items' => ['nullable', 'array', 'max:100'],
             // A line id from another invoice must not be adoptable by this one.

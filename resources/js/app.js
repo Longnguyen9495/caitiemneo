@@ -1,68 +1,9 @@
 import Alpine from 'alpinejs';
 
-/**
- * Editor cho các dòng dịch vụ của hóa đơn nháp.
- * Mọi con số hiển thị ở đây chỉ để xem trước; máy chủ luôn tính lại khi lưu.
- */
-Alpine.data('invoiceEditor', (initialRows = []) => ({
-    rows: initialRows.map((row, index) => ({ ...row, key: `existing-${index}` })),
-    nextKey: 0,
-
-    addRow() {
-        this.rows.push({
-            key: `new-${this.nextKey++}`,
-            id: '',
-            service_id: '',
-            employee_id: '',
-            name: '',
-            quantity: '1',
-            unit_price: '0',
-            commission_rate: '0',
-            work_context: 'regular',
-            commission_rate_reason: '',
-        });
-    },
-
-    applyService(row) {
-        const option = this.$el.querySelector(`option[value="${row.service_id}"][data-price]`);
-
-        if (option) {
-            row.name = option.dataset.label;
-            row.unit_price = option.dataset.price;
-        }
-    },
-
-    lineTotal(row) {
-        return Math.round(Number(row.quantity || 0) * Number(row.unit_price || 0) * 100) / 100;
-    },
-
-    subtotal() {
-        return this.rows.reduce((total, row) => total + this.lineTotal(row), 0);
-    },
-
-    formatMoney(value) {
-        return new Intl.NumberFormat('vi-VN').format(value) + ' đ';
-    },
-}));
-
-/** Dòng vật tư của phiếu chuyển kho. */
-Alpine.data('transferEditor', (products = []) => ({
-    products,
-    rows: [{ key: 'row-0', product_id: '', quantity: '1', unit_cost: '0' }],
-    nextKey: 1,
-
-    addRow() {
-        this.rows.push({ key: `row-${this.nextKey++}`, product_id: '', quantity: '1', unit_cost: '0' });
-    },
-
-    applyProduct(row) {
-        const product = this.products.find((item) => String(item.id) === String(row.product_id));
-
-        if (product) {
-            row.unit_cost = product.cost;
-        }
-    },
-}));
+// Editor biểu mẫu (invoiceEditor, transferEditor, submitGuard, clockButton)
+// chỉ sống trong bundle quản trị tại resources/js/admin.js. Bản sao ở đây là
+// di sản và không trang công khai nào dùng tới, vì mọi màn hình có các editor
+// đó đều tải admin.js.
 
 window.Alpine = Alpine;
 

@@ -13,6 +13,7 @@ use App\Services\ReportService;
 use App\Support\ReportPeriod;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Tests\TestCase;
 
 class BranchReportTest extends TestCase
@@ -132,7 +133,10 @@ class BranchReportTest extends TestCase
         $invoice = Invoice::factory()->create(['branch_id' => $this->branchB->id]);
         InvoiceItem::factory()->create(['invoice_id' => $invoice->id, 'unit_price' => 250000, 'line_total' => 250000]);
 
-        $this->actingAs($owner)->post(route('admin.invoices.pay', $invoice), ['payment_method' => PaymentMethod::Cash->value]);
+        $this->actingAs($owner)->post(route('admin.invoices.pay', $invoice), [
+            'payment_method' => PaymentMethod::Cash->value,
+            'payment_proof_image' => UploadedFile::fake()->image('payment-proof.jpg'),
+        ]);
 
         $transaction = CashTransaction::query()->where('invoice_id', $invoice->id)->firstOrFail();
 

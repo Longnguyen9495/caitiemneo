@@ -32,12 +32,15 @@ class ShiftRequestNotification extends Notification implements ShouldQueue
     public function toArray(object $notifiable): array
     {
         return [
+            'kind' => 'shift_request',
             'shift_request_id' => $this->request->getKey(),
             'type' => $this->request->type->value,
             'status' => $this->request->status->value,
             'branch_id' => $this->request->branch_id,
             'work_date' => $this->request->work_date->toDateString(),
+            'title' => 'Cập nhật đơn ca làm',
             'message' => $this->message,
+            'detail' => 'Ngày làm: '.$this->request->work_date->format('d/m/Y'),
             'url' => route('admin.shift-requests.index'),
         ];
     }

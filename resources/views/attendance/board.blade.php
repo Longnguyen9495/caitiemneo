@@ -6,7 +6,7 @@
 
     <div class="row g-3">
         <div class="col-12 col-lg-7">
-            <section class="card p-3 p-lg-4" x-data="clockPanel">
+            <section class="card p-3 p-lg-4">
                 <p class="small text-body-secondary mb-1">{{ $employee->name }}</p>
                 <h2 class="neo-display fs-4 mb-1">{{ $now->translatedFormat('l, d/m/Y') }}</h2>
                 <p class="neo-num fs-2 mb-3" aria-live="off">{{ $now->format('H:i') }}</p>

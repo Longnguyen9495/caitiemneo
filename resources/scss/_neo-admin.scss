@@ -52,6 +52,46 @@ body.neo {
     color: $neo-wine;
 }
 
+.neo-topbar__actions {
+    display: flex;
+    align-items: center;
+    gap: .375rem;
+    flex: 0 0 auto;
+}
+
+.neo-notification-button {
+    display: inline-grid;
+    width: 31px;
+    height: 31px;
+    place-items: center;
+    flex: 0 0 auto;
+    border: 1px solid $border-color;
+    border-radius: .375rem;
+    color: $neo-wine;
+    text-decoration: none;
+
+    &:hover, &.is-active {
+        background: rgba(123, 47, 80, .08);
+        color: $neo-wine;
+    }
+}
+
+.neo-notification-button__badge {
+    position: absolute;
+    top: -.35rem;
+    right: -.45rem;
+    min-width: 1.1rem;
+    padding: .05rem .25rem;
+    border: 2px solid #fffdfd;
+    border-radius: 99rem;
+    background: $neo-wine;
+    color: #fff;
+    font-size: .625rem;
+    font-weight: 700;
+    line-height: 1.1;
+    text-align: center;
+}
+
 // Thanh điều hướng dưới: đích đến chính, luôn nằm trong tầm ngón cái.
 .neo-tabbar {
     position: fixed;
@@ -419,6 +459,20 @@ body.neo {
 
     // Phản hồi vật lý khi nhấn.
     &:active { transform: translateY(1px); }
+}
+
+// Thẻ <a> mang lớp .btn không tự căn chữ giữa theo chiều dọc như <button>.
+// Bootstrap đặt `.btn` là `display: inline-block` nên với `<button>` trình duyệt
+// tự canh chữ vào giữa hộp, còn với `<a>` chữ dính mép trên. Khi `min-height`
+// bên trên cao hơn dòng chữ, nút link trông lệch hẳn so với nút bên cạnh —
+// đúng lỗi ở "Mở hóa đơn" đứng cạnh "Cập nhật", và cả hai nút mũi tên chuyển ngày.
+//
+// Chỉ nhắm vào anchor: `<button>` giữ nguyên cách canh mặc định, và nút có
+// `text-truncate` (bộ chọn chi nhánh) không bị ảnh hưởng vì đó là `<button>`.
+a.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .btn-sm { min-height: $neo-tap-target-sm; }

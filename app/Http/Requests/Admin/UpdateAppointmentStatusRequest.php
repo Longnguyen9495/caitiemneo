@@ -10,7 +10,7 @@ class UpdateAppointmentStatusRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()->can('update', $this->route('appointment'));
+        return $this->user()->can('updateStatus', $this->route('appointment'));
     }
 
     /** @return array<string, array<int, mixed>> */

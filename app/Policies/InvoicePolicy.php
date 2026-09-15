@@ -9,26 +9,36 @@ class InvoicePolicy
 {
     public function viewAny(User $user): bool
     {
-        return $user->isOwner() || $user->isManager() || $user->can_create_invoices;
+        return $user->isLeadership() || $user->can_create_invoices || $user->isEmployee();
     }
 
     public function view(User $user, Invoice $invoice): bool
     {
-        return $this->viewAny($user) && $user->canAccessBranch($invoice->branch_id);
+        if (! $this->viewAny($user) || ! $user->canAccessBranch($invoice->branch_id)) {
+            return false;
+        }
+
+        return $user->isLeadership()
+            || $user->can_create_invoices
+            || $invoice->appointment()->where('employee_id', $user->getKey())->exists();
     }
 
     public function create(User $user): bool
     {
-        return $this->viewAny($user);
+        return $user->isLeadership() || $user->can_create_invoices;
     }
 
     public function update(User $user, Invoice $invoice): bool
     {
+        // A care employee may only work on the draft invoice linked to their
+        // own appointment. `view()` keeps both the branch and assignment checks.
         return $this->view($user, $invoice) && $invoice->isEditable();
     }
 
     public function pay(User $user, Invoice $invoice): bool
     {
+        // Payment follows the same scope as editing: the employee caring for
+        // the appointment may complete it, but never an unrelated invoice.
         return $this->view($user, $invoice) && $invoice->isEditable();
     }
 

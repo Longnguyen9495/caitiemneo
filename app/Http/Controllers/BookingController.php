@@ -29,7 +29,6 @@ class BookingController extends Controller
                 'branch_id' => ['required', Rule::exists(Branch::class, 'id')->where('is_active', true)],
                 'customer_name' => ['required', 'string', 'max:255'],
                 'customer_phone' => ['required', 'string', 'max:30'],
-                'employee_id' => ['nullable', Rule::exists(User::class, 'id')->where('is_active', true)],
                 'starts_at' => [
                     'bail',
                     'required',
@@ -54,7 +53,6 @@ class BookingController extends Controller
                 'branch_id' => 'chi nhánh',
                 'customer_name' => 'tên khách hàng',
                 'customer_phone' => 'số điện thoại',
-                'employee_id' => 'nhân viên',
                 'starts_at' => 'thời gian',
                 'duration_minutes' => 'thời lượng',
                 'service_ids' => 'dịch vụ',
@@ -79,8 +77,13 @@ class BookingController extends Controller
             'Asia/Ho_Chi_Minh',
         );
 
+        // Lịch công khai luôn chờ quản lý phân công. Giá trị employee_id do
+        // client tự gửi lên (nếu có) tuyệt đối không được dùng để giao việc.
+        $validated['employee_id'] = null;
+        $validated['status'] = AppointmentStatus::Pending->value;
+
         try {
-            $appointment = $saveAppointment->handle($validated + ['status' => AppointmentStatus::Pending->value]);
+            $appointment = $saveAppointment->handle($validated);
         } catch (ValidationException $exception) {
             $exception->redirectTo(route('home').'#dat-lich');
 

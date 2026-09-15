@@ -16,15 +16,19 @@ class InvoicePaymentController extends Controller
 {
     public function store(PayInvoiceRequest $request, Invoice $invoice, PayInvoiceAction $payInvoice): RedirectResponse
     {
+        $validated = $request->validated();
+        $proofDirectory = 'invoice-payment-proofs/'.$invoice->number;
+
         $payInvoice->handle(
             $invoice,
             $request->user(),
-            PaymentMethod::from($request->validated('payment_method')),
+            PaymentMethod::from($validated['payment_method']),
+            billImagePath: $request->file('payment_proof_image')->store($proofDirectory, 'local'),
         );
 
         return redirect()
             ->route('admin.invoices.edit', $invoice)
-            ->with('success', 'Đã ghi nhận thanh toán và tạo khoản thu tương ứng.');
+            ->with('success', 'Đã ghi nhận thanh toán kèm chứng từ và tạo khoản thu tương ứng.');
     }
 
     public function destroy(CancelInvoiceRequest $request, Invoice $invoice, CancelInvoiceAction $cancelInvoice): RedirectResponse

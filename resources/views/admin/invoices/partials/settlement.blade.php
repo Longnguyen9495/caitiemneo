@@ -34,15 +34,26 @@
         @canany(['pay', 'cancel'], $invoice)
             <div class="d-grid d-lg-flex gap-2 mt-3">
                 @can('pay', $invoice)
-                    <form method="POST" action="{{ route('admin.invoices.pay', $invoice) }}" class="d-flex gap-2 flex-grow-1">
+                    <form method="POST" action="{{ route('admin.invoices.pay', $invoice) }}" enctype="multipart/form-data" class="flex-grow-1" data-payment-proof-form>
                         @csrf
-                        <label class="visually-hidden" for="payment_method">Phương thức thanh toán</label>
-                        <select class="form-select" id="payment_method" name="payment_method" required style="max-width:11rem">
-                            @foreach ($paymentMethods as $value => $label)
-                                <option value="{{ $value }}" @selected($invoice->payment_method?->value === $value)>{{ $label }}</option>
-                            @endforeach
-                        </select>
-                        <x-admin.submit-button label="Xác nhận thanh toán" class="flex-grow-1" />
+                        <div class="row g-2">
+                            <div class="col-12 col-lg-3">
+                                <label class="form-label" for="payment_method">Phương thức thanh toán</label>
+                                <select class="form-select" id="payment_method" name="payment_method" required data-payment-method>
+                                    @foreach ($paymentMethods as $value => $label)
+                                        <option value="{{ $value }}" @selected($invoice->payment_method?->value === $value)>{{ $label }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="col-12 col-lg-6">
+                                <label class="form-label" for="payment_proof_image">Ảnh chứng từ thanh toán <span class="text-danger">*</span></label>
+                                <input class="form-control" id="payment_proof_image" name="payment_proof_image" type="file" accept="image/*" capture="environment" required>
+                                <p class="form-text mb-0">Chụp hoặc tải lên một ảnh bill / xác nhận chuyển khoản của khách.</p>
+                            </div>
+                            <div class="col-12 col-lg-3 d-grid align-self-end">
+                                <x-admin.submit-button label="Xác nhận thanh toán" />
+                            </div>
+                        </div>
                     </form>
                 @endcan
 

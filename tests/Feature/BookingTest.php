@@ -23,13 +23,12 @@ class BookingTest extends TestCase
      * @param  array<string, mixed>  $extra
      * @return array<string, mixed>
      */
-    private function payload(User $employee, string $startsAt, array $extra = []): array
+    private function payload(string $startsAt, array $extra = []): array
     {
         return array_merge([
             'branch_id' => BranchFactory::resolveId(),
             'customer_name' => 'Khách online',
             'customer_phone' => '0911222333',
-            'employee_id' => $employee->id,
             'starts_at' => $startsAt,
             'duration_minutes' => 60,
         ], $extra);
@@ -37,7 +36,6 @@ class BookingTest extends TestCase
 
     public function test_a_visitor_can_book_a_free_slot(): void
     {
-        $employee = User::factory()->employee()->create();
         $service = Service::factory()->create();
 
         // The shop only books what its own catalogue offers.
@@ -48,7 +46,6 @@ class BookingTest extends TestCase
         ]);
 
         $this->post(route('booking.store'), $this->payload(
-            $employee,
             now()->addDays(2)->startOfHour()->format('Y-m-d\TH:i'),
             ['service_ids' => [$service->id]],
         ))->assertRedirect(route('home').'#dat-lich')->assertSessionHas('booking_success');
@@ -56,6 +53,7 @@ class BookingTest extends TestCase
         $appointment = Appointment::query()->firstOrFail();
 
         $this->assertSame(AppointmentStatus::Pending, $appointment->status);
+        $this->assertNull($appointment->employee_id);
         $this->assertNotNull($appointment->ends_at);
         $this->assertSame(60, (int) $appointment->starts_at->diffInMinutes($appointment->ends_at));
         $this->assertSame(1, $appointment->services()->count());
@@ -64,11 +62,8 @@ class BookingTest extends TestCase
 
     public function test_the_success_redirect_renders_a_booking_confirmation_dialog(): void
     {
-        $employee = User::factory()->employee()->create();
-
         $this->followingRedirects()
             ->post(route('booking.store'), $this->payload(
-                $employee,
                 now()->addDays(2)->startOfHour()->format('Y-m-d\TH:i'),
             ))
             ->assertOk()
@@ -81,14 +76,12 @@ class BookingTest extends TestCase
     {
         Notification::fake();
 
-        $employee = User::factory()->employee()->create();
         $owner = User::factory()->owner()->create();
         $manager = User::factory()->manager()->create();
         $inactiveManager = User::factory()->manager()->inactive()->create();
         $staffMember = User::factory()->employee()->create();
 
         $this->post(route('booking.store'), $this->payload(
-            $employee,
             now()->addDays(2)->startOfHour()->format('Y-m-d\TH:i'),
         ))->assertRedirect(route('home').'#dat-lich');
 
@@ -96,30 +89,29 @@ class BookingTest extends TestCase
         Notification::assertNotSentTo([$inactiveManager, $staffMember], NewOnlineBookingNotification::class);
     }
 
-    public function test_the_public_form_rejects_a_slot_the_employee_already_holds(): void
+    public function test_a_publicly_supplied_employee_id_is_ignored_and_booking_stays_unassigned(): void
     {
         $employee = User::factory()->employee()->create();
-        $startsAt = now()->addDays(2)->startOfHour();
 
-        $this->post(route('booking.store'), $this->payload($employee, $startsAt->format('Y-m-d\TH:i')));
+        $this->post(route('booking.store'), $this->payload(
+            now()->addDays(2)->startOfHour()->format('Y-m-d\TH:i'),
+            ['employee_id' => $employee->id],
+        ))->assertRedirect(route('home').'#dat-lich');
 
-        $this->from(route('home'))
-            ->post(route('booking.store'), $this->payload($employee, $startsAt->copy()->addMinutes(30)->format('Y-m-d\TH:i')))
-            ->assertRedirect(route('home').'#dat-lich')
-            ->assertSessionHasErrors('starts_at');
+        $appointment = Appointment::query()->firstOrFail();
 
-        $this->assertSame(1, Appointment::query()->count());
+        $this->assertSame(AppointmentStatus::Pending, $appointment->status);
+        $this->assertNull($appointment->employee_id);
     }
 
     public function test_an_invalid_online_booking_does_not_send_a_notification(): void
     {
         Notification::fake();
 
-        $employee = User::factory()->employee()->create();
         User::factory()->owner()->create();
 
         $this->from(route('home'))
-            ->post(route('booking.store'), $this->payload($employee, now()->subHour()->format('Y-m-d\TH:i')))
+            ->post(route('booking.store'), $this->payload(now()->subHour()->format('Y-m-d\TH:i')))
             ->assertSessionHasErrors('starts_at');
 
         Notification::assertNothingSent();
@@ -127,12 +119,11 @@ class BookingTest extends TestCase
 
     public function test_a_datetime_local_booking_is_saved_as_vietnam_time(): void
     {
-        $employee = User::factory()->employee()->create();
         $startsAt = Carbon::create(2026, 9, 15, 10, 30, 0, 'Asia/Ho_Chi_Minh');
 
         $this->travelTo(Carbon::create(2026, 9, 11, 9, 0, 0, 'UTC'));
 
-        $this->post(route('booking.store'), $this->payload($employee, '2026-09-15T10:30'))
+        $this->post(route('booking.store'), $this->payload('2026-09-15T10:30'))
             ->assertRedirect(route('home').'#dat-lich');
 
         $appointment = Appointment::query()->firstOrFail();
@@ -143,10 +134,8 @@ class BookingTest extends TestCase
 
     public function test_a_booking_in_the_past_is_rejected(): void
     {
-        $employee = User::factory()->employee()->create();
-
         $this->from(route('home'))
-            ->post(route('booking.store'), $this->payload($employee, now()->subHour()->format('Y-m-d\TH:i')))
+            ->post(route('booking.store'), $this->payload(now()->subHour()->format('Y-m-d\TH:i')))
             ->assertSessionHasErrors('starts_at');
 
         $this->assertSame(0, Appointment::query()->count());
@@ -154,12 +143,10 @@ class BookingTest extends TestCase
 
     public function test_a_vietnam_local_time_in_the_past_is_rejected_with_a_clear_message(): void
     {
-        $employee = User::factory()->employee()->create();
-
         $this->travelTo(Carbon::create(2026, 9, 11, 9, 0, 0, 'UTC'));
 
         $this->from(route('home'))
-            ->post(route('booking.store'), $this->payload($employee, '2026-09-11T15:30'))
+            ->post(route('booking.store'), $this->payload('2026-09-11T15:30'))
             ->assertSessionHasErrors([
                 'starts_at' => 'Thời gian đặt lịch phải ở trong tương lai theo giờ Việt Nam.',
             ]);

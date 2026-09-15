@@ -31,9 +31,14 @@ class PayInvoiceAction
     ) {}
 
     /** @throws ValidationException */
-    public function handle(Invoice $invoice, User $actor, PaymentMethod $paymentMethod, ?CarbonInterface $paidAt = null): Invoice
-    {
-        return DB::transaction(function () use ($invoice, $actor, $paymentMethod, $paidAt): Invoice {
+    public function handle(
+        Invoice $invoice,
+        User $actor,
+        PaymentMethod $paymentMethod,
+        ?CarbonInterface $paidAt = null,
+        ?string $billImagePath = null,
+    ): Invoice {
+        return DB::transaction(function () use ($invoice, $actor, $paymentMethod, $paidAt, $billImagePath): Invoice {
             $locked = Invoice::query()->lockForUpdate()->findOrFail($invoice->getKey());
 
             if ($locked->status === InvoiceStatus::Paid) {
@@ -46,14 +51,26 @@ class PayInvoiceAction
                 ]);
             }
 
+            if (blank($billImagePath)) {
+                throw ValidationException::withMessages([
+                    'payment_proof_image' => 'Cần có ảnh chứng từ để xác nhận thanh toán.',
+                ]);
+            }
+
             $this->recalculate->handle($locked);
 
             $before = $locked->load('items')->auditSnapshot();
             $settledAt = $paidAt ?? now();
 
+            // Payment proof is mandatory above, so a paid invoice is immediately
+            // eligible for bill KPI. Leadership can still correct this later.
             $locked->forceFill([
                 'status' => InvoiceStatus::Paid,
                 'payment_method' => $paymentMethod,
+                'bill_image_path' => $billImagePath,
+                'qualified_for_bill_kpi' => true,
+                'bill_kpi_verified_by' => $actor->id,
+                'bill_kpi_verified_at' => $settledAt,
                 'paid_at' => $settledAt,
             ])->save();
 

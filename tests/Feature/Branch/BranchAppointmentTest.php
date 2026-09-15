@@ -170,6 +170,28 @@ class BranchAppointmentTest extends TestCase
         );
     }
 
+    public function test_the_appointment_list_shows_the_assigned_care_employee(): void
+    {
+        $manager = User::factory()->manager()->withoutBranch()->atBranch($this->branchA)->create();
+        $employee = User::factory()->employee()->withoutBranch()->atBranch($this->branchA)->create([
+            'name' => 'Nhân viên care',
+        ]);
+
+        Appointment::factory()->create([
+            'branch_id' => $this->branchA->id,
+            'employee_id' => $employee->id,
+            'customer_name' => 'Khách có người care',
+            'starts_at' => '2026-10-01 09:00:00',
+            'ends_at' => '2026-10-01 10:00:00',
+        ]);
+
+        $this->actingAs($manager)
+            ->get(route('admin.appointments.index', ['date' => '2026-10-01']))
+            ->assertOk()
+            ->assertSee('Nhân viên care:')
+            ->assertSee('Nhân viên care');
+    }
+
     public function test_the_appointment_list_only_shows_the_active_branch(): void
     {
         $manager = User::factory()->manager()->withoutBranch()->atBranch($this->branchA)->create();

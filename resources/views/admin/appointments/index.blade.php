@@ -68,7 +68,10 @@
                             <p class="mb-1 fw-semibold text-truncate">{{ $appointment->customer_name }}</p>
                             <p class="mb-1 small">
                                 <a href="tel:{{ $appointment->customer_phone }}" class="text-decoration-none neo-num">{{ $appointment->customer_phone }}</a>
-                                <span class="text-body-secondary">· {{ $appointment->employee?->name ?? 'Tiệm sắp xếp' }}</span>
+                            </p>
+                            <p class="mb-1 small text-body-secondary">
+                                Nhân viên care:
+                                <span class="fw-semibold text-body">{{ $appointment->employee?->name ?? 'Chưa phân công' }}</span>
                             </p>
                             <p class="mb-0 d-flex flex-wrap gap-1">
                                 @forelse ($appointment->services as $appointmentService)
@@ -81,7 +84,7 @@
                     </div>
 
                     <div class="neo-actions mt-3">
-                        @can('update', $appointment)
+                        @can('updateStatus', $appointment)
                             <form method="POST" action="{{ route('admin.appointments.status', $appointment) }}" class="d-flex flex-grow-1 gap-2" style="max-width:18rem">
                                 @csrf
                                 @method('PATCH')

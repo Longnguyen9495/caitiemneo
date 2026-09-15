@@ -17,13 +17,12 @@
 
 <div class="input-group">
     <input
-        type="number"
+        type="text"
         id="{{ $name }}"
         name="{{ $name }}"
-        step="{{ $step }}"
-        min="{{ $min }}"
-        inputmode="decimal"
+        inputmode="numeric"
         value="{{ $current }}"
+        data-money-input
         aria-describedby="{{ $describedBy }}"
         @if ($hasError) aria-invalid="true" @endif
         @required($required)

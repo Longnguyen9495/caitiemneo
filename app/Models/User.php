@@ -129,6 +129,33 @@ class User extends Authenticatable
         return $query->whereIn('role', [UserRole::Owner->value, UserRole::Manager->value, UserRole::Employee->value]);
     }
 
+    /**
+     * Staff posted to any of the given branches over a period.
+     *
+     * A single date asks "who works here that day"; adding an end date asks
+     * "who works here at any point in these days". An empty branch list means
+     * the caller has no branch restriction, so everybody stays in view.
+     *
+     * @param  array<int, int>  $branchIds
+     */
+    public function scopePostedTo(Builder $query, array $branchIds, mixed $onDate = null, mixed $until = null): Builder
+    {
+        if ($branchIds === []) {
+            return $query;
+        }
+
+        return $query->whereHas('branchAssignments', fn (Builder $assignment) => $assignment
+            ->whereIn('branch_id', $branchIds)
+            ->when(
+                $onDate !== null && $until === null,
+                fn (Builder $inner) => $inner->covering($onDate),
+            )
+            ->when(
+                $until !== null,
+                fn (Builder $inner) => $inner->overlappingWindow($onDate, $until),
+            ));
+    }
+
     public function branchAssignments(): HasMany
     {
         return $this->hasMany(EmployeeBranchAssignment::class, 'user_id');

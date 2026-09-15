@@ -28,4 +28,13 @@ enum PaymentMethod: string
             [],
         );
     }
+
+    /** Payment methods accepted when settling a customer invoice. */
+    public static function invoiceOptions(): array
+    {
+        return [
+            self::Cash->value => self::Cash->label(),
+            self::Transfer->value => self::Transfer->label(),
+        ];
+    }
 }

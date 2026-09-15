@@ -13,7 +13,30 @@ class NewOnlineBookingNotification extends Notification
     /** @return array<int, string> */
     public function via(object $notifiable): array
     {
-        return ['mail'];
+        return ['database', 'mail'];
+    }
+
+    /** @return array<string, mixed> */
+    public function toArray(object $notifiable): array
+    {
+        $appointment = $this->appointment->loadMissing('branch');
+
+        return [
+            'kind' => 'online_booking',
+            'appointment_id' => $appointment->getKey(),
+            'branch_id' => $appointment->branch_id,
+            'title' => 'Lịch đặt online mới',
+            'message' => $appointment->customer_name.' đã gửi yêu cầu đặt lịch.',
+            'detail' => sprintf(
+                '%s · %s · %s',
+                $appointment->branch?->name ?? 'Chưa xác định chi nhánh',
+                $appointment->starts_at->format('H:i, d/m/Y'),
+                $appointment->customer_phone,
+            ),
+            'url' => route('admin.appointments.index', [
+                'date' => $appointment->starts_at->toDateString(),
+            ]),
+        ];
     }
 
     public function toMail(object $notifiable): MailMessage

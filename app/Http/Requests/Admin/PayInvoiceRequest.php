@@ -17,13 +17,17 @@ class PayInvoiceRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'payment_method' => ['required', Rule::enum(PaymentMethod::class)],
+            'payment_method' => ['required', Rule::in(array_keys(PaymentMethod::invoiceOptions()))],
+            'payment_proof_image' => ['required', 'image', 'max:10240'],
         ];
     }
 
     /** @return array<string, string> */
     public function attributes(): array
     {
-        return ['payment_method' => 'phương thức thanh toán'];
+        return [
+            'payment_method' => 'phương thức thanh toán',
+            'payment_proof_image' => 'ảnh chứng từ thanh toán',
+        ];
     }
 }

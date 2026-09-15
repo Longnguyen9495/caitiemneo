@@ -121,14 +121,18 @@
                         </div>
                     </details>
 
-                    <div class="d-flex align-items-center justify-content-between mt-3 pt-2 border-top">
-                        <span class="small text-body-secondary">Thành tiền</span>
-                        <span class="d-flex align-items-center gap-3">
+                    <div class="d-flex align-items-center justify-content-between gap-3 mt-3 pt-2 border-top">
+                        <div>
+                            <span class="d-block small text-body-secondary">Thành tiền</span>
                             <strong class="neo-num" x-text="formatMoney(lineTotal(row))"></strong>
-                            @if ($editable)
-                                <button type="button" class="btn btn-sm btn-outline-danger" x-on:click="rows.splice(index, 1)">Xóa</button>
-                            @endif
-                        </span>
+                        </div>
+                        <div class="text-end">
+                            <span class="d-block small text-body-secondary">Hoa hồng</span>
+                            <strong class="neo-num text-success" x-text="`${formatPercent(row.commission_rate)} · ${formatMoney(commissionAmount(row))}`"></strong>
+                        </div>
+                        @if ($editable)
+                            <button type="button" class="btn btn-sm btn-outline-danger" x-on:click="rows.splice(index, 1)">Xóa</button>
+                        @endif
                     </div>
                 </fieldset>
             </template>

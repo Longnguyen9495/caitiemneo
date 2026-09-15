@@ -21,6 +21,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'customer_phone',
     'status',
     'payment_method',
+    'bill_image_path',
     'subtotal',
     'discount',
     'total',

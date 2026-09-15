@@ -10,6 +10,7 @@ use App\Models\Invoice;
 use App\Models\InvoiceItem;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Tests\TestCase;
 
 class CashBookTest extends TestCase
@@ -73,7 +74,10 @@ class CashBookTest extends TestCase
         $owner = User::factory()->owner()->create();
         $invoice = Invoice::factory()->create();
         InvoiceItem::factory()->create(['invoice_id' => $invoice->id, 'unit_price' => 100000, 'line_total' => 100000]);
-        $this->actingAs($owner)->post(route('admin.invoices.pay', $invoice), ['payment_method' => PaymentMethod::Cash->value]);
+        $this->actingAs($owner)->post(route('admin.invoices.pay', $invoice), [
+            'payment_method' => PaymentMethod::Cash->value,
+            'payment_proof_image' => UploadedFile::fake()->image('payment-proof.jpg'),
+        ]);
 
         $transaction = CashTransaction::query()->firstOrFail();
 

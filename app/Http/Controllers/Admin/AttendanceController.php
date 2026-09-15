@@ -143,14 +143,10 @@ class AttendanceController extends Controller
     /** @return \Illuminate\Database\Eloquent\Collection<int, User> */
     private function employees(?Carbon $onDate = null)
     {
-        $branchIds = $this->branchContext->scopeIds();
-
         // Only staff actually posted to the branch on that date may be clocked in.
         return User::query()
             ->active()
-            ->when($branchIds !== [], fn ($query) => $query->whereHas('branchAssignments', fn ($assignment) => $assignment
-                ->whereIn('branch_id', $branchIds)
-                ->when($onDate !== null, fn ($inner) => $inner->covering($onDate->toDateString()))))
+            ->postedTo($this->branchContext->scopeIds(), $onDate?->toDateString())
             ->orderBy('name')
             ->get(['id', 'name']);
     }

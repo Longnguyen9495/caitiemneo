@@ -29,7 +29,7 @@ class InvoiceController extends Controller
                 ->paginate(20)
                 ->withQueryString(),
             'statuses' => InvoiceStatus::options(),
-            'paymentMethods' => PaymentMethod::options(),
+            'paymentMethods' => PaymentMethod::invoiceOptions(),
         ]);
     }
 
@@ -63,7 +63,7 @@ class InvoiceController extends Controller
                     ->covering($invoice->created_at ?? now()))
                 ->orderBy('name')
                 ->get(['id', 'name']),
-            'paymentMethods' => PaymentMethod::options(),
+            'paymentMethods' => PaymentMethod::invoiceOptions(),
             // The trail is management information, not an operator's tool.
             'auditEvents' => $user?->isLeadership()
                 ? AuditEvent::query()->forSubject($invoice)->with('actor')->get()

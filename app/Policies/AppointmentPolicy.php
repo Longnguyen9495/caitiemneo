@@ -9,7 +9,7 @@ class AppointmentPolicy
 {
     public function viewAny(User $user): bool
     {
-        return $user->isOwner() || $user->isManager() || $user->can_manage_appointments;
+        return $user->isOwner() || $user->isManager() || $user->can_manage_appointments || $user->isEmployee();
     }
 
     /**
@@ -18,15 +18,27 @@ class AppointmentPolicy
      */
     public function view(User $user, Appointment $appointment): bool
     {
-        return $this->viewAny($user) && $user->canAccessBranch($appointment->branch_id);
+        if (! $this->viewAny($user) || ! $user->canAccessBranch($appointment->branch_id)) {
+            return false;
+        }
+
+        return ! $user->isEmployee()
+            || $user->can_manage_appointments
+            || (int) $appointment->employee_id === (int) $user->getKey();
     }
 
     public function create(User $user): bool
     {
-        return $this->viewAny($user);
+        return $user->isOwner() || $user->isManager() || $user->can_manage_appointments;
     }
 
     public function update(User $user, Appointment $appointment): bool
+    {
+        return $this->create($user) && $this->view($user, $appointment);
+    }
+
+    /** An assigned employee may only move their own appointment through its workflow. */
+    public function updateStatus(User $user, Appointment $appointment): bool
     {
         return $this->view($user, $appointment);
     }

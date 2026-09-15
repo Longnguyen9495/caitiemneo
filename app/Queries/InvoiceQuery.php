@@ -21,6 +21,14 @@ class InvoiceQuery
     public function build(Request $request): Builder
     {
         return $this->scopeToBranches(Invoice::query(), $this->branchContext)
+            // Nhân viên chỉ xem hóa đơn của lịch mà mình được phân công care.
+            ->when(
+                $request->user()?->isEmployee() && ! $request->user()?->can_create_invoices,
+                fn (Builder $query) => $query->whereHas(
+                    'appointment',
+                    fn (Builder $appointment) => $appointment->where('employee_id', $request->user()->getKey()),
+                ),
+            )
             ->when($request->filled('search'), function (Builder $query) use ($request): void {
                 $term = '%'.$request->string('search')->toString().'%';
 

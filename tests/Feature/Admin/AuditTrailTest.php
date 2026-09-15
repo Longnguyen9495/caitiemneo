@@ -12,6 +12,7 @@ use App\Models\Invoice;
 use App\Models\User;
 use App\Services\Audit\AuditRecorder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Tests\TestCase;
 
 /**
@@ -114,6 +115,7 @@ class AuditTrailTest extends TestCase
         $this->actingAs($this->manager)->withConfirmedPassword()
             ->post(route('admin.invoices.pay', $invoice), [
                 'payment_method' => PaymentMethod::Cash->value,
+                'payment_proof_image' => UploadedFile::fake()->image('payment-proof.jpg'),
             ])
             ->assertSessionHasNoErrors();
 
@@ -129,6 +131,7 @@ class AuditTrailTest extends TestCase
 
         $this->actingAs($this->manager)->withConfirmedPassword()->post(route('admin.invoices.pay', $invoice), [
             'payment_method' => PaymentMethod::Cash->value,
+            'payment_proof_image' => UploadedFile::fake()->image('payment-proof.jpg'),
         ]);
 
         $this->actingAs($this->manager)->withConfirmedPassword()

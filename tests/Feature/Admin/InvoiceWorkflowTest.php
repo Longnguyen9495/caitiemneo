@@ -15,6 +15,8 @@ use App\Models\InvoiceItem;
 use App\Models\Service;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class InvoiceWorkflowTest extends TestCase
@@ -96,20 +98,38 @@ class InvoiceWorkflowTest extends TestCase
         $this->assertSame('0.00', $invoice->fresh()->total);
     }
 
-    public function test_paying_an_invoice_creates_exactly_one_income_transaction(): void
+    public function test_paying_an_invoice_requires_and_stores_one_payment_proof_image(): void
     {
+        Storage::fake('local');
         $owner = User::factory()->owner()->create();
         $invoice = Invoice::factory()->create();
         InvoiceItem::factory()->create(['invoice_id' => $invoice->id, 'unit_price' => 250000, 'line_total' => 250000]);
 
         $this->actingAs($owner)->withConfirmedPassword()
+            ->from(route('admin.invoices.edit', $invoice))
             ->post(route('admin.invoices.pay', $invoice), ['payment_method' => PaymentMethod::Cash->value])
+            ->assertRedirect(route('admin.invoices.edit', $invoice))
+            ->assertSessionHasErrors('payment_proof_image');
+
+        $this->assertSame(InvoiceStatus::Draft, $invoice->fresh()->status);
+        $this->assertSame(0, CashTransaction::query()->count());
+
+        $this->actingAs($owner)->withConfirmedPassword()
+            ->post(route('admin.invoices.pay', $invoice), [
+                'payment_method' => PaymentMethod::Cash->value,
+                'payment_proof_image' => UploadedFile::fake()->image('payment-proof.jpg'),
+            ])
             ->assertRedirect();
 
         $invoice->refresh();
         $this->assertSame(InvoiceStatus::Paid, $invoice->status);
         $this->assertNotNull($invoice->paid_at);
+        $this->assertTrue($invoice->qualified_for_bill_kpi);
+        $this->assertSame($owner->id, $invoice->bill_kpi_verified_by);
+        $this->assertNotNull($invoice->bill_kpi_verified_at);
         $this->assertSame('250000.00', $invoice->total);
+        $this->assertNotNull($invoice->bill_image_path);
+        $this->assertTrue(Storage::disk('local')->exists($invoice->bill_image_path));
 
         $transactions = CashTransaction::query()->where('invoice_id', $invoice->id)->get();
         $this->assertCount(1, $transactions);
@@ -118,14 +138,50 @@ class InvoiceWorkflowTest extends TestCase
         $this->assertSame('250000.00', $transactions->first()->amount);
     }
 
+    public function test_transfer_payment_uses_the_same_single_payment_proof_image(): void
+    {
+        Storage::fake('local');
+        $owner = User::factory()->owner()->create();
+        $invoice = Invoice::factory()->create();
+
+        $this->actingAs($owner)->withConfirmedPassword()
+            ->from(route('admin.invoices.edit', $invoice))
+            ->post(route('admin.invoices.pay', $invoice), [
+                'payment_method' => PaymentMethod::Transfer->value,
+            ])
+            ->assertRedirect(route('admin.invoices.edit', $invoice))
+            ->assertSessionHasErrors('payment_proof_image');
+
+        $this->actingAs($owner)->withConfirmedPassword()
+            ->post(route('admin.invoices.pay', $invoice), [
+                'payment_method' => PaymentMethod::Transfer->value,
+                'payment_proof_image' => UploadedFile::fake()->image('transfer-proof.jpg'),
+            ])
+            ->assertRedirect();
+
+        $invoice->refresh();
+        $this->assertSame(InvoiceStatus::Paid, $invoice->status);
+        $this->assertTrue($invoice->qualified_for_bill_kpi);
+        $this->assertSame($owner->id, $invoice->bill_kpi_verified_by);
+        $this->assertNotNull($invoice->bill_image_path);
+        $this->assertTrue(Storage::disk('local')->exists($invoice->bill_image_path));
+    }
+
     public function test_a_double_submitted_payment_does_not_duplicate_the_transaction(): void
     {
+        Storage::fake('local');
         $owner = User::factory()->owner()->create();
         $invoice = Invoice::factory()->create();
         InvoiceItem::factory()->create(['invoice_id' => $invoice->id, 'unit_price' => 100000, 'line_total' => 100000]);
 
-        $this->actingAs($owner)->withConfirmedPassword()->post(route('admin.invoices.pay', $invoice), ['payment_method' => PaymentMethod::Cash->value]);
-        $this->actingAs($owner)->withConfirmedPassword()->post(route('admin.invoices.pay', $invoice), ['payment_method' => PaymentMethod::Transfer->value]);
+        $this->actingAs($owner)->withConfirmedPassword()->post(route('admin.invoices.pay', $invoice), [
+            'payment_method' => PaymentMethod::Cash->value,
+            'payment_proof_image' => UploadedFile::fake()->image('payment-proof.jpg'),
+        ]);
+        $this->actingAs($owner)->withConfirmedPassword()->post(route('admin.invoices.pay', $invoice), [
+            'payment_method' => PaymentMethod::Transfer->value,
+            'payment_proof_image' => UploadedFile::fake()->image('another-payment-proof.jpg'),
+        ]);
 
         $this->assertSame(1, CashTransaction::query()->where('invoice_id', $invoice->id)->count());
         $this->assertSame(PaymentMethod::Cash, $invoice->fresh()->payment_method);
@@ -133,11 +189,15 @@ class InvoiceWorkflowTest extends TestCase
 
     public function test_a_paid_invoice_can_no_longer_be_edited(): void
     {
+        Storage::fake('local');
         $owner = User::factory()->owner()->create();
         $invoice = Invoice::factory()->create();
         InvoiceItem::factory()->create(['invoice_id' => $invoice->id, 'unit_price' => 100000, 'line_total' => 100000]);
 
-        $this->actingAs($owner)->withConfirmedPassword()->post(route('admin.invoices.pay', $invoice), ['payment_method' => PaymentMethod::Cash->value]);
+        $this->actingAs($owner)->withConfirmedPassword()->post(route('admin.invoices.pay', $invoice), [
+            'payment_method' => PaymentMethod::Cash->value,
+            'payment_proof_image' => UploadedFile::fake()->image('payment-proof.jpg'),
+        ]);
 
         $this->actingAs($owner)->withConfirmedPassword()->patch(route('admin.invoices.update', $invoice), [
             'discount' => 90000,
@@ -149,11 +209,15 @@ class InvoiceWorkflowTest extends TestCase
 
     public function test_cancelling_a_paid_invoice_keeps_the_income_and_adds_a_reversal(): void
     {
+        Storage::fake('local');
         $owner = User::factory()->owner()->create();
         $invoice = Invoice::factory()->create();
         InvoiceItem::factory()->create(['invoice_id' => $invoice->id, 'unit_price' => 180000, 'line_total' => 180000]);
 
-        $this->actingAs($owner)->withConfirmedPassword()->post(route('admin.invoices.pay', $invoice), ['payment_method' => PaymentMethod::Cash->value]);
+        $this->actingAs($owner)->withConfirmedPassword()->post(route('admin.invoices.pay', $invoice), [
+            'payment_method' => PaymentMethod::Cash->value,
+            'payment_proof_image' => UploadedFile::fake()->image('payment-proof.jpg'),
+        ]);
         $this->actingAs($owner)->withConfirmedPassword()->delete(route('admin.invoices.cancel', $invoice), ['cancel_reason' => 'Khách đổi ý'])->assertRedirect();
 
         $invoice->refresh();

@@ -126,15 +126,12 @@ class ShiftScheduleController extends Controller
     /** Staff posted to the active branch at some point during the week. */
     private function employees(Carbon $weekStart)
     {
-        $branchIds = $this->branchContext->scopeIds();
         $weekEnd = $weekStart->copy()->endOfWeek(Carbon::SUNDAY);
 
         return User::query()
             ->active()
             ->staff()
-            ->when($branchIds !== [], fn ($query) => $query->whereHas('branchAssignments', fn ($assignment) => $assignment
-                ->whereIn('branch_id', $branchIds)
-                ->overlappingWindow($weekStart->toDateString(), $weekEnd->toDateString())))
+            ->postedTo($this->branchContext->scopeIds(), $weekStart->toDateString(), $weekEnd->toDateString())
             ->orderBy('name')
             ->get(['id', 'name']);
     }

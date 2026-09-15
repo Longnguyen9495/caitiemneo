@@ -8,6 +8,55 @@ import 'bootstrap/js/dist/offcanvas';
 import Alpine from 'alpinejs';
 
 /**
+ * Ô tiền tệ dùng dấu chấm phân tách hàng nghìn khi không nhập liệu. Giá trị
+ * được bỏ định dạng ngay trước khi gửi, để các Form Request tiếp tục nhận số
+ * thập phân chuẩn và không phụ thuộc vào cách trình duyệt xử lý locale.
+ */
+const moneyInputValue = (value) => {
+    const normalized = String(value ?? '')
+        .trim()
+        .replace(/\s/g, '')
+        .replace(/\./g, '')
+        .replace(',', '.');
+
+    return normalized === '' || Number.isNaN(Number(normalized)) ? '' : normalized;
+};
+
+const formatMoneyInput = (input) => {
+    const value = moneyInputValue(input.value);
+
+    if (value === '') {
+        input.value = '';
+
+        return;
+    }
+
+    const [whole, decimal] = value.split('.');
+    input.value = new Intl.NumberFormat('vi-VN').format(Number(whole))
+        + (decimal === undefined ? '' : `,${decimal}`);
+};
+
+document.addEventListener('focusin', (event) => {
+    if (event.target.matches('[data-money-input]')) {
+        event.target.value = moneyInputValue(event.target.value);
+    }
+});
+
+document.addEventListener('focusout', (event) => {
+    if (event.target.matches('[data-money-input]')) {
+        formatMoneyInput(event.target);
+    }
+});
+
+document.addEventListener('submit', (event) => {
+    event.target.querySelectorAll('[data-money-input]').forEach((input) => {
+        input.value = moneyInputValue(input.value);
+    });
+});
+
+document.querySelectorAll('[data-money-input]').forEach(formatMoneyInput);
+
+/**
  * Editor cho các dòng dịch vụ của hóa đơn nháp.
  * Mọi con số hiển thị ở đây chỉ để xem trước; máy chủ luôn tính lại khi lưu.
  */
@@ -87,6 +136,17 @@ Alpine.data('invoiceEditor', (initialRows = [], serverErrors = {}) => ({
 
     lineTotal(row) {
         return Math.round(Number(row.quantity || 0) * Number(row.unit_price || 0) * 100) / 100;
+    },
+
+    commissionAmount(row) {
+        return Math.round(this.lineTotal(row) * Number(row.commission_rate || 0)) / 100;
+    },
+
+    formatPercent(value) {
+        return new Intl.NumberFormat('vi-VN', {
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 2,
+        }).format(Number(value || 0)) + '%';
     },
 
     subtotal() {

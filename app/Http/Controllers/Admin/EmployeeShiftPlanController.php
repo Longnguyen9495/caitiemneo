@@ -93,9 +93,7 @@ class EmployeeShiftPlanController extends Controller
         return User::query()
             ->active()
             ->staff()
-            ->whereHas('branchAssignments', fn ($assignment) => $assignment
-                ->where('branch_id', $branch->getKey())
-                ->overlappingWindow($month->toDateString(), $month->endOfMonth()->toDateString()))
+            ->postedTo([$branch->getKey()], $month->toDateString(), $month->endOfMonth()->toDateString())
             ->orderBy('name')
             ->get(['id', 'name']);
     }

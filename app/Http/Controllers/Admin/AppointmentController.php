@@ -33,7 +33,11 @@ class AppointmentController extends Controller
             ->with(['employee', 'services.service', 'invoice'])
             ->whereIn('branch_id', $this->branchContext->scopeIds() ?: [0])
             ->whereBetween('starts_at', [$selectedDate, $selectedDate->copy()->endOfDay()])
-            ->when($request->filled('employee_id'), fn ($query) => $query->where('employee_id', $request->integer('employee_id')))
+            ->when(
+                $request->user()->isEmployee() && ! $request->user()->can_manage_appointments,
+                fn ($query) => $query->where('employee_id', $request->user()->getKey()),
+                fn ($query) => $query->when($request->filled('employee_id'), fn ($inner) => $inner->where('employee_id', $request->integer('employee_id'))),
+            )
             ->when($request->filled('status'), fn ($query) => $query->where('status', $request->string('status')->toString()))
             ->orderBy('starts_at')
             ->get();
@@ -136,14 +140,10 @@ class AppointmentController extends Controller
      */
     private function employees(?Carbon $onDate = null)
     {
-        $branchIds = $this->branchContext->scopeIds();
-
         return User::query()
             ->active()
             ->where('role', UserRole::Employee)
-            ->when($branchIds !== [], fn ($query) => $query->whereHas('branchAssignments', fn ($assignment) => $assignment
-                ->whereIn('branch_id', $branchIds)
-                ->when($onDate !== null, fn ($inner) => $inner->covering($onDate->toDateString()))))
+            ->postedTo($this->branchContext->scopeIds(), $onDate?->toDateString())
             ->orderBy('name')
             ->get(['id', 'name']);
     }
