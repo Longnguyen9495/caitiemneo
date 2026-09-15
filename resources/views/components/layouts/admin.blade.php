@@ -41,6 +41,10 @@
             <div class="mt-4 pt-3 border-top" style="border-color:rgba(255,255,255,.16)!important">
                 <p class="mb-0 text-white fw-semibold small">{{ $user->name }}</p>
                 <p class="mb-2 small" style="color:var(--bs-warning-text-emphasis);color:#f4aac5">{{ $user->role->label() }}</p>
+                <a href="{{ route('profile.edit') }}" @class(['neo-navlink mb-1', 'is-active' => request()->routeIs('profile.*')])>
+                    <x-admin.icon name="people" />
+                    <span>Tài khoản của tôi</span>
+                </a>
                 <form method="POST" action="{{ route('logout') }}">
                     @csrf
                     <button type="submit" class="btn btn-sm btn-outline-light w-100">Đăng xuất</button>

@@ -1,11 +1,17 @@
 import Alpine from 'alpinejs';
+import { searchableSelect } from './searchable-select';
 
 // Editor biểu mẫu (invoiceEditor, transferEditor, submitGuard, clockButton)
 // chỉ sống trong bundle quản trị tại resources/js/admin.js. Bản sao ở đây là
 // di sản và không trang công khai nào dùng tới, vì mọi màn hình có các editor
 // đó đều tải admin.js.
+//
+// `searchableSelect` là ngoại lệ: màn hình hồ sơ nằm ngoài khu quản trị nhưng
+// vẫn cần ô chọn ngân hàng, nên nó được đăng ký ở cả hai bundle.
 
 window.Alpine = Alpine;
+
+Alpine.data('searchableSelect', searchableSelect);
 
 Alpine.start();
 

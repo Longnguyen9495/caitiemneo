@@ -13,6 +13,11 @@
             <p class="mb-0 text-white fw-semibold">{{ $user->name }}</p>
             <p class="mb-3 small" style="color:#f4aac5">{{ $user->role->label() }}</p>
 
+            <a href="{{ route('profile.edit') }}" @class(['neo-navlink mb-1', 'is-active' => request()->routeIs('profile.*')])>
+                <x-admin.icon name="people" />
+                <span>Tài khoản của tôi</span>
+            </a>
+
             <a href="{{ route('home') }}" target="_blank" rel="noopener"
                class="neo-navlink mb-1">
                 <x-admin.icon name="external" />
