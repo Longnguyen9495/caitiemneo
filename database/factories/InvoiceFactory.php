@@ -21,6 +21,7 @@ class InvoiceFactory extends Factory
             'number' => DocumentNumber::forInvoice(),
             'appointment_id' => null,
             'customer_id' => null,
+            'employee_id' => null,
             'created_by' => User::factory(),
             'customer_name' => fake()->name(),
             'customer_phone' => fake()->numerify('09########'),
@@ -29,6 +30,8 @@ class InvoiceFactory extends Factory
             'subtotal' => 0,
             'discount' => 0,
             'total' => 0,
+            'commission_rate' => 0,
+            'commission_rate_source' => null,
             'paid_at' => null,
             'note' => null,
         ];

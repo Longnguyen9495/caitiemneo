@@ -52,6 +52,8 @@ class InvoiceWorkflowTest extends TestCase
         $this->assertSame(1, Invoice::query()->count());
 
         $invoice = Invoice::query()->firstOrFail();
+        $this->assertSame($employee->id, $invoice->employee_id);
+        $this->assertSame('10.00', $invoice->commission_rate);
         $this->assertSame('300000.00', $invoice->total);
         $this->assertSame('30000.00', $invoice->items()->value('commission_amount'));
     }
@@ -60,8 +62,10 @@ class InvoiceWorkflowTest extends TestCase
     {
         $owner = User::factory()->owner()->create();
         $invoice = Invoice::factory()->create();
+        $employee = User::factory()->employee()->atBranch($invoice->branch_id)->create(['commission_rate' => 10]);
 
         $this->actingAs($owner)->withConfirmedPassword()->patch(route('admin.invoices.update', $invoice), [
+            'employee_id' => $employee->id,
             'discount' => 50000,
             'total' => 1,
             'subtotal' => 1,
@@ -70,19 +74,19 @@ class InvoiceWorkflowTest extends TestCase
                     'name' => 'Sơn gel',
                     'quantity' => 2,
                     'unit_price' => 200000,
-                    'commission_rate' => 10,
-                    'commission_rate_reason' => 'Chốt riêng với khách quen',
                 ],
             ],
         ])->assertRedirect();
 
         $invoice->refresh();
 
+        $this->assertSame($employee->id, $invoice->employee_id);
+        $this->assertSame('10.00', $invoice->commission_rate);
         $this->assertSame('400000.00', $invoice->subtotal);
         $this->assertSame('50000.00', $invoice->discount);
         $this->assertSame('350000.00', $invoice->total);
         $this->assertSame('400000.00', $invoice->items()->value('line_total'));
-        $this->assertSame('40000.00', $invoice->items()->value('commission_amount'));
+        $this->assertSame('35000.00', $invoice->items()->value('commission_amount'));
     }
 
     public function test_a_discount_larger_than_the_subtotal_floors_the_total_at_zero(): void

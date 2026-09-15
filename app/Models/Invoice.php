@@ -16,6 +16,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'number',
     'appointment_id',
     'customer_id',
+    'employee_id',
     'created_by',
     'customer_name',
     'customer_phone',
@@ -25,6 +26,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'subtotal',
     'discount',
     'total',
+    'commission_rate',
+    'commission_rate_source',
     'paid_at',
     'cancelled_at',
     'cancelled_by',
@@ -45,6 +48,7 @@ class Invoice extends Model
             'subtotal' => 'decimal:2',
             'discount' => 'decimal:2',
             'total' => 'decimal:2',
+            'commission_rate' => 'decimal:2',
             'paid_at' => 'datetime',
             'cancelled_at' => 'datetime',
             'bill_kpi_verified_at' => 'datetime',
@@ -67,6 +71,11 @@ class Invoice extends Model
     public function customer(): BelongsTo
     {
         return $this->belongsTo(Customer::class);
+    }
+
+    public function employee(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'employee_id');
     }
 
     public function creator(): BelongsTo
@@ -128,6 +137,9 @@ class Invoice extends Model
             'subtotal' => (string) $this->subtotal,
             'discount' => (string) $this->discount,
             'total' => (string) $this->total,
+            'employee_id' => $this->employee_id,
+            'commission_rate' => (string) $this->commission_rate,
+            'commission_rate_source' => $this->commission_rate_source,
             'payment_method' => $this->payment_method?->value,
             'paid_at' => $this->paid_at?->toDateTimeString(),
             'cancelled_at' => $this->cancelled_at?->toDateTimeString(),

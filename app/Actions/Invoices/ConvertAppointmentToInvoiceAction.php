@@ -43,27 +43,30 @@ class ConvertAppointmentToInvoiceAction
                 return $existing;
             }
 
+            $commission = $this->compensation->commissionRateFor(
+                $locked->employee_id,
+                $locked->branch_id,
+                null,
+                WorkContext::Regular,
+                $locked->starts_at,
+            );
+
             $invoice = Invoice::query()->create([
                 'branch_id' => $locked->branch_id,
                 'number' => DocumentNumber::forInvoice($locked->branch?->code),
                 'appointment_id' => $locked->id,
                 'customer_id' => $locked->customer_id,
+                'employee_id' => $locked->employee_id,
                 'created_by' => $actor->id,
                 'customer_name' => $locked->customer_name,
                 'customer_phone' => $locked->customer_phone,
                 'status' => InvoiceStatus::Draft,
+                'commission_rate' => $commission['rate'],
+                'commission_rate_source' => $commission['source'],
                 'note' => $locked->note,
             ]);
 
             foreach ($locked->services as $appointmentService) {
-                $commission = $this->compensation->commissionRateFor(
-                    $locked->employee_id,
-                    $locked->branch_id,
-                    $appointmentService->service_id,
-                    WorkContext::Regular,
-                    $locked->starts_at,
-                );
-
                 InvoiceItem::query()->create([
                     'invoice_id' => $invoice->id,
                     'service_id' => $appointmentService->service_id,
@@ -73,8 +76,8 @@ class ConvertAppointmentToInvoiceAction
                     'quantity' => 1,
                     'unit_price' => $appointmentService->price,
                     'line_total' => $appointmentService->price,
-                    'commission_rate' => $commission['rate'],
-                    'commission_rate_source' => $commission['source'],
+                    'commission_rate' => $invoice->commission_rate,
+                    'commission_rate_source' => $invoice->commission_rate_source,
                     'commission_amount' => 0,
                 ]);
             }

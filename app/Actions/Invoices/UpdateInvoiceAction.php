@@ -10,7 +10,6 @@ use App\Models\InvoiceItem;
 use App\Models\User;
 use App\Services\Audit\AuditRecorder;
 use App\Services\CompensationResolver;
-use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -30,7 +29,7 @@ class UpdateInvoiceAction
     ) {}
 
     /**
-     * @param  array{customer_name?: string|null, customer_phone?: string|null, discount?: mixed, payment_method?: string|null, note?: string|null, items?: array<int, array<string, mixed>>}  $data
+     * @param  array{employee_id?: int|null, customer_name?: string|null, customer_phone?: string|null, discount?: mixed, payment_method?: string|null, note?: string|null, items?: array<int, array<string, mixed>>}  $data
      *
      * @throws ValidationException when the invoice is no longer a draft
      */
@@ -48,8 +47,20 @@ class UpdateInvoiceAction
             // Snapshotted before anything moves, so the trail shows the state
             // an operator actually changed away from — lines included.
             $before = $locked->load('items')->auditSnapshot();
+            $employeeId = ($data['employee_id'] ?? null) ?: null;
+            $referenceDate = $locked->created_at ?? now();
+            $rate = $this->compensation->commissionRateFor(
+                $employeeId,
+                $locked->branch_id,
+                null,
+                WorkContext::Regular,
+                $referenceDate,
+            );
 
             $locked->forceFill([
+                'employee_id' => $employeeId,
+                'commission_rate' => $rate['rate'],
+                'commission_rate_source' => $rate['source'],
                 'customer_name' => $data['customer_name'] ?? $locked->customer_name,
                 'customer_phone' => $data['customer_phone'] ?? $locked->customer_phone,
                 'discount' => $data['discount'] ?? $locked->discount,
@@ -103,9 +114,8 @@ class UpdateInvoiceAction
      * Replace the invoice lines with the submitted ones.
      *
      * Only the raw inputs are trusted; `line_total` and `commission_amount` are
-     * always derived by {@see RecalculateInvoiceAction}, and the commission rate
-     * comes from the branch catalogue or the employee's dated profile unless a
-     * privileged user deliberately overrides it with a reason.
+     * always derived by {@see RecalculateInvoiceAction}. The employee and its
+     * compensation profile belong to the invoice as a whole, never to one line.
      *
      * @param  array<int, array<string, mixed>>  $items
      */
@@ -120,31 +130,28 @@ class UpdateInvoiceAction
             ->keyBy('service_id');
 
         $mayApproveOvertime = $actor !== null && $actor->can('approveOvertime', $invoice);
-        $referenceDate = $invoice->created_at ?? now();
-
         foreach ($items as $row) {
             $serviceId = ($row['service_id'] ?? null) ?: null;
             $branchService = $serviceId ? $branchServices->get((int) $serviceId) : null;
-            $employeeId = ($row['employee_id'] ?? null) ?: null;
 
             $existing = ($row['id'] ?? null)
                 ? $invoice->items()->whereKey($row['id'])->first()
                 : null;
 
             $context = $this->resolveWorkContext($row, $existing, $mayApproveOvertime);
-            $rate = $this->resolveCommissionRate($row, $employeeId, $invoice->branch_id, $serviceId, $context, $referenceDate, $actor);
 
             $attributes = [
                 'invoice_id' => $invoice->id,
                 'service_id' => $branchService?->service_id,
-                'employee_id' => $employeeId,
+                // Keep a line-level snapshot for existing payroll/report queries.
+                'employee_id' => $invoice->employee_id,
                 'work_context' => $context,
                 'name' => trim((string) ($row['name'] ?? '')) ?: ($branchService?->service?->name ?? 'Dịch vụ'),
                 'quantity' => $row['quantity'] ?? 1,
                 'unit_price' => $row['unit_price'] ?? 0,
-                'commission_rate' => $rate['rate'],
-                'commission_rate_source' => $rate['source'],
-                'commission_rate_reason' => $rate['reason'],
+                'commission_rate' => $invoice->commission_rate,
+                'commission_rate_source' => $invoice->commission_rate_source,
+                'commission_rate_reason' => null,
                 'line_total' => 0,
                 'commission_amount' => 0,
             ];
@@ -183,37 +190,5 @@ class UpdateInvoiceAction
         }
 
         return $existing?->work_context ?? WorkContext::Regular;
-    }
-
-    /**
-     * @param  array<string, mixed>  $row
-     * @return array{rate: string, source: string, reason: string|null}
-     */
-    private function resolveCommissionRate(
-        array $row,
-        ?int $employeeId,
-        ?int $branchId,
-        ?int $serviceId,
-        WorkContext $context,
-        mixed $referenceDate,
-        ?User $actor,
-    ): array {
-        $override = $row['commission_rate'] ?? null;
-        $reason = trim((string) ($row['commission_rate_reason'] ?? '')) ?: null;
-
-        // A hand-typed rate is only honoured with an approver and a reason on file.
-        if ($override !== null && $override !== '' && $reason !== null && $actor !== null && $actor->isOwner()) {
-            return ['rate' => (string) $override, 'source' => 'manual_override', 'reason' => $reason];
-        }
-
-        $resolved = $this->compensation->commissionRateFor(
-            $employeeId,
-            $branchId,
-            $serviceId,
-            $context,
-            $referenceDate instanceof CarbonInterface ? $referenceDate : now(),
-        );
-
-        return ['rate' => $resolved['rate'], 'source' => $resolved['source'], 'reason' => null];
     }
 }

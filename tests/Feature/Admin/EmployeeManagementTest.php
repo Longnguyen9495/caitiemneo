@@ -69,6 +69,15 @@ class EmployeeManagementTest extends TestCase
         $this->assertTrue($employee->can_manage_appointments);
         $this->assertFalse($employee->can_create_invoices);
         $this->assertTrue(Hash::check('matkhau-rat-manh', $employee->password));
+        $this->assertDatabaseHas('employee_compensation_profiles', [
+            'user_id' => $employee->id,
+            'branch_id' => null,
+            'base_salary' => 3000000,
+            'shift_rate' => 200000,
+            'regular_commission_rate' => 10,
+            'overtime_commission_rate' => 10,
+            'effective_from' => '2026-08-20 00:00:00',
+        ]);
     }
 
     /**
@@ -161,6 +170,13 @@ class EmployeeManagementTest extends TestCase
 
         $this->assertSame($originalHash, $employee->fresh()->password);
         $this->assertSame('Nguyễn Thị Mai', $employee->fresh()->name);
+        $this->assertDatabaseHas('employee_compensation_profiles', [
+            'user_id' => $employee->id,
+            'branch_id' => null,
+            'regular_commission_rate' => 10,
+            'overtime_commission_rate' => 10,
+            'effective_from' => '2026-08-20 00:00:00',
+        ]);
     }
 
     public function test_the_last_active_owner_cannot_be_deactivated(): void

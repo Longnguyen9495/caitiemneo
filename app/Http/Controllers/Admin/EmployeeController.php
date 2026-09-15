@@ -7,6 +7,7 @@ use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\EmployeeRequest;
 use App\Models\Branch;
+use App\Models\EmployeeCompensationProfile;
 use App\Models\User;
 use App\Services\Auth\SessionRevoker;
 use App\Support\BranchContext;
@@ -77,6 +78,8 @@ class EmployeeController extends Controller
         DB::transaction(function () use ($data, $branchId, $request): void {
             $employee = User::query()->create(Arr::except($data, ['branch_id']) + ['email_verified_at' => now()]);
 
+            $this->syncCurrentCompensationProfile($employee, $data, $request->user()->getKey());
+
             $this->assignToBranch->handle(
                 employee: $employee,
                 branchId: $branchId,
@@ -118,7 +121,10 @@ class EmployeeController extends Controller
 
         $trustChanged = $this->trustChanged($employee, $data);
 
-        $employee->update($data);
+        DB::transaction(function () use ($employee, $data, $request): void {
+            $employee->update($data);
+            $this->syncCurrentCompensationProfile($employee, $data, $request->user()->getKey());
+        });
 
         // Vô hiệu hóa, đổi role hay đặt lại mật khẩu đều là lời khẳng định rằng
         // trạng thái cũ của tài khoản không còn đáng tin. Nếu các phiên đang mở
@@ -129,6 +135,50 @@ class EmployeeController extends Controller
         }
 
         return redirect()->route('admin.employees.index')->with('success', 'Đã cập nhật tài khoản nhân sự.');
+    }
+
+    /**
+     * Các trường lương cũ trên users chỉ phục vụ form tương thích; hóa đơn và
+     * bảng lương luôn lấy snapshot từ hồ sơ có hiệu lực theo ngày. Khi người
+     * quản trị đổi mức hiện tại, đóng hồ sơ toàn hệ thống cũ và mở bản ghi mới
+     * từ hôm nay để số liệu đã chốt trong quá khứ không bị viết lại.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private function syncCurrentCompensationProfile(User $employee, array $data, int $actorId): void
+    {
+        $today = now()->toDateString();
+        $current = EmployeeCompensationProfile::query()
+            ->where('user_id', $employee->getKey())
+            ->whereNull('branch_id')
+            ->effectiveOn($today)
+            ->orderByDesc('effective_from')
+            ->orderByDesc('id')
+            ->first();
+
+        $rates = [
+            'base_salary' => $data['base_salary'],
+            'shift_rate' => $data['shift_rate'],
+            'regular_commission_rate' => $data['commission_rate'],
+            'overtime_commission_rate' => $data['commission_rate'],
+        ];
+
+        if ($current?->effective_from?->isSameDay($today)) {
+            $current->update($rates);
+
+            return;
+        }
+
+        if ($current !== null) {
+            $current->update(['effective_to' => now()->subDay()->toDateString()]);
+        }
+
+        $employee->compensationProfiles()->create($rates + [
+            'branch_id' => null,
+            'effective_from' => $today,
+            'effective_to' => null,
+            'created_by' => $actorId,
+        ]);
     }
 
     /**

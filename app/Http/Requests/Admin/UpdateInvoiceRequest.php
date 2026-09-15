@@ -43,6 +43,7 @@ class UpdateInvoiceRequest extends FormRequest
             'discount' => ['required', 'numeric', 'min:0', 'max:99999999999'],
             'payment_method' => ['nullable', Rule::in(array_keys(PaymentMethod::invoiceOptions()))],
             'note' => ['nullable', 'string', 'max:2000'],
+            'employee_id' => ['nullable', 'integer', new AssignedToBranch($branchId, $referenceDate)],
             'items' => ['nullable', 'array', 'max:100'],
             // A line id from another invoice must not be adoptable by this one.
             'items.*.id' => [
@@ -53,12 +54,9 @@ class UpdateInvoiceRequest extends FormRequest
                 ),
             ],
             'items.*.service_id' => ['nullable', 'integer', new InBranchCatalogue($branchId)],
-            'items.*.employee_id' => ['nullable', 'integer', new AssignedToBranch($branchId, $referenceDate)],
             'items.*.name' => ['required_with:items', 'string', 'max:255'],
             'items.*.quantity' => ['required_with:items', 'numeric', 'min:0.01', 'max:9999'],
             'items.*.unit_price' => ['required_with:items', 'numeric', 'min:0', 'max:99999999999'],
-            'items.*.commission_rate' => ['nullable', 'numeric', 'min:0', 'max:100'],
-            'items.*.commission_rate_reason' => ['nullable', 'string', 'max:255'],
             'items.*.price_override_reason' => ['nullable', 'string', 'min:10', 'max:255'],
             'items.*.work_context' => ['nullable', Rule::enum(WorkContext::class)],
         ];
@@ -206,10 +204,10 @@ class UpdateInvoiceRequest extends FormRequest
             'discount' => 'giảm giá',
             'payment_method' => 'phương thức thanh toán',
             'note' => 'ghi chú',
+            'employee_id' => 'nhân viên thực hiện',
             'items.*.name' => 'tên dòng dịch vụ',
             'items.*.quantity' => 'số lượng',
             'items.*.unit_price' => 'đơn giá',
-            'items.*.commission_rate' => 'tỷ lệ hoa hồng',
             'items.*.price_override_reason' => 'lý do giá ngoài khoảng',
         ];
     }

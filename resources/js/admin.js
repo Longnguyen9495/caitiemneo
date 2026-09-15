@@ -6,6 +6,7 @@ import 'bootstrap/js/dist/dropdown';
 import Modal from 'bootstrap/js/dist/modal';
 import 'bootstrap/js/dist/offcanvas';
 import Alpine from 'alpinejs';
+import { searchableSelect } from './searchable-select';
 
 /**
  * Ô tiền tệ dùng dấu chấm phân tách hàng nghìn khi không nhập liệu. Giá trị
@@ -61,7 +62,12 @@ document.querySelectorAll('[data-money-input]').forEach(formatMoneyInput);
  * Mọi con số hiển thị ở đây chỉ để xem trước; máy chủ luôn tính lại khi lưu.
  */
 Alpine.data('invoiceEditor', (initialRows = [], serverErrors = {}) => ({
-    rows: initialRows.map((row, index) => ({ ...row, key: `existing-${index}` })),
+    rows: initialRows.map((row, index) => ({
+        ...row,
+        quantity: String(row.quantity ?? '').replace(/(\.\d*?[1-9])0+$|\.0+$/, '$1'),
+        unit_price: new Intl.NumberFormat('vi-VN').format(Number(row.unit_price || 0)),
+        key: `existing-${index}`,
+    })),
     nextKey: 0,
 
     /*
@@ -110,7 +116,7 @@ Alpine.data('invoiceEditor', (initialRows = [], serverErrors = {}) => ({
         }
 
         row.name = option.dataset.label;
-        row.unit_price = option.dataset.price;
+        row.unit_price = this.normalizeMoney(option.dataset.price);
         row.unit_label = option.dataset.unitLabel ?? '';
         row.range_label = option.dataset.rangeLabel ?? '';
         row.price_min = option.dataset.min ? Number(option.dataset.min) : null;
@@ -129,17 +135,58 @@ Alpine.data('invoiceEditor', (initialRows = [], serverErrors = {}) => ({
             return false;
         }
 
-        const price = Number(row.unit_price);
+        const price = Number(this.normalizeMoney(row.unit_price));
 
         return Number.isFinite(price) && (price < row.price_min || price > row.price_max);
     },
 
+    /**
+     * Số lượng không cần hiển thị các số 0 vô nghĩa (1.00 thành 1), nhưng vẫn
+     * chấp nhận phần lẻ khi đơn vị dịch vụ yêu cầu. Lưu chuỗi để không làm hỏng
+     * giá trị người dùng đang gõ như `1,5`.
+     */
+    normalizeQuantity(value) {
+        const normalized = String(value ?? '')
+            .trim()
+            .replace(/\s/g, '')
+            .replace(',', '.');
+
+        if (normalized === '' || !/^\d*(?:\.\d*)?$/.test(normalized)) {
+            return '';
+        }
+
+        const [whole = '0', decimal] = normalized.split('.');
+        const trimmedDecimal = decimal?.replace(/0+$/, '');
+
+        return trimmedDecimal ? `${Number(whole)}.${trimmedDecimal}` : String(Number(whole));
+    },
+
+    /** Giá VND luôn là số nguyên; chấm được dùng làm dấu ngăn cách hàng nghìn. */
+    normalizeMoney(value) {
+        const digits = String(value ?? '').replace(/\D/g, '');
+
+        return digits === '' ? '' : String(Number(digits));
+    },
+
+    formatMoneyInput(value) {
+        const normalized = this.normalizeMoney(value);
+
+        return normalized === '' ? '' : new Intl.NumberFormat('vi-VN').format(Number(normalized));
+    },
+
     lineTotal(row) {
-        return Math.round(Number(row.quantity || 0) * Number(row.unit_price || 0) * 100) / 100;
+        return Math.round(Number(this.normalizeQuantity(row.quantity) || 0) * Number(this.normalizeMoney(row.unit_price) || 0) * 100) / 100;
     },
 
     commissionAmount(row) {
         return Math.round(this.lineTotal(row) * Number(row.commission_rate || 0)) / 100;
+    },
+
+    prepareForSubmit() {
+        this.rows.forEach((row) => {
+            row.quantity = this.normalizeQuantity(row.quantity);
+            row.unit_price = this.normalizeMoney(row.unit_price);
+        });
     },
 
     formatPercent(value) {
@@ -497,4 +544,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 window.Alpine = Alpine;
+
+Alpine.data('searchableSelect', searchableSelect);
+
 Alpine.start();

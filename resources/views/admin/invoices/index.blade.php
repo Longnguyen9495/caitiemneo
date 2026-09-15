@@ -41,7 +41,7 @@
             </div>
         </x-admin.filter-bar>
 
-        <table class="table neo-table align-middle mb-0">
+        <table class="table neo-table neo-table--invoices align-middle mb-0">
             <caption class="visually-hidden">Danh sách hóa đơn</caption>
             <thead>
                 <tr>
@@ -62,18 +62,18 @@
                         <td>
                             <a href="{{ route('admin.invoices.edit', $invoice) }}" class="fw-semibold text-decoration-none neo-doc-no">{{ $invoice->number }}</a>
                         </td>
-                        <td data-label="Chi nhánh"><span class="badge rounded-pill text-bg-light border fw-normal">{{ $invoice->branch?->code }}</span></td>
+                        <td data-label="Chi nhánh" class="invoice-list__branch"><span class="badge rounded-pill text-bg-light border fw-normal">{{ $invoice->branch?->code }}</span></td>
                         <td data-label="Khách hàng">
                             {{ $invoice->customer_name ?: 'Khách lẻ' }}
                             @if ($invoice->customer_phone)<small class="d-block text-body-secondary neo-num">{{ $invoice->customer_phone }}</small>@endif
                         </td>
-                        <td data-label="Ngày tạo" class="neo-num">{{ $invoice->created_at?->format('d/m/Y H:i') }}</td>
-                        <td data-label="Tổng tiền" class="text-end fw-semibold"><x-admin.money :value="$invoice->total" /></td>
+                        <td data-label="Ngày tạo" class="invoice-list__date neo-num">{{ $invoice->created_at?->format('d/m/Y H:i') }}</td>
+                        <td data-label="Tổng tiền" class="invoice-list__total text-end fw-semibold"><x-admin.money :value="$invoice->total" /></td>
                         <td data-label="Trạng thái" class="neo-table__status"><x-admin.status-badge :status="$invoice->status" /></td>
-                        <td data-label="Phương thức">{{ $invoice->payment_method?->label() ?? '—' }}</td>
-                        <td data-label="Người tạo">{{ $invoice->creator?->name ?? '—' }}</td>
-                        <td>
-                            <a href="{{ route('admin.invoices.edit', $invoice) }}" class="btn btn-sm btn-outline-secondary">Chi tiết</a>
+                        <td data-label="Phương thức" class="invoice-list__method">{{ $invoice->payment_method?->label() ?? 'Chưa chọn phương thức' }}</td>
+                        <td data-label="Người tạo" class="invoice-list__creator">{{ $invoice->creator?->name ?? '—' }}</td>
+                        <td class="invoice-list__action">
+                            <a href="{{ route('admin.invoices.edit', $invoice) }}" class="btn btn-sm btn-outline-primary">Xem hóa đơn</a>
                         </td>
                     </tr>
                 @empty

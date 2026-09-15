@@ -4,6 +4,7 @@ namespace App\Actions\Invoices;
 
 use App\Models\Invoice;
 use App\Models\InvoiceItem;
+use App\Support\Allocator;
 use App\Support\Money;
 
 /**
@@ -19,13 +20,26 @@ class RecalculateInvoiceAction
         $invoice->load('items');
 
         $subtotalMinor = 0;
+        $lineTotals = [];
 
         foreach ($invoice->items as $item) {
-            $subtotalMinor += $this->recalculateItem($item);
+            $lineTotals[$item->getKey()] = $this->recalculateItem($item);
+            $subtotalMinor += $lineTotals[$item->getKey()];
         }
 
         $discountMinor = max(Money::toMinor($invoice->discount), 0);
         $totalMinor = max($subtotalMinor - $discountMinor, 0);
+        $commissionMinor = Money::percentageOf($totalMinor, $invoice->commission_rate);
+        $commissionShares = Allocator::distribute($commissionMinor, $lineTotals);
+
+        foreach ($invoice->items as $item) {
+            $item->forceFill([
+                'employee_id' => $invoice->employee_id,
+                'commission_rate' => $invoice->commission_rate,
+                'commission_rate_source' => $invoice->commission_rate_source,
+                'commission_amount' => Money::toDecimal($commissionShares[$item->getKey()] ?? 0),
+            ])->save();
+        }
 
         $invoice->forceFill([
             'subtotal' => Money::toDecimal($subtotalMinor),
@@ -40,11 +54,9 @@ class RecalculateInvoiceAction
     private function recalculateItem(InvoiceItem $item): int
     {
         $lineTotalMinor = Money::multiplyByQuantity(Money::toMinor($item->unit_price), $item->quantity);
-        $commissionMinor = Money::percentageOf($lineTotalMinor, $item->commission_rate);
 
         $item->forceFill([
             'line_total' => Money::toDecimal($lineTotalMinor),
-            'commission_amount' => Money::toDecimal($commissionMinor),
         ])->save();
 
         return $lineTotalMinor;

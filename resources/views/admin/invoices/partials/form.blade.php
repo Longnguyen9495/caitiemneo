@@ -1,21 +1,15 @@
 @php
     $editable = $invoice->isEditable() && auth()->user()->can('update', $invoice);
-    $canApproveOvertime = auth()->user()->can('approveOvertime', $invoice);
     // Giá ngoài khoảng bảng giá là quyết định của quản lý, và phải kèm lý do.
     $canOverridePrice = auth()->user()->can('overridePrice', $invoice);
-    // Chỉ chủ tiệm được tự đặt tỷ lệ hoa hồng, và bắt buộc kèm lý do.
-    $canOverrideRate = auth()->user()->isOwner();
-
     $rows = old('items', $invoice->items->map(fn ($item) => [
         'id' => $item->id,
         'service_id' => $item->service_id,
-        'employee_id' => $item->employee_id,
         'name' => $item->name,
         'quantity' => \App\Support\Money::toDecimal(\App\Support\Money::toMinor($item->quantity)),
         'unit_price' => \App\Support\Money::toDecimal(\App\Support\Money::toMinor($item->unit_price)),
-        'commission_rate' => \App\Support\Money::toDecimal(\App\Support\Money::toMinor($item->commission_rate)),
+        'commission_rate' => rtrim(rtrim((string) $item->commission_rate, '0'), '.'),
         'work_context' => $item->work_context->value,
-        'commission_rate_reason' => $item->commission_rate_reason,
         // Lý do chỉ tồn tại trong một lần gửi, không lưu trên dòng hóa đơn:
         // nó đã nằm trong audit event của lần sửa tương ứng.
         'price_override_reason' => '',
@@ -36,7 +30,7 @@
         </div>
     @endunless
 
-    <form method="POST" data-neo-dirty-guard action="{{ route('admin.invoices.update', $invoice) }}">
+    <form method="POST" data-neo-dirty-guard action="{{ route('admin.invoices.update', $invoice) }}" x-on:submit="prepareForSubmit()">
         @csrf
         @method('PATCH')
         {{-- Cho phép xóa hết dòng dịch vụ: trình duyệt không gửi mảng rỗng. --}}
@@ -47,13 +41,34 @@
         <input type="hidden" name="expected_version" value="{{ $invoice->updated_at?->timestamp }}">
 
         <div class="card-body pt-3">
+            <div class="row g-3 mb-3">
+                <x-admin.field name="employee_id" label="Nhân viên thực hiện" col="col-12 col-lg-6">
+                    <select class="form-select" id="employee_id" name="employee_id" @disabled(! $editable)>
+                        <option value="">Chưa phân công</option>
+                        @foreach ($employees as $employee)
+                            <option value="{{ $employee->id }}" @selected((string) old('employee_id', $invoice->employee_id) === (string) $employee->id)>{{ $employee->name }}</option>
+                        @endforeach
+                    </select>
+                    <div class="form-text">Hoa hồng được lấy từ hồ sơ lương của nhân viên và tính trên tổng tiền sau giảm giá.</div>
+                </x-admin.field>
+                <div class="col-12 col-lg-6 align-self-end">
+                    <div class="rounded border bg-light px-3 py-2">
+                        <span class="d-block small text-body-secondary">Tỷ lệ hoa hồng áp dụng</span>
+                        <strong class="neo-num">{{ \App\Support\Money::format($invoice->commission_rate) }}%</strong>
+                        @if ($invoice->commission_rate_source)
+                            <span class="small text-body-secondary"> · Hồ sơ nhân viên</span>
+                        @endif
+                    </div>
+                </div>
+            </div>
+
             {{-- Mỗi dòng là một thẻ riêng: dễ đọc và đủ chỗ chạm trên điện thoại. --}}
             <template x-for="(row, index) in rows" :key="row.key">
                 <fieldset class="border rounded-3 p-3 mb-2">
                     <input type="hidden" :name="`items[${index}][id]`" :value="row.id ?? ''">
 
                     <div class="row g-2 align-items-end">
-                        <div class="col-12 col-lg-4">
+                        <div class="col-12 col-lg-5">
                             <label class="form-label" :for="`svc-${index}`">Dịch vụ</label>
                             <select class="form-select" :id="`svc-${index}`" :name="`items[${index}][service_id]`"
                                     x-model="row.service_id" x-on:change="applyService(row)" @disabled(! $editable)>
@@ -69,20 +84,13 @@
                                 @endforeach
                             </select>
                         </div>
-                        <div class="col-12 col-lg-3">
-                            <label class="form-label" :for="`emp-${index}`">Nhân viên</label>
-                            <select class="form-select" :id="`emp-${index}`" :name="`items[${index}][employee_id]`" x-model="row.employee_id" @disabled(! $editable)>
-                                <option value="">Chưa phân công</option>
-                                @foreach ($employees as $employee)<option value="{{ $employee->id }}">{{ $employee->name }}</option>@endforeach
-                            </select>
-                        </div>
                         <div class="col-6 col-lg-2">
                             <label class="form-label" :for="`qty-${index}`" x-text="row.unit_label || 'Số lượng'">Số lượng</label>
-                            <input class="form-control text-end neo-num" :id="`qty-${index}`" type="number" step="0.01" min="0.01" :name="`items[${index}][quantity]`" x-model="row.quantity" required @disabled(! $editable)>
+                            <input class="form-control text-end neo-num" :id="`qty-${index}`" type="text" inputmode="decimal" :name="`items[${index}][quantity]`" x-model="row.quantity" x-on:blur="row.quantity = normalizeQuantity(row.quantity)" required @disabled(! $editable)>
                         </div>
-                        <div class="col-6 col-lg-3">
+                        <div class="col-6 col-lg-5">
                             <label class="form-label" :for="`price-${index}`">Đơn giá</label>
-                            <input class="form-control text-end neo-num" :id="`price-${index}`" type="number" step="1000" min="0" :class="priceOutOfRange(row) ? 'border-warning' : ''" :name="`items[${index}][unit_price]`" x-model="row.unit_price" required @disabled(! $editable)>
+                            <input class="form-control text-end neo-num" :id="`price-${index}`" type="text" inputmode="numeric" :class="priceOutOfRange(row) ? 'border-warning' : ''" :name="`items[${index}][unit_price]`" x-model="row.unit_price" x-on:focus="row.unit_price = normalizeMoney(row.unit_price)" x-on:blur="row.unit_price = formatMoneyInput(row.unit_price)" required @disabled(! $editable)>
                             <div class="form-text" x-show="row.range_label" x-cloak>Bảng giá: <span class="neo-num" x-text="row.range_label"></span></div>
                             <div class="invalid-feedback d-block" role="alert" x-show="rowError(index, 'unit_price')" x-cloak x-text="rowError(index, 'unit_price')"></div>
                         </div>
@@ -92,34 +100,16 @@
                         </div>
                     </div>
 
-                    <details class="mt-3">
-                        <summary class="small text-primary fw-semibold">Tuỳ chọn nâng cao (bối cảnh, hoa hồng và giá ngoại lệ)</summary>
-                        <div class="row g-2 mt-1">
-                            <div class="col-6 col-lg-4">
-                                <label class="form-label" :for="`ctx-${index}`">Bối cảnh</label>
-                                <select class="form-select" :id="`ctx-${index}`" :name="`items[${index}][work_context]`" x-model="row.work_context" @disabled(! $editable || ! $canApproveOvertime)>
-                                    @foreach (App\Enums\WorkContext::options() as $value => $label)<option value="{{ $value }}">{{ $label }}</option>@endforeach
-                                </select>
-                            </div>
-                            <div class="col-6 col-lg-3">
-                                <label class="form-label" :for="`rate-${index}`">Hoa hồng %</label>
-                                <input class="form-control text-end neo-num" :id="`rate-${index}`" type="number" step="0.5" min="0" max="100" :name="`items[${index}][commission_rate]`" x-model="row.commission_rate" @disabled(! $editable || ! $canOverrideRate)>
-                            </div>
-                            @if ($canOverrideRate)
-                                <div class="col-12 col-lg-5">
-                                    <label class="form-label" :for="`reason-${index}`">Lý do đổi tỷ lệ</label>
-                                    <input class="form-control" :id="`reason-${index}`" type="text" :name="`items[${index}][commission_rate_reason]`" x-model="row.commission_rate_reason" placeholder="Bắt buộc khi tự đặt tỷ lệ" @disabled(! $editable)>
-                                </div>
-                            @endif
-                            @if ($canOverridePrice)
-                                <div class="col-12" x-show="priceOutOfRange(row)" x-cloak>
-                                    <label class="form-label" :for="`price-reason-${index}`">Lý do giá ngoài khoảng</label>
-                                    <input class="form-control" :class="rowError(index, 'price_override_reason') ? 'is-invalid' : ''" :id="`price-reason-${index}`" type="text" maxlength="255" :name="`items[${index}][price_override_reason]`" x-model="row.price_override_reason" placeholder="Ví dụ: ca khó, làm lại phần bị lỗi" @disabled(! $editable)>
-                                    <div class="invalid-feedback d-block" role="alert" x-show="rowError(index, 'price_override_reason')" x-cloak x-text="rowError(index, 'price_override_reason')"></div>
-                                </div>
-                            @endif
+                    {{-- Giữ nguyên bối cảnh đã được duyệt trên dữ liệu lịch sử; hóa đơn mới mặc định trong giờ. --}}
+                    <input type="hidden" :name="`items[${index}][work_context]`" :value="row.work_context || 'regular'">
+
+                    @if ($canOverridePrice)
+                        <div class="mt-2" x-show="priceOutOfRange(row)" x-cloak>
+                            <label class="form-label" :for="`price-reason-${index}`">Lý do giá ngoài khoảng</label>
+                            <input class="form-control" :class="rowError(index, 'price_override_reason') ? 'is-invalid' : ''" :id="`price-reason-${index}`" type="text" maxlength="255" :name="`items[${index}][price_override_reason]`" x-model="row.price_override_reason" placeholder="Ví dụ: ca khó, làm lại phần bị lỗi" @disabled(! $editable)>
+                            <div class="invalid-feedback d-block" role="alert" x-show="rowError(index, 'price_override_reason')" x-cloak x-text="rowError(index, 'price_override_reason')"></div>
                         </div>
-                    </details>
+                    @endif
 
                     <div class="d-flex align-items-center justify-content-between gap-3 mt-3 pt-2 border-top">
                         <div>
@@ -128,7 +118,7 @@
                         </div>
                         <div class="text-end">
                             <span class="d-block small text-body-secondary">Hoa hồng</span>
-                            <strong class="neo-num text-success" x-text="`${formatPercent(row.commission_rate)} · ${formatMoney(commissionAmount(row))}`"></strong>
+                            <strong class="neo-num" x-text="formatPercent(row.commission_rate) + ' · ' + formatMoney(commissionAmount(row))"></strong>
                         </div>
                         @if ($editable)
                             <button type="button" class="btn btn-sm btn-outline-danger" x-on:click="rows.splice(index, 1)">Xóa</button>
@@ -149,6 +139,7 @@
                 <span class="text-body-secondary small">Tạm tính (máy chủ tính lại khi lưu)</span>
                 <strong class="fs-6 neo-num" x-text="formatMoney(subtotal())"></strong>
             </p>
+            <p class="mb-0 small text-body-secondary">Hoa hồng cuối cùng được tính từ tổng hóa đơn sau giảm giá khi lưu.</p>
         </div>
 
         <div class="card-body border-top">

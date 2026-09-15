@@ -40,7 +40,12 @@ class PayrollCorrectionTest extends TestCase
 
     private function paidInvoiceWithCommission(int $commission = 150000): Invoice
     {
-        $invoice = Invoice::factory()->create(['branch_id' => $this->branch->id]);
+        $invoice = Invoice::factory()->create([
+            'branch_id' => $this->branch->id,
+            'employee_id' => $this->employee->id,
+            'commission_rate' => 15,
+            'commission_rate_source' => 'test',
+        ]);
 
         InvoiceItem::factory()->create([
             'invoice_id' => $invoice->id,

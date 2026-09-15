@@ -23,6 +23,20 @@
             </p>
         @endif
 
+        @if ($invoice->bill_image_path)
+            <div class="mt-3 pt-3 border-top">
+                <p class="mb-2 small fw-semibold text-body-secondary">Ảnh chứng từ thanh toán</p>
+                @if (\Illuminate\Support\Facades\Storage::disk('public')->exists($invoice->bill_image_path))
+                    <a href="{{ \Illuminate\Support\Facades\Storage::disk('public')->url($invoice->bill_image_path) }}" target="_blank" rel="noopener" class="d-inline-block">
+                        <img src="{{ \Illuminate\Support\Facades\Storage::disk('public')->url($invoice->bill_image_path) }}" alt="Chứng từ thanh toán hóa đơn {{ $invoice->number }}" class="img-fluid rounded border" style="max-width: 18rem; max-height: 24rem; object-fit: contain;">
+                    </a>
+                    <p class="mb-0 mt-1 small text-body-secondary">Chạm vào ảnh để xem kích thước đầy đủ.</p>
+                @else
+                    <p class="mb-0 small text-body-secondary">Không tìm thấy tệp ảnh chứng từ đã lưu.</p>
+                @endif
+            </div>
+        @endif
+
         @if ($invoice->status === App\Enums\InvoiceStatus::Cancelled)
             <p class="mb-0 mt-3 small text-body-secondary">
                 Đã hủy lúc {{ $invoice->cancelled_at?->format('d/m/Y H:i') }}
