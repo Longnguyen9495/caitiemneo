@@ -10,7 +10,7 @@
     </x-admin.page-header>
 
     <section class="card overflow-hidden">
-        <table class="table neo-table align-middle mb-0">
+        <table class="table neo-table neo-table--branches align-middle mb-0">
             <caption class="visually-hidden">Danh sách chi nhánh</caption>
             <thead>
                 <tr>
@@ -25,20 +25,20 @@
             <tbody>
                 @forelse ($branches as $branch)
                     <tr>
-                        <td>
-                            <span class="fw-semibold">{{ $branch->name }}</span>
-                            <small class="d-block text-body-secondary">
+                        <td class="branch-list__identity">
+                            <div class="branch-list__name">{{ $branch->name }}</div>
+                            <div class="branch-list__details">
                                 <span class="badge rounded-pill text-bg-light border fw-normal">{{ $branch->code }}</span>
-                                {{ $branch->address }}
-                            </small>
+                                <span class="branch-list__address">{{ $branch->address }}</span>
+                            </div>
                         </td>
-                        <td data-label="Liên hệ" class="neo-num">{{ $branch->phone ?: '—' }}</td>
-                        <td data-label="Nhân sự" class="text-end neo-num">{{ $branch->assignments_count }}</td>
-                        <td data-label="Hóa đơn" class="text-end neo-num">{{ $branch->invoices_count }}</td>
+                        <td data-label="Liên hệ" class="branch-list__contact neo-num">{{ $branch->phone ?: 'Chưa cập nhật' }}</td>
+                        <td data-label="Nhân sự" class="branch-list__metric neo-num">{{ $branch->assignments_count }}</td>
+                        <td data-label="Hóa đơn" class="branch-list__metric neo-num">{{ $branch->invoices_count }}</td>
                         <td data-label="Trạng thái" class="neo-table__status">
                             <x-admin.status-badge :tone="$branch->is_active ? 'is-success' : 'is-muted'" :label="$branch->is_active ? 'Đang hoạt động' : 'Đã ngừng'" />
                         </td>
-                        <td>
+                        <td data-label="Thao tác" class="branch-list__actions">
                             <span class="neo-actions">
                                 @can('update', $branch)
                                     <a href="{{ route('admin.branches.edit', $branch) }}" class="btn btn-sm btn-outline-secondary">Sửa</a>

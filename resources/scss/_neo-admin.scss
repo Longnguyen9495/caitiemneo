@@ -309,6 +309,148 @@ body.neo {
     }
 }
 
+// Danh sách hóa đơn trên mobile ưu tiên quyết định vận hành: khách nào, hóa
+// đơn lúc nào, bao nhiêu tiền và mở hóa đơn. Chi nhánh/người tạo vẫn có ở bảng
+// desktop nhưng không chiếm chỗ trong thẻ thao tác nhanh.
+.neo-table--invoices {
+    @include media-breakpoint-down(lg) {
+        .invoice-list__branch,
+        .invoice-list__creator {
+            display: none;
+        }
+
+        .invoice-list__date,
+        .invoice-list__total {
+            padding-top: .45rem;
+            border-top: 1px solid rgba(189, 78, 120, .12);
+        }
+
+        .invoice-list__date {
+            margin-top: .35rem;
+        }
+
+        .invoice-list__total {
+            font-size: 1rem;
+            color: $neo-wine;
+        }
+
+        .invoice-list__method {
+            justify-content: flex-start;
+            padding-top: .4rem;
+            color: $neo-ink-muted;
+            font-size: .78rem;
+
+            &::before {
+                margin-right: .35rem;
+                content: 'Thanh toán: ';
+                color: inherit;
+                font-weight: 600;
+            }
+        }
+
+        .invoice-list__action {
+            margin-top: .55rem;
+            padding-top: .65rem;
+            border-top: 1px solid rgba(189, 78, 120, .12);
+
+            .btn { width: 100%; }
+        }
+    }
+}
+
+// Danh sách chi nhánh ưu tiên thứ tự đọc theo vận hành: nhận diện, liên hệ,
+// chỉ số rồi mới đến thao tác. Trên desktop vẫn giữ nguyên dạng bảng; dưới lg
+// từng dòng trở thành một thẻ có các khối thông tin rõ ràng.
+.neo-table--branches {
+    .branch-list__name {
+        font-weight: 600;
+    }
+
+    .branch-list__details {
+        display: flex;
+        align-items: center;
+        gap: .45rem;
+        margin-top: .2rem;
+        color: $neo-ink-muted;
+        font-size: .78rem;
+    }
+
+    .branch-list__address {
+        min-width: 0;
+    }
+
+    @include media-breakpoint-down(lg) {
+        tr {
+            row-gap: .35rem;
+            padding: 1rem;
+        }
+
+        td.branch-list__identity {
+            margin-bottom: .15rem;
+            padding-right: .5rem;
+        }
+
+        .branch-list__details {
+            align-items: flex-start;
+            gap: .4rem;
+            line-height: 1.35;
+        }
+
+        .branch-list__details .badge {
+            flex: 0 0 auto;
+            margin-top: .05rem;
+        }
+
+        td.branch-list__contact {
+            padding-top: .55rem;
+            border-top: 1px solid rgba($neo-wine, .1);
+        }
+
+        td.branch-list__metric {
+            display: inline-flex;
+            grid-column: auto;
+            justify-content: flex-start;
+            width: auto;
+            min-width: 7.25rem;
+            padding: .45rem .55rem;
+            border: 1px solid rgba($neo-wine, .12);
+            border-radius: .45rem;
+            background: rgba($neo-wine, .035);
+            color: $neo-ink;
+            font-size: 1rem;
+            font-weight: 700;
+            text-align: left;
+
+            &::before {
+                margin-right: .35rem;
+                color: $neo-ink-muted;
+                font-size: .68rem;
+            }
+        }
+
+        td.branch-list__actions {
+            justify-content: flex-start;
+            margin-top: .2rem;
+            padding-top: .7rem;
+            border-top: 1px solid rgba($neo-wine, .1);
+            text-align: left;
+
+            &::before {
+                display: block;
+                margin-right: .2rem;
+            }
+        }
+
+        td.branch-list__actions .neo-actions {
+            flex: 1;
+        }
+
+        td.branch-list__actions .btn {
+            flex: 1 1 auto;
+        }
+    }
+}
+
 // Nút trong bảng không bao giờ được xuống dòng: nhãn vỡ thành ba dòng đọc như
 // lỗi layout chứ không phải nút.
 .neo-table .btn { white-space: nowrap; }
@@ -516,6 +658,42 @@ a.btn {
     flex-wrap: wrap;
     align-items: center;
     gap: .5rem;
+}
+
+// Hành động của từng lịch hẹn nằm trên một hàng, giống mọi màn danh sách khác.
+//
+// Bản trước chia hai tầng và cho ô trạng thái chiếm trọn chiều ngang, nên mỗi
+// thẻ trông như một biểu mẫu nhỏ và cả danh sách thành một bức tường nút. Ô
+// trạng thái giờ chỉ rộng vừa nhãn dài nhất ("Chờ xác nhận"), còn nút lưu thì
+// Alpine chỉ bật lên khi thật sự có thay đổi cần gửi đi.
+.appointment-actions {
+    .appointment-status-action {
+        display: flex;
+        align-items: center;
+        gap: .5rem;
+    }
+
+    .appointment-status-action .form-select {
+        width: auto;
+        max-width: 11rem;
+    }
+
+    .appointment-edit-action {
+        display: inline-flex;
+        align-items: center;
+        min-height: $neo-tap-target-sm;
+        padding: .25rem .1rem;
+        color: $neo-ink-muted;
+        font-size: .875rem;
+        font-weight: 600;
+        text-decoration: none;
+    }
+
+    .appointment-edit-action:hover {
+        color: $neo-wine;
+        text-decoration: underline;
+        text-underline-offset: .18em;
+    }
 }
 
 .form-label {

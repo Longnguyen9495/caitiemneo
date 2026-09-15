@@ -83,18 +83,25 @@
                         </div>
                     </div>
 
-                    <div class="neo-actions mt-3">
+                    <div class="neo-actions appointment-actions mt-3">
                         @can('updateStatus', $appointment)
-                            <form method="POST" action="{{ route('admin.appointments.status', $appointment) }}" class="d-flex flex-grow-1 gap-2" style="max-width:18rem">
+                            {{--
+                                Nút lưu chỉ xuất hiện khi đã chọn một trạng thái khác.
+                                Phần lớn lịch hẹn trong danh sách không cần đụng tới, nên
+                                một nút "Cập nhật" đứng sẵn ở mỗi dòng chỉ là nhiễu.
+                            --}}
+                            <form method="POST" action="{{ route('admin.appointments.status', $appointment) }}"
+                                  class="appointment-status-action"
+                                  x-data="{ saved: @js($appointment->status->value), chosen: @js($appointment->status->value) }">
                                 @csrf
                                 @method('PATCH')
                                 <label class="visually-hidden" for="status-{{ $appointment->id }}">Trạng thái của {{ $appointment->customer_name }}</label>
-                                <select class="form-select form-select-sm" id="status-{{ $appointment->id }}" name="status">
+                                <select class="form-select form-select-sm" id="status-{{ $appointment->id }}" name="status" x-model="chosen">
                                     @foreach ($statuses as $value => $label)
                                         <option value="{{ $value }}" @selected($appointment->status->value === $value)>{{ $label }}</option>
                                     @endforeach
                                 </select>
-                                <button type="submit" class="btn btn-sm btn-outline-primary flex-shrink-0">Cập nhật</button>
+                                <button type="submit" class="btn btn-sm btn-primary flex-shrink-0" x-show="chosen !== saved" x-cloak>Lưu</button>
                             </form>
                         @else
                             <x-admin.status-badge :status="$appointment->status" />
@@ -102,19 +109,20 @@
 
                         @if ($appointment->invoice)
                             @can('view', $appointment->invoice)
-                                <a href="{{ route('admin.invoices.edit', $appointment->invoice) }}" class="btn btn-sm btn-outline-primary">Mở hóa đơn</a>
+                                {{-- Mở hóa đơn đã có là đi xem, không phải tạo ra gì, nên nhẹ hơn nút tạo. --}}
+                                <a href="{{ route('admin.invoices.edit', $appointment->invoice) }}" class="appointment-invoice-action btn btn-sm btn-outline-primary">Mở hóa đơn</a>
                             @endcan
                         @elseif (in_array($appointment->status, [App\Enums\AppointmentStatus::Completed, App\Enums\AppointmentStatus::CheckedIn], true))
                             @can('convertToInvoice', $appointment)
-                                <form method="POST" action="{{ route('admin.appointments.convert-to-invoice', $appointment) }}">
+                                <form method="POST" action="{{ route('admin.appointments.convert-to-invoice', $appointment) }}" class="appointment-invoice-action">
                                     @csrf
-                                    <x-admin.submit-button label="Tạo hóa đơn" variant="outline-primary btn-sm" />
+                                    <x-admin.submit-button label="Tạo hóa đơn" variant="primary btn-sm" />
                                 </form>
                             @endcan
                         @endif
 
                         @can('update', $appointment)
-                            <a href="{{ route('admin.appointments.edit', $appointment) }}" class="btn btn-sm btn-link text-decoration-none">Sửa</a>
+                            <a href="{{ route('admin.appointments.edit', $appointment) }}" class="appointment-edit-action">Sửa lịch hẹn</a>
                         @endcan
                     </div>
                 </li>
