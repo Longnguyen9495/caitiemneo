@@ -8,13 +8,11 @@ use Illuminate\Foundation\Http\FormRequest;
 class GalleryUploadRequest extends FormRequest
 {
     /**
-     * Mỗi tệp tối đa 37 MB.
-     *
-     * Đây là trần của PHP (`post_max_size`) trừ đi chỗ cho phần còn lại của
-     * biểu mẫu, chứ không phải con số tự nghĩ ra: vượt trần thì PHP cắt yêu cầu
-     * trước khi Laravel kịp đọc, và khách chỉ thấy một lỗi 413 khó hiểu.
+     * Mỗi tệp tối đa 9 MB, thấp hơn `upload_max_filesize = 10M` trên production
+     * để chừa phần chênh lệch đơn vị và metadata multipart. Tổng request cho 5
+     * tệp cần được Nginx/PHP cho phép ít nhất 48 MB.
      */
-    public const MAX_KILOBYTES = 37888;
+    public const MAX_KILOBYTES = 9216;
 
     public const MAX_FILES = 5;
 

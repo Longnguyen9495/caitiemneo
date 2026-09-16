@@ -93,6 +93,16 @@ class GalleryUploadTest extends TestCase
         $this->assertSame(0, GalleryItem::query()->count());
     }
 
+    public function test_a_file_larger_than_nine_megabytes_is_rejected(): void
+    {
+        $response = $this->actingAs($this->manager)->post(route('admin.gallery.store'), [
+            'media' => [UploadedFile::fake()->create('video-dai.mp4', 9217, 'video/mp4')],
+        ]);
+
+        $response->assertSessionHasErrors('media.0');
+        $this->assertSame(0, GalleryItem::query()->count());
+    }
+
     public function test_an_employee_cannot_upload_to_the_album(): void
     {
         $employee = User::factory()->employee()->atBranch(Branch::factory()->create())->create();
