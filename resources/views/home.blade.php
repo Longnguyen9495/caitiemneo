@@ -5,7 +5,7 @@
     $heroPhoto = $gallery->first();
     $heroAccent = $gallery->get(2) ?? $gallery->get(1);
     $storyPhoto = $gallery->get(6) ?? $gallery->get(1);
-    $shareImage = $heroPhoto?->url() ?? asset('images/logo-neo.png');
+    $shareImage = asset('images/social-share.jpg').'?v=20260916';
 @endphp
 <html lang="vi">
   <head>
@@ -21,7 +21,14 @@
     <meta property="og:description" content="Xem mẫu móng thật tại tiệm, bảng giá rõ ràng và đặt lịch online trong một phút." />
     <meta property="og:url" content="{{ url('/') }}" />
     <meta property="og:image" content="{{ $shareImage }}" />
+    <meta property="og:image:secure_url" content="{{ $shareImage }}" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Mẫu nail tại Cái Tiệm Neo" />
     <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Cái Tiệm Neo | Nail có gu ở Thái Hà" />
+    <meta name="twitter:description" content="Xem mẫu móng thật tại tiệm, bảng giá rõ ràng và đặt lịch online trong một phút." />
     <meta name="twitter:image" content="{{ $shareImage }}" />
     <title>Cái Tiệm Neo | Nail có gu ở Thái Hà</title>
     <link rel="icon" type="image/png" href="{{ asset('images/logo-neo.png') }}" />
