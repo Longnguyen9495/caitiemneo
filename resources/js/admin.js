@@ -58,6 +58,132 @@ document.addEventListener('submit', (event) => {
 document.querySelectorAll('[data-money-input]').forEach(formatMoneyInput);
 
 /**
+ * Ảnh camera hiện đại thường lớn hơn mức cần thiết cho chứng từ và dễ vượt quá
+ * giới hạn request của mạng/proxy. Chỉ giảm bản sao được gửi đi; file gốc trên
+ * thiết bị không bị thay đổi. Máy chủ vẫn kiểm tra loại và dung lượng cuối cùng.
+ */
+const PAYMENT_PROOF_MAX_BYTES = 5 * 1024 * 1024;
+const PAYMENT_PROOF_TARGET_BYTES = Math.floor(4.5 * 1024 * 1024);
+const PAYMENT_PROOF_MAX_DIMENSION = 1920;
+
+const paymentProofError = (form, message = '') => {
+    const input = form.querySelector('[data-payment-proof-image]');
+    const error = form.querySelector('[data-payment-proof-error]');
+
+    input?.classList.toggle('is-invalid', message !== '');
+    input?.setAttribute('aria-invalid', message !== '' ? 'true' : 'false');
+
+    if (error) {
+        error.textContent = message;
+        error.hidden = message === '';
+    }
+};
+
+const paymentProofStatus = (form, message = '') => {
+    const status = form.querySelector('[data-payment-proof-status]');
+
+    if (status) {
+        status.textContent = message;
+        status.hidden = message === '';
+    }
+};
+
+const setPaymentProofProcessing = (form, processing) => {
+    form.querySelectorAll('button[type="submit"]').forEach((button) => {
+        button.disabled = processing;
+        button.setAttribute('aria-disabled', processing ? 'true' : 'false');
+    });
+};
+
+const canvasBlob = (canvas, quality) => new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', quality));
+
+const compressPaymentProof = async (file) => {
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+        throw new Error('Chỉ có thể dùng ảnh JPG, PNG hoặc WebP làm chứng từ thanh toán.');
+    }
+
+    if (file.size <= PAYMENT_PROOF_MAX_BYTES) {
+        return file;
+    }
+
+    if (!('createImageBitmap' in window) || !HTMLCanvasElement.prototype.toBlob) {
+        throw new Error('Ảnh này quá lớn. Hãy chọn ảnh JPG, PNG hoặc WebP nhỏ hơn 5 MB.');
+    }
+
+    const image = await createImageBitmap(file);
+    const scale = Math.min(1, PAYMENT_PROOF_MAX_DIMENSION / Math.max(image.width, image.height));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(image.width * scale));
+    canvas.height = Math.max(1, Math.round(image.height * scale));
+    canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height);
+    image.close();
+
+    for (const quality of [0.82, 0.72, 0.62]) {
+        const blob = await canvasBlob(canvas, quality);
+
+        if (blob && blob.size <= PAYMENT_PROOF_TARGET_BYTES) {
+            return new File([blob], `${file.name.replace(/\.[^.]+$/, '') || 'payment-proof'}.jpg`, {
+                type: 'image/jpeg',
+                lastModified: file.lastModified,
+            });
+        }
+    }
+
+    throw new Error('Không thể giảm ảnh xuống dưới 5 MB. Hãy chụp lại ảnh gần hơn hoặc chọn ảnh khác.');
+};
+
+document.querySelectorAll('[data-payment-proof-form]').forEach((form) => {
+    const input = form.querySelector('[data-payment-proof-image]');
+    let processing = false;
+
+    if (!input) {
+        return;
+    }
+
+    input.addEventListener('change', async () => {
+        const [file] = input.files;
+        paymentProofError(form);
+        paymentProofStatus(form);
+
+        if (!file) {
+            return;
+        }
+
+        processing = true;
+        setPaymentProofProcessing(form, true);
+        paymentProofStatus(form, 'Đang tối ưu ảnh trước khi gửi…');
+
+        try {
+            const compressed = await compressPaymentProof(file);
+
+            if (compressed.size > PAYMENT_PROOF_MAX_BYTES) {
+                throw new Error('Ảnh quá lớn. Hãy chọn ảnh nhỏ hơn 5 MB.');
+            }
+
+            if (compressed !== file) {
+                const files = new DataTransfer();
+                files.items.add(compressed);
+                input.files = files.files;
+                paymentProofStatus(form, 'Đã tối ưu ảnh, sẵn sàng gửi.');
+            }
+        } catch (error) {
+            input.value = '';
+            paymentProofError(form, error.message);
+        } finally {
+            processing = false;
+            setPaymentProofProcessing(form, false);
+        }
+    });
+
+    form.addEventListener('submit', (event) => {
+        if (processing) {
+            event.preventDefault();
+            paymentProofError(form, 'Ảnh đang được tối ưu. Vui lòng đợi hoàn tất rồi gửi lại.');
+        }
+    });
+});
+
+/**
  * Editor cho các dòng dịch vụ của hóa đơn nháp.
  * Mọi con số hiển thị ở đây chỉ để xem trước; máy chủ luôn tính lại khi lưu.
  */

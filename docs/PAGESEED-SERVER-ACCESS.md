@@ -68,6 +68,25 @@ Kết quả:
 ssh -i "C:\Users\thanh\.ssh\pageseed_bizfly" -o BatchMode=yes root@221.121.1.68 "systemctl is-active nginx php8.5-fpm pageseed; curl -sS -o /dev/null -w 'caitiemneo=%{http_code}\n' https://caitiemneo.221-121-1-68.sslip.io/; curl -sS -o /dev/null -w 'pageseed=%{http_code}\n' https://221-121-1-68.sslip.io/"
 ```
 
+### Giới hạn upload chứng từ thanh toán
+
+Luồng `admin.invoices.pay` nhận một ảnh chứng từ tối đa **5 MB**. Cấu hình production phải cho phép request multipart lớn hơn giới hạn Laravel để người dùng nhận được lỗi theo trường thay vì `413 Request Entity Too Large` từ proxy.
+
+Trong vhost `/etc/nginx/sites-available/caitiemneo`, đặt trong khối `server` của Cái Tiệm Neo:
+
+```nginx
+client_max_body_size 6m;
+```
+
+Trong cấu hình PHP 8.5 FPM đang phục vụ application, đặt:
+
+```ini
+upload_max_filesize = 5M
+post_max_size = 6M
+```
+
+Không đưa các directive này vào vhost PageSeed. Sau khi được phê duyệt áp dụng hạ tầng, kiểm tra `nginx -t`, reload Nginx và PHP-FPM theo quy trình vận hành; không tự ý thay đổi hạ tầng trong lúc deploy code.
+
 ### Quy trình deploy Laravel
 
 Chỉ thực hiện khi người dùng đã phê duyệt deploy và sau khi code đã được commit/push.

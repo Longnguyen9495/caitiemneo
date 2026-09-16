@@ -87,6 +87,7 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
         Route::get('invoices/{invoice}/edit', [InvoiceController::class, 'edit'])->name('invoices.edit');
         Route::patch('invoices/{invoice}', [InvoiceController::class, 'update'])->name('invoices.update');
         Route::post('invoices/{invoice}/payment', [InvoicePaymentController::class, 'store'])->name('invoices.pay');
+        Route::get('invoices/{invoice}/payment-proof', [InvoicePaymentController::class, 'proof'])->name('invoices.payment-proof');
         Route::patch('invoices/{invoice}/bill-kpi', [InvoiceController::class, 'verifyBillKpi'])->name('invoices.bill-kpi');
         Route::delete('invoices/{invoice}/payment', [InvoicePaymentController::class, 'destroy'])->name('invoices.cancel');
 

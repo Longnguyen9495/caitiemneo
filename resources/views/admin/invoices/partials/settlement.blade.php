@@ -26,14 +26,10 @@
         @if ($invoice->bill_image_path)
             <div class="mt-3 pt-3 border-top">
                 <p class="mb-2 small fw-semibold text-body-secondary">Ảnh chứng từ thanh toán</p>
-                @if (\Illuminate\Support\Facades\Storage::disk('public')->exists($invoice->bill_image_path))
-                    <a href="{{ \Illuminate\Support\Facades\Storage::disk('public')->url($invoice->bill_image_path) }}" target="_blank" rel="noopener" class="d-inline-block">
-                        <img src="{{ \Illuminate\Support\Facades\Storage::disk('public')->url($invoice->bill_image_path) }}" alt="Chứng từ thanh toán hóa đơn {{ $invoice->number }}" class="img-fluid rounded border" style="max-width: 18rem; max-height: 24rem; object-fit: contain;">
-                    </a>
-                    <p class="mb-0 mt-1 small text-body-secondary">Chạm vào ảnh để xem kích thước đầy đủ.</p>
-                @else
-                    <p class="mb-0 small text-body-secondary">Không tìm thấy tệp ảnh chứng từ đã lưu.</p>
-                @endif
+                <a href="{{ route('admin.invoices.payment-proof', $invoice) }}" target="_blank" rel="noopener" class="d-inline-block">
+                    <img src="{{ route('admin.invoices.payment-proof', $invoice) }}" alt="Chứng từ thanh toán hóa đơn {{ $invoice->number }}" class="img-fluid rounded border" style="max-width: 18rem; max-height: 24rem; object-fit: contain;">
+                </a>
+                <p class="mb-0 mt-1 small text-body-secondary">Chạm vào ảnh để xem kích thước đầy đủ.</p>
             </div>
         @endif
 
@@ -60,9 +56,11 @@
                                 </select>
                             </div>
                             <div class="col-12 col-lg-6">
-                                <label class="form-label" for="payment_proof_image">Ảnh chứng từ thanh toán <span class="text-danger">*</span></label>
-                                <input class="form-control" id="payment_proof_image" name="payment_proof_image" type="file" accept="image/*" capture="environment" required>
-                                <p class="form-text mb-0">Chụp hoặc tải lên một ảnh bill / xác nhận chuyển khoản của khách.</p>
+                                <label class="form-label" for="payment_proof_image">Ảnh chứng từ thanh toán <span class="text-danger" aria-hidden="true">*</span></label>
+                                <input class="form-control" id="payment_proof_image" name="payment_proof_image" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" required data-payment-proof-image aria-describedby="payment_proof_image-help payment_proof_image-client-error">
+                                <p class="form-text mb-0" id="payment_proof_image-help">Chụp hoặc tải lên một ảnh JPG, PNG hoặc WebP tối đa 5 MB. Ảnh chụp lớn sẽ được thu nhỏ trên thiết bị trước khi gửi.</p>
+                                <div class="invalid-feedback d-block" id="payment_proof_image-client-error" hidden data-payment-proof-error></div>
+                                <p class="form-text mb-0" role="status" aria-live="polite" hidden data-payment-proof-status></p>
                             </div>
                             <div class="col-12 col-lg-3 d-grid align-self-end">
                                 <x-admin.submit-button label="Xác nhận thanh toán" />

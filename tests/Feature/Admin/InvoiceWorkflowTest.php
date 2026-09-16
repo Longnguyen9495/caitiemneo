@@ -142,6 +142,60 @@ class InvoiceWorkflowTest extends TestCase
         $this->assertSame('250000.00', $transactions->first()->amount);
     }
 
+    public function test_payment_proof_larger_than_five_megabytes_is_rejected_without_settling_the_invoice(): void
+    {
+        Storage::fake('local');
+        $owner = User::factory()->owner()->create();
+        $invoice = Invoice::factory()->create();
+
+        $this->actingAs($owner)->withConfirmedPassword()
+            ->from(route('admin.invoices.edit', $invoice))
+            ->post(route('admin.invoices.pay', $invoice), [
+                'payment_method' => PaymentMethod::Cash->value,
+                'payment_proof_image' => UploadedFile::fake()->createWithContent(
+                    'payment-proof.jpg',
+                    base64_decode('/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////2wBDAf//////////////////////////////////////////////////////////////////////////////////////wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAX/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIQAxAAAAH/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oACAEBAAEFAqf/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oACAEDAQE/AR//xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oACAECAQE/AR//2Q==').str_repeat(' ', 5 * 1024 * 1024),
+                ),
+            ])
+            ->assertRedirect(route('admin.invoices.edit', $invoice))
+            ->assertSessionHasErrors([
+                'payment_proof_image' => 'Ảnh chứng từ thanh toán không được vượt quá 5 MB.',
+            ]);
+
+        $this->assertSame(InvoiceStatus::Draft, $invoice->fresh()->status);
+        $this->assertSame(0, CashTransaction::query()->count());
+    }
+
+    public function test_an_uploaded_payment_proof_is_viewable_through_the_authorized_private_route(): void
+    {
+        Storage::fake('local');
+        $owner = User::factory()->owner()->create();
+        $invoice = Invoice::factory()->create();
+
+        $this->actingAs($owner)->withConfirmedPassword()
+            ->post(route('admin.invoices.pay', $invoice), [
+                'payment_method' => PaymentMethod::Cash->value,
+                'payment_proof_image' => UploadedFile::fake()->image('payment-proof.jpg'),
+            ])
+            ->assertRedirect();
+
+        $invoice->refresh();
+
+        $this->actingAs($owner)
+            ->get(route('admin.invoices.edit', $invoice))
+            ->assertOk()
+            ->assertSee(route('admin.invoices.payment-proof', $invoice), false);
+
+        $this->actingAs($owner)
+            ->get(route('admin.invoices.payment-proof', $invoice))
+            ->assertOk()
+            ->assertStreamed();
+
+        $this->actingAs(User::factory()->employee()->create())
+            ->get(route('admin.invoices.payment-proof', $invoice))
+            ->assertForbidden();
+    }
+
     public function test_transfer_payment_uses_the_same_single_payment_proof_image(): void
     {
         Storage::fake('local');

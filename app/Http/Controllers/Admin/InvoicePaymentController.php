@@ -11,6 +11,8 @@ use App\Http\Requests\Admin\CancelInvoiceRequest;
 use App\Http\Requests\Admin\PayInvoiceRequest;
 use App\Models\Invoice;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Facades\Storage;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class InvoicePaymentController extends Controller
 {
@@ -29,6 +31,18 @@ class InvoicePaymentController extends Controller
         return redirect()
             ->route('admin.invoices.edit', $invoice)
             ->with('success', 'Đã ghi nhận thanh toán kèm chứng từ và tạo khoản thu tương ứng.');
+    }
+
+    public function proof(Invoice $invoice): StreamedResponse
+    {
+        $this->authorize('view', $invoice);
+
+        abort_unless(
+            filled($invoice->bill_image_path) && Storage::disk('local')->exists($invoice->bill_image_path),
+            404,
+        );
+
+        return Storage::disk('local')->response($invoice->bill_image_path);
     }
 
     public function destroy(CancelInvoiceRequest $request, Invoice $invoice, CancelInvoiceAction $cancelInvoice): RedirectResponse

@@ -18,7 +18,16 @@ class PayInvoiceRequest extends FormRequest
     {
         return [
             'payment_method' => ['required', Rule::in(array_keys(PaymentMethod::invoiceOptions()))],
-            'payment_proof_image' => ['required', 'image', 'max:10240'],
+            'payment_proof_image' => ['bail', 'required', 'mimes:jpg,jpeg,png,webp', 'image', 'max:5120'],
+        ];
+    }
+
+    /** @return array<string, string> */
+    public function messages(): array
+    {
+        return [
+            'payment_proof_image.mimes' => 'Ảnh chứng từ thanh toán phải là tệp JPG, PNG hoặc WebP.',
+            'payment_proof_image.max' => 'Ảnh chứng từ thanh toán không được vượt quá 5 MB.',
         ];
     }
 
