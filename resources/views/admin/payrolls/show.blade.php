@@ -16,6 +16,8 @@
 
     @include('admin.payrolls.partials.allocations')
 
+    @include('admin.payrolls.partials.reconciliation-calendar')
+
     @include('admin.payrolls.partials.kpi-days')
 
     @include('admin.payrolls.partials.adjustments')

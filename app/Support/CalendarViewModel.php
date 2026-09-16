@@ -47,7 +47,13 @@ final readonly class CalendarViewModel
      */
     public function itemsForDay(string $isoDate): Collection
     {
-        return $this->itemsByDay[$isoDate] ?? new Collection();
+        $value = $this->itemsByDay[$isoDate] ?? null;
+
+        if ($value === null) {
+            return new Collection();
+        }
+
+        return $value instanceof Collection ? $value : new Collection($value);
     }
 
     /**

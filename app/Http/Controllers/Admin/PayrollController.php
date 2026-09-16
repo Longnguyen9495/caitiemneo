@@ -13,6 +13,7 @@ use App\Http\Requests\Admin\UpdatePayrollRequest;
 use App\Models\Payroll;
 use App\Models\User;
 use App\Queries\PayrollQuery;
+use App\Services\Calendar\PayrollCalendarQuery;
 use App\Support\BranchContext;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\RedirectResponse;
@@ -21,7 +22,10 @@ use Illuminate\View\View;
 
 class PayrollController extends Controller
 {
-    public function __construct(private BranchContext $branchContext) {}
+    public function __construct(
+        private BranchContext $branchContext,
+        private PayrollCalendarQuery $calendarQuery,
+    ) {}
 
     public function index(Request $request, PayrollQuery $payrolls): View
     {
@@ -76,8 +80,14 @@ class PayrollController extends Controller
             'cashTransactions',
         ]);
 
+        $calendar = $this->calendarQuery->forPayroll(
+            $payroll,
+            route('admin.payrolls.show', $payroll),
+        );
+
         return view('admin.payrolls.show', [
             'payroll' => $payroll,
+            'calendar' => $calendar,
             'adjustmentCategories' => PayrollAdjustmentCategory::manualOptions(),
             'adjustmentDirections' => PayrollAdjustmentDirection::options(),
         ]);
