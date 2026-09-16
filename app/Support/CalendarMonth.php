@@ -20,7 +20,6 @@ final readonly class CalendarMonth
 
     public function __construct(?string $yearMonth = null)
     {
-        CarbonImmutable::setLocale('vi');
         $this->startOfMonth = self::resolve($yearMonth);
     }
 
@@ -70,6 +69,8 @@ final readonly class CalendarMonth
 
     /**
      * @return Collection<int, CalendarDay>
+     *
+     * Always returns at least 35 cells (5 weeks) and at most 42 cells (6 weeks).
      */
     public function days(): Collection
     {
@@ -77,7 +78,13 @@ final readonly class CalendarMonth
         $startOfGrid = $this->startOfMonth->startOfWeek(CarbonImmutable::MONDAY);
         $endOfGrid = $this->startOfMonth->endOfMonth()->endOfWeek(CarbonImmutable::SUNDAY);
 
-        $days = new Collection();
+        // Ensure at least 5 complete weeks (35 cells)
+        $minEnd = $startOfGrid->copy()->addWeeks(5)->subDay();
+        if ($endOfGrid->lt($minEnd)) {
+            $endOfGrid = $minEnd;
+        }
+
+        $days = new Collection;
         $cursor = $startOfGrid->copy();
 
         while ($cursor->lte($endOfGrid)) {
@@ -126,12 +133,12 @@ final readonly class CalendarMonth
 
         $query['month'] = $month->format('Y-m');
 
-        $scheme = isset($parsed['scheme']) ? $parsed['scheme'] . '://' : '';
+        $scheme = isset($parsed['scheme']) ? $parsed['scheme'].'://' : '';
         $host = $parsed['host'] ?? '';
-        $port = isset($parsed['port']) ? ':' . $parsed['port'] : '';
+        $port = isset($parsed['port']) ? ':'.$parsed['port'] : '';
         $path = $parsed['path'] ?? '/';
         $qs = http_build_query($query);
 
-        return $scheme . $host . $port . $path . '?' . $qs;
+        return $scheme.$host.$port.$path.'?'.$qs;
     }
 }

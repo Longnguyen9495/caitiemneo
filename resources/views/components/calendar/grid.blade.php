@@ -8,15 +8,33 @@
     {{-- Toolbar tháng/kỳ --}}
     <div class="neo-cal__toolbar">
         <div class="neo-cal__nav">
-            <a href="{{ $viewModel->prevUrl }}" class="neo-cal__arrow" aria-label="Tháng trước">
-                <x-admin.icon name="chevron-down" size="20" class="neo-cal__arrow-icon" />
-            </a>
-            <a href="{{ $viewModel->currentUrl }}" class="neo-cal__title" aria-label="Về tháng hiện tại">
-                {{ $viewModel->title }}
-            </a>
-            <a href="{{ $viewModel->nextUrl }}" class="neo-cal__arrow" aria-label="Tháng sau">
-                <x-admin.icon name="chevron-down" size="20" class="neo-cal__arrow-icon" />
-            </a>
+            @if (filled($viewModel->prevUrl))
+                <a href="{{ $viewModel->prevUrl }}" class="neo-cal__arrow" aria-label="Tháng trước">
+                    <x-admin.icon name="chevron-down" size="20" class="neo-cal__arrow-icon neo-cal__arrow-icon--prev" />
+                </a>
+            @else
+                <span class="neo-cal__arrow neo-cal__arrow--disabled" aria-hidden="true">
+                    <x-admin.icon name="chevron-down" size="20" class="neo-cal__arrow-icon neo-cal__arrow-icon--prev" />
+                </span>
+            @endif
+
+            @if (filled($viewModel->currentUrl))
+                <a href="{{ $viewModel->currentUrl }}" class="neo-cal__title" aria-label="Về tháng hiện tại">
+                    {{ $viewModel->title }}
+                </a>
+            @else
+                <span class="neo-cal__title">{{ $viewModel->title }}</span>
+            @endif
+
+            @if (filled($viewModel->nextUrl))
+                <a href="{{ $viewModel->nextUrl }}" class="neo-cal__arrow" aria-label="Tháng sau">
+                    <x-admin.icon name="chevron-down" size="20" class="neo-cal__arrow-icon neo-cal__arrow-icon--next" />
+                </a>
+            @else
+                <span class="neo-cal__arrow neo-cal__arrow--disabled" aria-hidden="true">
+                    <x-admin.icon name="chevron-down" size="20" class="neo-cal__arrow-icon neo-cal__arrow-icon--next" />
+                </span>
+            @endif
         </div>
 
         @if ($toolbarSlot)
@@ -27,7 +45,7 @@
     {{-- Hàng nhãn thứ --}}
     <div class="neo-cal__weekdays" role="row">
         @foreach ($viewModel->weekDayLabels as $label)
-            <div class="neo-cal__weekday" role="columnheader" aria-hidden="true">{{ $label }}</div>
+            <div class="neo-cal__weekday" role="columnheader">{{ $label }}</div>
         @endforeach
     </div>
 

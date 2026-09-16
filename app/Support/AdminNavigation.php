@@ -8,6 +8,7 @@ use App\Models\Appointment;
 use App\Models\AttendanceRecord;
 use App\Models\Branch;
 use App\Models\CashTransaction;
+use App\Models\GalleryItem;
 use App\Models\Invoice;
 use App\Models\Payroll;
 use App\Models\Product;
@@ -106,6 +107,13 @@ final class AdminNavigation
                 'route' => 'admin.services.index', 'pattern' => 'admin.services.*',
                 'icon' => 'inbox', 'primary' => false,
                 'visible' => $user->can('viewAny', Service::class),
+                'group' => 'ops',
+            ],
+            [
+                'label' => 'Album trang chủ', 'short' => 'Album',
+                'route' => 'admin.gallery.index', 'pattern' => 'admin.gallery.*',
+                'icon' => 'image', 'primary' => false,
+                'visible' => $user->can('viewAny', GalleryItem::class),
                 'group' => 'ops',
             ],
             [

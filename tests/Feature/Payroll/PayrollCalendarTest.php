@@ -16,7 +16,9 @@ class PayrollCalendarTest extends TestCase
     use RefreshDatabase;
 
     protected Branch $branch;
+
     protected User $owner;
+
     protected User $employee;
 
     protected function setUp(): void
@@ -106,8 +108,8 @@ class PayrollCalendarTest extends TestCase
             ->get(route('admin.payrolls.show', $payroll))
             ->assertOk();
 
-        $response->assertSee('Kỳ lương đã khóa');
-        $response->assertSee('Đã khóa bởi kỳ lương');
+        $response->assertSee('Kỳ lương đã chốt');
+        $response->assertSee('snapshot đã khóa');
     }
 
     public function test_the_calendar_shows_draft_warning(): void
@@ -124,7 +126,7 @@ class PayrollCalendarTest extends TestCase
             ->get(route('admin.payrolls.show', $payroll))
             ->assertOk();
 
-        $response->assertSee('Dữ liệu có thể thay đổi nếu tính lại bảng lương');
+        $response->assertSee('Dữ liệu chấm công hiện tại');
     }
 
     public function test_the_calendar_title_shows_period_range(): void

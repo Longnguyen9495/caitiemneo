@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Enums\ServiceCategory;
 use App\Models\Branch;
 use App\Models\BranchService;
+use App\Models\GalleryItem;
 use App\Models\Service;
 use App\Support\ProductGallery;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -13,34 +14,59 @@ use Tests\TestCase;
 /**
  * Trang công khai là mặt tiền quảng cáo của tiệm.
  *
- * Nó chỉ được trưng ra thứ tiệm bán thật, và album ảnh phải là bản đã nén —
- * ảnh gốc trong `public/images/products` nặng vài MB một tấm.
+ * Nó chỉ được trưng ra thứ tiệm bán thật, và album phải xếp theo đúng thứ tự
+ * tiệm mong đợi: đăng sau thì đứng trước.
  */
 class HomePageTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_the_gallery_has_been_built_for_the_web(): void
+    public function test_the_original_photo_batch_has_been_compressed_for_the_web(): void
     {
         $this->assertFileExists(
             ProductGallery::manifestPath(),
-            'Chưa có bản web của album: hãy chạy `php artisan gallery:build`.'
+            'Chưa có bản web của bộ ảnh ban đầu: hãy chạy `php artisan gallery:build`.'
         );
 
-        $photos = ProductGallery::all();
-
-        $this->assertNotEmpty($photos);
-        $this->assertStringContainsString('480w', $photos[0]['srcset']);
-        $this->assertStringContainsString(ProductGallery::PUBLIC_PATH, $photos[0]['src']);
+        $this->assertNotEmpty(ProductGallery::manifestEntries());
     }
 
-    public function test_the_home_page_shows_the_gallery(): void
+    public function test_the_home_page_shows_the_newest_photo_first(): void
     {
+        GalleryItem::query()->delete();
+
+        $older = GalleryItem::factory()->create(['created_at' => now()->subDays(3)]);
+        $newest = GalleryItem::factory()->create(['created_at' => now()]);
+
         $response = $this->get('/');
 
         $response->assertOk();
         $response->assertSee('data-gallery-rail', false);
-        $response->assertSee(ProductGallery::all()[0]['src'], false);
+        $response->assertSeeInOrder([$newest->url(), $older->url()], false);
+    }
+
+    public function test_the_home_page_shows_videos_in_their_own_section(): void
+    {
+        GalleryItem::query()->delete();
+
+        $video = GalleryItem::factory()->video()->create();
+
+        $response = $this->get('/');
+
+        $response->assertSee('reel-rail', false);
+        $response->assertSee($video->url(), false);
+    }
+
+    /** Album trống thì ẩn hẳn hai khu đó thay vì để lại tiêu đề chơ vơ. */
+    public function test_an_empty_album_hides_the_gallery_and_the_videos(): void
+    {
+        GalleryItem::query()->delete();
+
+        $response = $this->get('/');
+
+        $response->assertOk();
+        $response->assertDontSee('data-gallery-rail', false);
+        $response->assertDontSee('reel-rail', false);
     }
 
     public function test_the_price_list_shows_a_service_a_branch_sells(): void

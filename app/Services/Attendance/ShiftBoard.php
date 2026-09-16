@@ -102,15 +102,16 @@ final class ShiftBoard
     }
 
     /** @return Collection<int, AttendanceRecord> */
-    public function recentRecords(User $employee, ?CarbonInterface $now = null, int $days = 14): Collection
+    public function recentRecords(User $employee, ?CarbonInterface $now = null, int $days = 7): Collection
     {
         $moment = $now ?? now();
+        $firstDay = $moment->copy()->subDays(max(0, $days - 1))->startOfDay();
 
         return AttendanceRecord::query()
             ->with('branch')
             ->where('employee_id', $employee->getKey())
             ->whereBetween('work_date', [
-                $moment->copy()->subDays($days)->startOfDay(),
+                $firstDay,
                 $moment->copy()->endOfDay(),
             ])
             ->orderByDesc('work_date')

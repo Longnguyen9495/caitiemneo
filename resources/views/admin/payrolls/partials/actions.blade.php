@@ -54,16 +54,6 @@
                 </form>
             @endif
 
-            @if ($canFinalize)
-                <x-admin.confirm-form
-                    :action="route('admin.payrolls.finalize', $payroll)"
-                    label="Chốt bảng lương"
-                    variant="primary"
-                    size=""
-                    message="Chốt bảng lương này? Sau khi chốt, số liệu sẽ bị khóa."
-                />
-            @endif
-
             @if ($canPay)
                 <form method="POST" action="{{ route('admin.payrolls.pay', $payroll) }}" class="d-flex gap-2 flex-grow-1">
                     @csrf
@@ -77,10 +67,24 @@
                 </form>
             @endif
 
-            @if ($canCancel)
-                <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#cancelPayroll">
-                    Hủy bảng lương
-                </button>
+            @if ($canFinalize || $canCancel)
+                <div class="payroll-actions__pair">
+                    @if ($canFinalize)
+                        <x-admin.confirm-form
+                            :action="route('admin.payrolls.finalize', $payroll)"
+                            label="Chốt bảng lương"
+                            variant="primary"
+                            size=""
+                            message="Chốt bảng lương này? Sau khi chốt, số liệu sẽ bị khóa."
+                        />
+                    @endif
+
+                    @if ($canCancel)
+                        <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#cancelPayroll">
+                            Hủy bảng lương
+                        </button>
+                    @endif
+                </div>
             @endif
         </div>
     </section>

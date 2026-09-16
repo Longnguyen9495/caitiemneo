@@ -2,16 +2,15 @@
 
 namespace App\Console\Commands;
 
+use App\Services\Gallery\PhotoResizer;
 use App\Support\ProductGallery;
 use Illuminate\Console\Command;
 
 /**
- * Nén ảnh mẫu móng trong `public/images/products` thành bản dùng được trên web.
+ * Nén bộ ảnh mẫu móng có sẵn trong `public/images/products` thành bản web.
  *
- * Ảnh gốc là ảnh chụp thẳng từ iPhone: 3–8 MB một tấm và xoay theo cờ EXIF.
- * Bê nguyên lên trang công khai thì một lần mở trang trên 4G là hơn 100 MB,
- * nên mọi tấm được xoay đúng chiều, thu nhỏ về vài khổ và ghi ra WebP. Trang
- * chỉ đọc thư mục kết quả, không bao giờ trỏ vào ảnh gốc.
+ * Đây là lệnh dựng bộ ảnh ban đầu, chạy một lần lúc bàn giao. Ảnh đăng thêm về
+ * sau đi qua trang quản trị, không đổ tệp thẳng vào thư mục này nữa.
  *
  * Lệnh chạy lại được: ảnh nào đã có bản mới hơn ảnh gốc thì bỏ qua, trừ khi
  * truyền --force.
@@ -22,8 +21,10 @@ class BuildGalleryImagesCommand extends Command
 
     protected $description = 'Nén ảnh mẫu móng thành bản WebP nhiều khổ cho trang công khai';
 
-    /** Ảnh HEIC của iPhone không hiển thị được trên Chrome và GD cũng không đọc nổi. */
-    private const READABLE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp'];
+    public function __construct(private readonly PhotoResizer $resizer)
+    {
+        parent::__construct();
+    }
 
     public function handle(): int
     {
@@ -41,8 +42,6 @@ class BuildGalleryImagesCommand extends Command
             return self::FAILURE;
         }
 
-        $this->ensureOutputDirectory();
-
         $manifest = [];
         $skipped = [];
         $built = 0;
@@ -50,7 +49,7 @@ class BuildGalleryImagesCommand extends Command
         foreach ($sources as $source) {
             $extension = strtolower(pathinfo($source, PATHINFO_EXTENSION));
 
-            if (! in_array($extension, self::READABLE_EXTENSIONS, true)) {
+            if (! in_array($extension, PhotoResizer::READABLE_EXTENSIONS, true)) {
                 $skipped[] = basename($source);
 
                 continue;
@@ -84,7 +83,7 @@ class BuildGalleryImagesCommand extends Command
     }
 
     /**
-     * Ảnh gốc theo thứ tự tự nhiên, để lần chạy nào cũng cho ra cùng một thứ tự trưng bày.
+     * Ảnh gốc theo thứ tự tự nhiên, để lần chạy nào cũng cho ra cùng một thứ tự.
      *
      * @return list<string>
      */
@@ -98,82 +97,50 @@ class BuildGalleryImagesCommand extends Command
         return array_values($files);
     }
 
-    private function ensureOutputDirectory(): void
-    {
-        $directory = ProductGallery::outputDirectory();
-
-        if (! is_dir($directory)) {
-            mkdir($directory, 0o755, true);
-        }
-    }
-
     /**
-     * Dựng mọi khổ của một ảnh và trả về dòng tương ứng trong manifest.
-     *
      * @return array{slug: string, width: int, height: int, sources: array<int, string>}|null
      */
     private function buildEntry(string $source, int &$built): ?array
     {
-        $slug = $this->slug($source);
+        $slug = $this->resizer->slug(basename($source));
         $dimensions = @getimagesize($source);
 
         if ($dimensions === false) {
             return null;
         }
 
-        $orientation = $this->orientation($source);
-        [$sourceWidth, $sourceHeight] = $this->orientedSize($dimensions[0], $dimensions[1], $orientation);
+        $widths = $this->resizer->widthsFor(max($dimensions[0], $dimensions[1]));
 
-        $widths = array_values(array_filter(
-            ProductGallery::WIDTHS,
-            fn (int $width): bool => $width <= $sourceWidth,
-        ));
-
-        if ($widths === []) {
-            $widths = [$sourceWidth];
+        if (! $this->needsRebuild($source, $slug, $widths)) {
+            return $this->entryFromDisk($slug, $source);
         }
 
-        $targets = [];
+        $result = $this->resizer->write(
+            $source,
+            ProductGallery::outputDirectory(),
+            ProductGallery::PUBLIC_PATH,
+            $slug,
+        );
 
-        foreach ($widths as $width) {
-            $targets[$width] = ProductGallery::outputDirectory().DIRECTORY_SEPARATOR.$slug.'-'.$width.'.webp';
+        if ($result === null) {
+            return null;
         }
 
-        if ($this->needsRebuild($source, $targets)) {
-            $image = $this->readImage($source, $dimensions[2]);
-
-            if ($image === null) {
-                return null;
-            }
-
-            $image = $this->applyOrientation($image, $orientation);
-
-            foreach ($targets as $width => $target) {
-                $this->writeResized($image, $width, $sourceWidth, $sourceHeight, $target);
-            }
-
-            imagedestroy($image);
-            $built++;
-            $this->line('  <fg=green>✓</> '.basename($source).' → '.count($targets).' khổ');
-        }
-
-        $largest = max($widths);
+        $built++;
+        $this->line('  <fg=green>✓</> '.basename($source).' → '.count($result['sources']).' khổ');
 
         return [
             'slug' => $slug,
-            'width' => $largest,
-            'height' => (int) round($largest * $sourceHeight / $sourceWidth),
-            'sources' => array_map(
-                fn (int $width): string => ProductGallery::PUBLIC_PATH.'/'.$slug.'-'.$width.'.webp',
-                $widths,
-            ),
+            'width' => $result['width'],
+            'height' => $result['height'],
+            'sources' => array_values($result['sources']),
         ];
     }
 
     /**
-     * @param  array<int, string>  $targets
+     * @param  list<int>  $widths
      */
-    private function needsRebuild(string $source, array $targets): bool
+    private function needsRebuild(string $source, string $slug, array $widths): bool
     {
         if ($this->option('force')) {
             return true;
@@ -181,7 +148,9 @@ class BuildGalleryImagesCommand extends Command
 
         $sourceTime = filemtime($source);
 
-        foreach ($targets as $target) {
+        foreach ($widths as $width) {
+            $target = ProductGallery::outputDirectory().DIRECTORY_SEPARATOR.$slug.'-'.$width.'.webp';
+
             if (! is_file($target) || filemtime($target) < $sourceTime) {
                 return true;
             }
@@ -190,86 +159,35 @@ class BuildGalleryImagesCommand extends Command
         return false;
     }
 
-    /** Tên tệp an toàn cho URL: `phonto(10).jpg` thành `phonto-10`. */
-    private function slug(string $source): string
-    {
-        $name = pathinfo($source, PATHINFO_FILENAME);
-        $name = strtolower(preg_replace('/[^a-z0-9]+/i', '-', $name) ?? '');
-
-        return trim($name, '-');
-    }
-
-    /** @return \GdImage|null */
-    private function readImage(string $source, int $type): ?object
-    {
-        $image = match ($type) {
-            IMAGETYPE_JPEG => @imagecreatefromjpeg($source),
-            IMAGETYPE_PNG => @imagecreatefrompng($source),
-            IMAGETYPE_WEBP => @imagecreatefromwebp($source),
-            default => false,
-        };
-
-        return $image === false ? null : $image;
-    }
-
     /**
-     * Cờ xoay EXIF của iPhone: ảnh nằm ngang trong tệp nhưng phải hiện dọc.
+     * Dòng manifest cho ảnh đã có sẵn bản web, đọc kích thước từ chính tệp đã nén.
      *
-     * Trình duyệt tự tôn trọng cờ này, GD thì không, nên bỏ qua bước xoay là
-     * cả nửa bộ ảnh nằm ngửa.
+     * @return array{slug: string, width: int, height: int, sources: array<int, string>}|null
      */
-    private function orientation(string $source): int
+    private function entryFromDisk(string $slug, string $source): ?array
     {
-        if (! function_exists('exif_read_data')) {
-            return 1;
+        $existing = glob(ProductGallery::outputDirectory().DIRECTORY_SEPARATOR.$slug.'-*.webp') ?: [];
+
+        if ($existing === []) {
+            return null;
         }
 
-        $exif = @exif_read_data($source);
+        sort($existing, SORT_NATURAL);
+        $largest = $existing[count($existing) - 1];
+        $dimensions = @getimagesize($largest);
 
-        return (int) ($exif['Orientation'] ?? 1);
-    }
-
-    /** @return array{0: int, 1: int} */
-    private function orientedSize(int $width, int $height, int $orientation): array
-    {
-        return in_array($orientation, [5, 6, 7, 8], true) ? [$height, $width] : [$width, $height];
-    }
-
-    /**
-     * @param  \GdImage  $image
-     * @return \GdImage
-     */
-    private function applyOrientation(object $image, int $orientation): object
-    {
-        $rotation = match ($orientation) {
-            3, 4 => 180,
-            5, 6 => -90,
-            7, 8 => 90,
-            default => 0,
-        };
-
-        if (in_array($orientation, [2, 4, 5, 7], true)) {
-            imageflip($image, IMG_FLIP_HORIZONTAL);
+        if ($dimensions === false) {
+            return null;
         }
 
-        if ($rotation === 0) {
-            return $image;
-        }
-
-        $rotated = imagerotate($image, $rotation, 0);
-        imagedestroy($image);
-
-        return $rotated;
-    }
-
-    /** @param  \GdImage  $image */
-    private function writeResized(object $image, int $width, int $sourceWidth, int $sourceHeight, string $target): void
-    {
-        $height = max(1, (int) round($width * $sourceHeight / $sourceWidth));
-        $canvas = imagecreatetruecolor($width, $height);
-
-        imagecopyresampled($canvas, $image, 0, 0, 0, 0, $width, $height, $sourceWidth, $sourceHeight);
-        imagewebp($canvas, $target, ProductGallery::QUALITY);
-        imagedestroy($canvas);
+        return [
+            'slug' => $slug,
+            'width' => $dimensions[0],
+            'height' => $dimensions[1],
+            'sources' => array_map(
+                fn (string $file): string => ProductGallery::PUBLIC_PATH.'/'.basename($file),
+                $existing,
+            ),
+        ];
     }
 }

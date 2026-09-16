@@ -1,16 +1,17 @@
-@props(['groups', 'class' => 'neo-navlink'])
+@props(['groups', 'class' => 'neo-navlink', 'prefix' => 'nav'])
 
 @foreach ($groups as $group)
     @php
-        $groupId = 'nav-group-' . $group['id'];
+        $groupId = $prefix . '-group-' . $group['id'];
         $isOpen = $group['isActive'] ? 'show' : '';
+        $hasActive = $group['isActive'];
     @endphp
     <div class="neo-nav-group">
         <button type="button"
-                class="neo-nav-group__trigger {{ $group['isActive'] ? 'is-active' : '' }}"
+                class="neo-nav-group__trigger {{ $hasActive ? 'is-active' : '' }}"
                 data-bs-toggle="collapse"
                 data-bs-target="#{{ $groupId }}"
-                aria-expanded="{{ $group['isActive'] ? 'true' : 'false' }}"
+                aria-expanded="{{ $hasActive ? 'true' : 'false' }}"
                 aria-controls="{{ $groupId }}">
             <span class="flex-grow-1">{{ $group['label'] }}</span>
             @if ($group['badge'] > 0)
@@ -41,3 +42,18 @@
         </div>
     </div>
 @endforeach
+<!-- Fallback: khi JavaScript không chạy, các nhóm active vẫn hiển thị nhờ class show. Các nhóm không active cần được truy cập qua nút mở rộng. Trên server, không thể xác định trạng thái JS, nên dựa vào progressive enhancement của Bootstrap collapse. -->
+<noscript>
+    <style>
+        .neo-nav-group .collapse {
+            display: block !important;
+        }
+        .neo-nav-group__chevron {
+            display: none;
+        }
+        .neo-nav-group__trigger {
+            pointer-events: none;
+            opacity: 0.8;
+        }
+    </style>
+</noscript>

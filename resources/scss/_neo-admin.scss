@@ -849,3 +849,25 @@ a.btn {
     body.neo { padding: 0; background: #fff; }
     .card { border: 0; box-shadow: none; }
 }
+
+/* Ô xem lại một ảnh/video trong album trang chủ. Khung tỉ lệ cố định để lưới
+   không nhảy khi ảnh dọc ảnh ngang lẫn nhau. */
+.neo-media-tile {
+    overflow: hidden;
+    border: 1px solid var(--neo-line, rgba(123, 47, 80, .18));
+    border-radius: .6rem;
+    background: var(--neo-surface, #fff);
+}
+
+.neo-media-tile__preview {
+    display: block;
+    width: 100%;
+    aspect-ratio: 3 / 4;
+    object-fit: cover;
+    background: rgba(123, 47, 80, .08);
+}
+
+.neo-media-tile__meta {
+    padding: .6rem .7rem .7rem;
+    font-size: .8rem;
+}

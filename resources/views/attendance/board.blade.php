@@ -67,7 +67,7 @@
             </section>
         </div>
 
-        <div class="col-12 col-lg-5">
+        <div class="col-12 col-lg-5 order-last">
             <section class="card p-3 mb-3">
                 <h3 class="fs-6 fw-semibold mb-2">Ca trong hôm nay</h3>
 
@@ -106,10 +106,10 @@
             </section>
         </div>
 
-        <div class="col-12">
+        <div class="col-12 order-last">
             <section class="card overflow-hidden">
                 <div class="p-3 border-bottom">
-                    <h3 class="fs-6 fw-semibold mb-0">Chấm công 14 ngày gần đây</h3>
+                    <h3 class="fs-6 fw-semibold mb-0">Chấm công 7 ngày gần đây</h3>
                 </div>
 
                 <table class="table neo-table align-middle mb-0">

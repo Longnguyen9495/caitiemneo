@@ -36,7 +36,7 @@
             </a>
 
             <nav class="d-grid gap-1" aria-label="Menu quản trị">
-                <x-admin.nav-groups :groups="$navigationGroups" />
+                <x-admin.nav-groups :groups="$navigationGroups" prefix="nav-desktop" />
             </nav>
 
             <div class="mt-4 pt-3 border-top" style="border-color:rgba(255,255,255,.16)!important">

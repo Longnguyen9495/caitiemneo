@@ -65,6 +65,10 @@ final readonly class CalendarItem
     {
         $parts = [];
 
+        if ($this->employeeName !== null) {
+            $parts[] = $this->employeeName;
+        }
+
         if ($this->shiftName !== null) {
             $parts[] = $this->shiftName;
         }

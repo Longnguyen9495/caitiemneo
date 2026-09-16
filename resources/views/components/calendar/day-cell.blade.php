@@ -42,16 +42,19 @@
     Nút ngày có accessible name đầy đủ.
     Trạng thái không chỉ thể hiện bằng màu; có text/icon và aria-label.
     Touch target tối thiểu 44px.
+    Khi không mở được panel (không có dữ liệu hoặc chỉ đọc), button bị disabled
+    để không gây hiểu lầm là có thể tương tác.
 --}}
 <button
     type="button"
     class="{{ $cellClass }} {{ $toneClass }}"
     aria-label="{{ $accessibleLabel }}"
-    @if ($viewModel->canInteract && $items->isNotEmpty())
+    @if ($viewModel->canOpenDetails && $items->isNotEmpty())
         @click="$dispatch('calendar:show-detail', { date: '{{ $iso }}' })"
         data-cal-date="{{ $iso }}"
+    @else
+        disabled
     @endif
-    tabindex="0"
 >
     <span class="neo-cal__daynum" aria-hidden="true">{{ $day->dayOfMonth }}</span>
 

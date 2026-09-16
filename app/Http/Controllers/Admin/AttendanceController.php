@@ -13,6 +13,7 @@ use App\Models\User;
 use App\Services\Calendar\AdminCalendarQuery;
 use App\Services\Payroll\PayrollLockGuard;
 use App\Support\BranchContext;
+use App\Support\CalendarMonth;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -40,7 +41,10 @@ class AttendanceController extends Controller
     {
         $this->authorize('viewAny', AttendanceRecord::class);
 
-        $month = Carbon::parse(($request->string('month')->toString() ?: now()->format('Y-m')).'-01')->startOfMonth();
+        $actor = $request->user();
+        $monthInput = $request->string('month')->toString() ?: null;
+        $calendarMonth = new CalendarMonth($monthInput);
+        $month = $calendarMonth->startOfMonth();
         $from = $month->copy()->startOfMonth();
         $to = $month->copy()->endOfMonth();
 
@@ -60,21 +64,31 @@ class AttendanceController extends Controller
 
         $employeeId = $request->filled('employee_id') ? $request->integer('employee_id') : null;
         $baseUrl = route('admin.attendance.index');
+        $filters = $request->only(['status', 'source']);
 
         if ($employeeId !== null) {
-            $employee = User::find($employeeId);
+            $employee = User::query()
+                ->active()
+                ->postedTo($branchIds)
+                ->find($employeeId);
+
             $calendar = $employee !== null
-                ? $this->calendarQuery->forEmployee($employee, $request->query('month'), $baseUrl)
-                : $this->calendarQuery->overview($request->query('month'), [], $baseUrl);
+                ? $this->calendarQuery->forEmployee($actor, $employee, $monthInput, $baseUrl, $filters)
+                : $this->calendarQuery->overview($actor, $monthInput, [], $baseUrl, $filters);
+
+            // Reject out-of-scope employee: don't preserve invalid employee_id
+            if ($employee === null) {
+                $employeeId = null;
+            }
         } else {
-            $calendar = $this->calendarQuery->overview($request->query('month'), [], $baseUrl);
+            $calendar = $this->calendarQuery->overview($actor, $monthInput, [], $baseUrl, $filters);
         }
 
         return view('admin.attendance.index', [
             'records' => $records,
-            'month' => $month,
-            'summary' => $this->summary($from, $to, $branchIds),
-            'employees' => $this->employees($from),
+            'month' => Carbon::parse($month->toDateString()),
+            'summary' => $this->summary(Carbon::parse($from->toDateString()), Carbon::parse($to->toDateString()), $branchIds),
+            'employees' => $this->employees(Carbon::parse($from->toDateString())),
             'statuses' => AttendanceStatus::options(),
             'sources' => AttendanceSource::options(),
             'pendingOvertimeCount' => AttendanceRecord::query()

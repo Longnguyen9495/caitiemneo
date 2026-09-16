@@ -554,6 +554,20 @@ Alpine.data('searchableSelect', searchableSelect);
 Alpine.data('calendarPanel', () => ({
     activeDate: null,
     activeDateLabel: '',
+    onPageShow: null,
+    onKeyDown: null,
+
+    init() {
+        this.onPageShow = () => this.close();
+        this.onKeyDown = (event) => {
+            if (event.key === 'Escape' && this.activeDate !== null) {
+                this.close();
+            }
+        };
+
+        window.addEventListener('pageshow', this.onPageShow);
+        window.addEventListener('keydown', this.onKeyDown);
+    },
 
     open(date) {
         this.activeDate = date;
@@ -564,6 +578,11 @@ Alpine.data('calendarPanel', () => ({
     close() {
         this.activeDate = null;
         this.activeDateLabel = '';
+    },
+
+    destroy() {
+        window.removeEventListener('pageshow', this.onPageShow);
+        window.removeEventListener('keydown', this.onKeyDown);
     },
 }));
 

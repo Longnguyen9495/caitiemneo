@@ -2,6 +2,8 @@
 // Dùng chung cho lịch cá nhân, quản trị và payroll.
 // Ưu tiên điện thoại; touch target tối thiểu 44px.
 
+[x-cloak] { display: none !important; }
+
 .neo-cal {
     --cal-gap: .25rem;
     --cal-pad: .5rem;
@@ -47,10 +49,8 @@
     &:hover { background: rgba(123, 47, 80, .08); color: $neo-wine; }
 }
 
-.neo-cal__arrow-icon {
-    transform: rotate(90deg);
-    &:last-child { transform: rotate(-90deg); }
-}
+.neo-cal__arrow-icon--prev { transform: rotate(90deg); }
+.neo-cal__arrow-icon--next { transform: rotate(-90deg); }
 
 .neo-cal__title {
     display: inline-block;
@@ -111,6 +111,11 @@
     text-align: left;
     cursor: default;
     transition: background-color 160ms ease, border-color 160ms ease, transform 160ms ease;
+
+    &:disabled {
+        opacity: 1;
+        cursor: default;
+    }
 
     &.has-data {
         cursor: pointer;
@@ -275,19 +280,8 @@
     &:hover { background: rgba(123, 47, 80, .08); color: $neo-wine; }
 }
 
-// Backdrop for mobile detail panel
-.neo-cal__panel::before {
-    content: '';
-    position: fixed;
-    inset: 0;
-    background: rgba(56, 36, 46, .35);
-    z-index: -1;
-    pointer-events: none;
-
-    @include media-breakpoint-up(lg) {
-        display: none;
-    }
-}
+// The detail sheet intentionally has no full-screen backdrop. Users can still
+// see the selected day and use month navigation without the page being dimmed.
 
 // Print: hide interactive parts
 @media print {

@@ -29,7 +29,7 @@ final readonly class CalendarDay
         return match ($name) {
             'isoDate' => $this->date->toDateString(),
             'dayOfMonth' => (int) $this->date->format('j'),
-            'accessibleLabel' => $this->date->isoFormat('dddd, D MMMM'),
+            'accessibleLabel' => $this->date->locale('vi')->isoFormat('dddd, D MMMM'),
             default => throw new \InvalidArgumentException("Unknown property: {$name}"),
         };
     }

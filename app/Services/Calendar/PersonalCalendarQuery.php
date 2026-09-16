@@ -10,7 +10,6 @@ use App\Models\User;
 use App\Support\CalendarItem;
 use App\Support\CalendarMonth;
 use App\Support\CalendarViewModel;
-use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 
 /**
@@ -32,7 +31,7 @@ final readonly class PersonalCalendarQuery
         $itemsByDay = $this->buildItems($records, $assignments);
 
         return new CalendarViewModel(
-            title: $month->startOfMonth()->isoFormat('MMMM YYYY'),
+            title: $month->startOfMonth()->locale('vi')->isoFormat('MMMM YYYY'),
             prevUrl: $month->prevMonthUrl($baseUrl),
             nextUrl: $month->nextMonthUrl($baseUrl),
             currentUrl: $month->currentMonthUrl($baseUrl),
@@ -66,6 +65,7 @@ final readonly class PersonalCalendarQuery
         return ShiftAssignment::query()
             ->where('employee_id', $employee->getKey())
             ->whereBetween('work_date', [$from, $to])
+            ->with('attendanceRecord')
             ->orderBy('work_date')
             ->orderBy('planned_start_at')
             ->get();
@@ -74,8 +74,8 @@ final readonly class PersonalCalendarQuery
     /**
      * Build calendar items grouped by ISO date.
      *
-     * @param Collection<int, AttendanceRecord> $records
-     * @param Collection<int, ShiftAssignment> $assignments
+     * @param  Collection<int, AttendanceRecord>  $records
+     * @param  Collection<int, ShiftAssignment>  $assignments
      * @return array<string, Collection<int, CalendarItem>>
      */
     private function buildItems(Collection $records, Collection $assignments): array
@@ -101,7 +101,7 @@ final readonly class PersonalCalendarQuery
                 gpsNeedsReview: $this->gpsNeedsReview($record),
                 note: $record->note,
             );
-            $byDay[$date] ??= new Collection();
+            $byDay[$date] ??= new Collection;
             $byDay[$date]->push($item);
         }
 
@@ -123,7 +123,7 @@ final readonly class PersonalCalendarQuery
                 plannedStartAt: $assignment->planned_start_at?->format('H:i'),
                 plannedEndAt: $assignment->planned_end_at?->format('H:i'),
             );
-            $byDay[$date] ??= new Collection();
+            $byDay[$date] ??= new Collection;
             $byDay[$date]->push($item);
         }
 

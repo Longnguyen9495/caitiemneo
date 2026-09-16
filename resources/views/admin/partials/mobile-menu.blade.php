@@ -6,7 +6,7 @@
 
     <div class="offcanvas-body d-flex flex-column pt-0">
         <nav class="d-grid gap-1" aria-label="Toàn bộ menu quản trị">
-            <x-admin.nav-groups :groups="$navigationGroups" />
+            <x-admin.nav-groups :groups="$navigationGroups" prefix="nav-mobile" />
         </nav>
 
         <div class="mt-auto pt-3 border-top" style="border-color:rgba(255,255,255,.16)!important">

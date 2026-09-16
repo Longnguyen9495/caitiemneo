@@ -11,9 +11,9 @@
                     <h2 class="neo-display fs-5 mb-0">Lịch đối soát chấm công</h2>
                     <p class="mb-0 small text-body-secondary">
                         @if ($payroll->status->value === 'draft')
-                            Dữ liệu có thể thay đổi nếu tính lại bảng lương.
+                            Dữ liệu chấm công hiện tại — sẽ được chụp khi chốt bảng lương.
                         @elseif (in_array($payroll->status->value, ['finalized', 'paid'], true))
-                            Kỳ lương đã khóa — dữ liệu là snapshot tại thời điểm chốt.
+                            Kỳ lương đã chốt — lương và KPI là snapshot đã khóa. Lịch hiển thị dữ liệu đối chiếu hiện tại.
                         @else
                             Chỉ đọc.
                         @endif

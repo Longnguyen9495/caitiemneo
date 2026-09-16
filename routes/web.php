@@ -11,6 +11,7 @@ use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\EmployeeAssignmentController;
 use App\Http\Controllers\Admin\EmployeeController;
 use App\Http\Controllers\Admin\EmployeeShiftPlanController;
+use App\Http\Controllers\Admin\GalleryController;
 use App\Http\Controllers\Admin\InventoryMovementController;
 use App\Http\Controllers\Admin\InvoiceController;
 use App\Http\Controllers\Admin\InvoicePaymentController;
@@ -72,6 +73,9 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
         Route::get('/', DashboardController::class)->name('dashboard');
 
         Route::resource('services', ServiceController::class)->except('show', 'destroy');
+
+        // Album ảnh/video trưng trên trang công khai.
+        Route::resource('gallery', GalleryController::class)->only('index', 'store', 'destroy');
 
         Route::resource('appointments', AppointmentController::class)->except('show', 'destroy');
         Route::patch('appointments/{appointment}/status', [AppointmentController::class, 'updateStatus'])

@@ -74,20 +74,11 @@ class AdminCalendarTest extends TestCase
         $this->assertStringContainsString('tháng 9 2026', $html);
     }
 
-    public function test_admin_calendar_shows_record_counts_per_day(): void
+    public function test_admin_calendar_overview_shows_employee_and_shift_in_panel(): void
     {
         Carbon::setTestNow('2026-09-16');
 
         $this->actingAs($this->manager);
-
-        $shift = WorkShift::factory()->create(['name' => 'Ca Admin']);
-
-        ShiftAssignment::factory()
-            ->forEmployee($this->employee)
-            ->atBranch($this->branch)
-            ->on('2026-09-15')
-            ->usingShift($shift)
-            ->create();
 
         AttendanceRecord::factory()->create([
             'employee_id' => $this->employee->id,
@@ -100,7 +91,10 @@ class AdminCalendarTest extends TestCase
         $response = $this->get(route('admin.attendance.index', ['month' => '2026-09']));
         $html = $response->getContent() ?: '';
 
-        $this->assertStringContainsString('1 đi làm', $html);
+        // Panel should list individual employee/shift rows
+        $this->assertStringContainsString('Ca Admin', $html);
+        // Day cell has data-cal-date for detail opening
+        $this->assertMatchesRegularExpression('/data-cal-date="2026-09-15"/', $html);
     }
 
     public function test_filter_by_employee_switches_to_detail_mode(): void
@@ -152,7 +146,7 @@ class AdminCalendarTest extends TestCase
 
     public function test_admin_calendar_does_not_show_records_from_other_branches(): void
     {
-        Carbon::setTestNow('2026-09-16');;
+        Carbon::setTestNow('2026-09-16');
 
         $otherBranch = Branch::factory()->create(['code' => 'CN-OTH']);
         $otherEmployee = User::factory()->employee()->withoutBranch()->atBranch($otherBranch)->create();

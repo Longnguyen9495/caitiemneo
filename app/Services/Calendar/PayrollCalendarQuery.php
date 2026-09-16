@@ -60,6 +60,7 @@ final readonly class PayrollCalendarQuery
             legend: $this->legend(),
             mode: 'payroll',
             canInteract: false,
+            canOpenDetails: true,
         );
     }
 
@@ -74,7 +75,7 @@ final readonly class PayrollCalendarQuery
             ->get();
     }
 
-    /** @return Collection<string, DailyKpiResult> keyed by Y-m-d */
+    /** @return Collection<string, Collection<int, DailyKpiResult>> grouped by Y-m-d */
     private function kpiResults(Payroll $payroll, string $from, string $to): Collection
     {
         return DailyKpiResult::query()
@@ -83,12 +84,12 @@ final readonly class PayrollCalendarQuery
             ->with(['branch', 'tier'])
             ->orderBy('work_date')
             ->get()
-            ->keyBy(fn (DailyKpiResult $r): string => $r->work_date->toDateString());
+            ->groupBy(fn (DailyKpiResult $r): string => $r->work_date->toDateString());
     }
 
     /**
-     * @param Collection<int, AttendanceRecord> $records
-     * @param Collection<string, DailyKpiResult> $kpiByDate
+     * @param  Collection<int, AttendanceRecord>  $records
+     * @param  Collection<string, Collection<int, DailyKpiResult>>  $kpiByDate
      * @return array<string, list<CalendarItem>>
      */
     private function buildItems(Collection $records, Collection $kpiByDate, bool $isLocked): array
@@ -98,8 +99,8 @@ final readonly class PayrollCalendarQuery
         foreach ($records as $record) {
             $iso = $record->work_date->toDateString();
 
-            $kpi = $kpiByDate->get($iso);
-            $note = $this->kpiNote($kpi);
+            $kpis = $kpiByDate->get($iso);
+            $note = $this->kpiNote($kpis);
 
             $items[$iso][] = new CalendarItem(
                 recordId: $record->id,
@@ -118,14 +119,14 @@ final readonly class PayrollCalendarQuery
         }
 
         // Days with KPI but no attendance record
-        foreach ($kpiByDate as $iso => $kpi) {
+        foreach ($kpiByDate as $iso => $kpis) {
             if (! isset($items[$iso])) {
                 $items[$iso][] = new CalendarItem(
                     recordId: null,
                     shiftName: 'Không có ca',
                     status: null,
                     isLockedByPayroll: $isLocked,
-                    note: $this->kpiNote($kpi),
+                    note: $this->kpiNote($kpis),
                 );
             }
         }
@@ -133,18 +134,25 @@ final readonly class PayrollCalendarQuery
         return $items;
     }
 
-    private function kpiNote(?DailyKpiResult $kpi): ?string
+    /**
+     * @param  Collection<int, DailyKpiResult>|null  $kpis
+     */
+    private function kpiNote(?Collection $kpis): ?string
     {
-        if ($kpi === null) {
+        if ($kpis === null || $kpis->isEmpty()) {
             return null;
         }
 
-        $note = 'KPI '.Money::format($kpi->reward_amount);
-        if ($kpi->branch?->code) {
-            $note .= ' tại '.$kpi->branch->code;
-        }
+        $notes = $kpis->map(function (DailyKpiResult $kpi): string {
+            $note = 'KPI '.Money::format($kpi->reward_amount);
+            if ($kpi->branch?->code) {
+                $note .= ' tại '.$kpi->branch->code;
+            }
 
-        return $note;
+            return $note;
+        });
+
+        return $notes->implode('; ');
     }
 
     /** @return Collection<int, CalendarDay> */
@@ -154,7 +162,7 @@ final readonly class PayrollCalendarQuery
         $startOfGrid = $from->startOfWeek(CarbonImmutable::MONDAY);
         $endOfGrid = $to->endOfWeek(CarbonImmutable::SUNDAY);
 
-        $days = new Collection();
+        $days = new Collection;
         $cursor = $startOfGrid->copy();
 
         while ($cursor->lte($endOfGrid)) {
