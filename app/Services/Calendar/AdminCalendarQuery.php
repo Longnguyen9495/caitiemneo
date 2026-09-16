@@ -111,27 +111,27 @@ final readonly class AdminCalendarQuery
         $grouped = $records->groupBy(fn ($r) => $r->work_date->toDateString());
 
         foreach ($grouped as $date => $dayRecords) {
-            $warnings = $dayRecords->filter(fn ($r) =>
+            $present = $dayRecords->filter(fn ($r) => in_array($r->status->value, ['present', 'late'], true))->count();
+            $absent = $dayRecords->filter(fn ($r) => $r->status->value === 'absent')->count();
+            $hasWarning = $dayRecords->contains(fn ($r) =>
                 $r->isOpenSession()
                 || $r->late_minutes > 0
-                || $r->status->value === 'absent'
                 || $this->gpsNeedsReview($r)
                 || $r->overtime_status->value === 'pending'
             );
 
-            $item = new CalendarItem(
-                recordId: $dayRecords->first()?->id,
-                employeeName: $dayRecords->first()?->employee?->name,
-                shiftName: $dayRecords->count() . ' ca',
-                status: $warnings->isNotEmpty() ? null : null, // overview doesn't show per-status tone
-                isMissingCheckOut: $dayRecords->contains(fn ($r) => $r->isOpenSession()),
-            );
+            $presentCount = $present > 0 ? "{$present} đi làm" : '';
+            $absentCount = $absent > 0 ? "{$absent} vắng" : '';
+            $label = implode(' · ', array_filter([$presentCount, $absentCount])) ?: 'Không có ca';
 
-            // Custom summary for overview
+            // Tone dựa trên trạng thái nghiêm trọng nhất trong ngày
+            $status = $hasWarning ? \App\Enums\AttendanceStatus::Late : ($absent > 0 ? \App\Enums\AttendanceStatus::Absent : \App\Enums\AttendanceStatus::Present);
+
             $item = new CalendarItem(
                 recordId: null,
-                shiftName: $dayRecords->count() . ' ca',
-                isMissingCheckOut: $warnings->isNotEmpty(),
+                shiftName: $label,
+                status: $status,
+                isMissingCheckOut: $dayRecords->contains(fn ($r) => $r->isOpenSession()),
             );
 
             $byDay[$date] = new Collection([$item]);

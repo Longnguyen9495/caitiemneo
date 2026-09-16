@@ -10,6 +10,7 @@ use App\Http\Controllers\StaffAttendanceController;
 use App\Http\Requests\Admin\AttendanceRecordRequest;
 use App\Models\AttendanceRecord;
 use App\Models\User;
+use App\Services\Calendar\AdminCalendarQuery;
 use App\Services\Payroll\PayrollLockGuard;
 use App\Support\BranchContext;
 use Carbon\Carbon;
@@ -32,6 +33,7 @@ class AttendanceController extends Controller
         private BranchContext $branchContext,
         private SaveManualAttendanceAction $saveManual,
         private PayrollLockGuard $payrollLock,
+        private AdminCalendarQuery $calendarQuery,
     ) {}
 
     public function index(Request $request): View
@@ -56,6 +58,18 @@ class AttendanceController extends Controller
             ->paginate(30)
             ->withQueryString();
 
+        $employeeId = $request->filled('employee_id') ? $request->integer('employee_id') : null;
+        $baseUrl = route('admin.attendance.index');
+
+        if ($employeeId !== null) {
+            $employee = User::find($employeeId);
+            $calendar = $employee !== null
+                ? $this->calendarQuery->forEmployee($employee, $request->query('month'), $baseUrl)
+                : $this->calendarQuery->overview($request->query('month'), [], $baseUrl);
+        } else {
+            $calendar = $this->calendarQuery->overview($request->query('month'), [], $baseUrl);
+        }
+
         return view('admin.attendance.index', [
             'records' => $records,
             'month' => $month,
@@ -72,6 +86,8 @@ class AttendanceController extends Controller
                 'shift_value' => 1,
                 'status' => AttendanceStatus::Present,
             ]),
+            'calendar' => $calendar,
+            'calendarEmployeeId' => $employeeId,
         ]);
     }
 
