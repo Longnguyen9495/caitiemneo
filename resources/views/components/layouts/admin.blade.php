@@ -7,6 +7,7 @@
     $user = auth()->user();
     $navigation = App\Support\AdminNavigation::for($user);
     $primaryNav = App\Support\AdminNavigation::primary($navigation);
+    $navigationGroups = App\Support\AdminNavigation::groups($navigation);
 @endphp
 
 <!doctype html>
@@ -35,7 +36,7 @@
             </a>
 
             <nav class="d-grid gap-1" aria-label="Menu quản trị">
-                <x-admin.nav-items :items="$navigation" />
+                <x-admin.nav-groups :groups="$navigationGroups" />
             </nav>
 
             <div class="mt-4 pt-3 border-top" style="border-color:rgba(255,255,255,.16)!important">
@@ -90,7 +91,7 @@
         </div>
     </div>
 
-    @include('admin.partials.mobile-menu', ['navigation' => $navigation, 'user' => $user])
+    @include('admin.partials.mobile-menu', ['navigationGroups' => $navigationGroups, 'user' => $user])
 
     <nav class="neo-tabbar" aria-label="Điều hướng nhanh">
         @foreach ($primaryNav as $item)

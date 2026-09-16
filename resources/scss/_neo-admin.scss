@@ -161,6 +161,81 @@ body.neo {
     }
 }
 
+// --- Nhóm menu (accordion) --------------------------------------------------
+.neo-nav-group {
+    border-radius: $neo-radius-control;
+    overflow: hidden;
+}
+
+.neo-nav-group__trigger {
+    display: flex;
+    align-items: center;
+    gap: .7rem;
+    min-height: $neo-tap-target;
+    width: 100%;
+    padding: .55rem .75rem;
+    border: 0;
+    border-radius: $neo-radius-control;
+    background: transparent;
+    color: rgba(255, 255, 255, .78);
+    font-size: .875rem;
+    font-weight: 500;
+    text-align: left;
+    text-decoration: none;
+    transition: background-color 160ms ease, color 160ms ease;
+
+    svg { width: 19px; height: 19px; flex: none; opacity: .85; }
+
+    .neo-nav-group__chevron {
+        transition: transform 200ms ease;
+        opacity: .7;
+    }
+
+    &[aria-expanded="true"] .neo-nav-group__chevron {
+        transform: rotate(180deg);
+    }
+
+    &:hover { color: #fff; background: rgba(255, 255, 255, .1); }
+    &:active { transform: translateY(1px); }
+
+    &.is-active {
+        color: #fff;
+        background: rgba(255, 255, 255, .1);
+        font-weight: 600;
+    }
+}
+
+.neo-nav-group__items {
+    padding-left: .5rem;
+
+    .neo-navlink {
+        padding-left: calc(.75rem + 19px + .7rem); // indent = icon + gap
+        border-radius: 0 $neo-radius-control $neo-radius-control 0;
+    }
+}
+
+// Offcanvas nhóm: đảm bảo cuộn độc lập, không bị footer che.
+.offcanvas-body .neo-nav-group__items {
+    padding-left: .25rem;
+}
+
+// Progressive enhancement: khi JS tắt, collapse vẫn hiển thị.
+@media (scripting: none) {
+    .neo-nav-group .collapse {
+        display: block !important;
+    }
+    .neo-nav-group__chevron {
+        display: none;
+    }
+}
+
+// Reduced motion.
+@media (prefers-reduced-motion: reduce) {
+    .neo-nav-group__chevron {
+        transition: none;
+    }
+}
+
 .neo-navlink {
     display: flex;
     align-items: center;
@@ -693,6 +768,25 @@ a.btn {
         color: $neo-wine;
         text-decoration: underline;
         text-underline-offset: .18em;
+    }
+}
+
+// Chốt và hủy là hai mặt của cùng một quyết định nên đứng chung một hàng: xếp
+// chồng hai nút cỡ lớn khiến màn hình điện thoại trông như một bức tường nút và
+// dễ chạm nhầm nút nằm ngay dưới ngón tay.
+//
+// Cặp này chia đôi chiều rộng trên màn hẹp; từ lg trở lên hàng thao tác vốn đã
+// nằm ngang nên hai nút trở lại kích thước theo nội dung.
+.payroll-actions__pair {
+    display: flex;
+    gap: .5rem;
+
+    > * { flex: 1 1 0; min-width: 0; }
+    > form > .btn { width: 100%; }
+
+    @include media-breakpoint-up(lg) {
+        > * { flex: 0 0 auto; }
+        > form > .btn { width: auto; }
     }
 }
 

@@ -30,7 +30,7 @@ final class AdminNavigation
     /**
      * Every destination the user can open, in menu order.
      *
-     * @return Collection<int, array{label: string, short: string, route: string, pattern: array<int, string>|string, icon: string, primary: bool, badge: int}>
+     * @return Collection<int, array{label: string, short: string, route: string, pattern: array<int, string>|string, icon: string, primary: bool, badge: int, group: string}>
      */
     public static function for(User $user): Collection
     {
@@ -42,6 +42,7 @@ final class AdminNavigation
                 'route' => 'admin.dashboard', 'pattern' => 'admin.dashboard',
                 'icon' => 'dashboard', 'primary' => true,
                 'visible' => true,
+                'group' => 'quick',
             ],
             [
                 // Với nhân viên đây là màn hình dùng nhiều nhất trong ngày nên
@@ -50,18 +51,21 @@ final class AdminNavigation
                 'route' => 'attendance.board', 'pattern' => 'attendance.board',
                 'icon' => 'pin', 'primary' => $user->isEmployee(),
                 'visible' => true,
+                'group' => 'quick',
             ],
             [
                 'label' => 'Lịch hẹn', 'short' => 'Lịch hẹn',
                 'route' => 'admin.appointments.index', 'pattern' => 'admin.appointments.*',
                 'icon' => 'calendar', 'primary' => true,
                 'visible' => $user->can('viewAny', Appointment::class),
+                'group' => 'quick',
             ],
             [
                 'label' => 'Hóa đơn & thu chi', 'short' => 'Hóa đơn',
                 'route' => 'admin.invoices.index', 'pattern' => ['admin.invoices.*', 'admin.cash.*'],
                 'icon' => 'receipt', 'primary' => true,
                 'visible' => $user->can('viewAny', Invoice::class) || $user->can('viewAny', CashTransaction::class),
+                'group' => 'sales',
             ],
             [
                 // Nhân viên chỉ có thể xem bảng lương của chính mình. Không dẫn
@@ -72,6 +76,7 @@ final class AdminNavigation
                 'pattern' => $user->can('viewAny', AttendanceRecord::class) ? ['admin.attendance.*', 'admin.payrolls.*'] : 'admin.payrolls.*',
                 'icon' => 'clock', 'primary' => true,
                 'visible' => $user->can('viewAny', Payroll::class),
+                'group' => 'hr',
             ],
             [
                 'label' => 'Đơn ca & nghỉ', 'short' => 'Đơn ca',
@@ -79,6 +84,14 @@ final class AdminNavigation
                 'icon' => 'alert', 'primary' => false,
                 'visible' => $user->can('viewAny', ShiftRequest::class),
                 'badge' => $shiftRequestBadge,
+                'group' => 'hr',
+            ],
+            [
+                'label' => 'Nhân sự', 'short' => 'Nhân sự',
+                'route' => 'admin.employees.index', 'pattern' => 'admin.employees.*',
+                'icon' => 'people', 'primary' => false,
+                'visible' => $user->can('viewAny', User::class),
+                'group' => 'hr',
             ],
             [
                 'label' => 'Kho vật tư', 'short' => 'Kho',
@@ -86,39 +99,88 @@ final class AdminNavigation
                 'pattern' => ['admin.products.*', 'admin.suppliers.*', 'admin.inventory.*', 'admin.stock-transfers.*'],
                 'icon' => 'box', 'primary' => false,
                 'visible' => $user->can('viewAny', Product::class),
+                'group' => 'ops',
             ],
             [
                 'label' => 'Dịch vụ', 'short' => 'Dịch vụ',
                 'route' => 'admin.services.index', 'pattern' => 'admin.services.*',
                 'icon' => 'inbox', 'primary' => false,
                 'visible' => $user->can('viewAny', Service::class),
-            ],
-            [
-                'label' => 'Nhân sự', 'short' => 'Nhân sự',
-                'route' => 'admin.employees.index', 'pattern' => 'admin.employees.*',
-                'icon' => 'people', 'primary' => false,
-                'visible' => $user->can('viewAny', User::class),
-            ],
-            [
-                'label' => 'Cảnh báo', 'short' => 'Cảnh báo',
-                'route' => 'admin.risk-flags.index', 'pattern' => 'admin.risk-flags.*',
-                'icon' => 'pin', 'primary' => false,
-                'visible' => $user->can('viewAny', RiskFlag::class),
-            ],
-            [
-                'label' => 'Báo cáo', 'short' => 'Báo cáo',
-                'route' => 'admin.reports.index', 'pattern' => 'admin.reports.*',
-                'icon' => 'chart', 'primary' => false,
-                'visible' => Gate::forUser($user)->allows('view-reports'),
+                'group' => 'ops',
             ],
             [
                 'label' => 'Chi nhánh', 'short' => 'Chi nhánh',
                 'route' => 'admin.branches.index', 'pattern' => 'admin.branches.*',
                 'icon' => 'branch', 'primary' => false,
                 'visible' => $user->can('viewAny', Branch::class),
+                'group' => 'ops',
+            ],
+            [
+                'label' => 'Cảnh báo', 'short' => 'Cảnh báo',
+                'route' => 'admin.risk-flags.index', 'pattern' => 'admin.risk-flags.*',
+                'icon' => 'pin', 'primary' => false,
+                'visible' => $user->can('viewAny', RiskFlag::class),
+                'group' => 'control',
+            ],
+            [
+                'label' => 'Báo cáo', 'short' => 'Báo cáo',
+                'route' => 'admin.reports.index', 'pattern' => 'admin.reports.*',
+                'icon' => 'chart', 'primary' => false,
+                'visible' => Gate::forUser($user)->allows('view-reports'),
+                'group' => 'sales',
             ],
         ])->map(fn (array $item): array => $item + ['badge' => 0])
             ->where('visible', true)
+            ->values();
+    }
+
+    /**
+     * Group labels keyed by group id.
+     *
+     * @return array<string, string>
+     */
+    public static function groupLabels(): array
+    {
+        return [
+            'quick' => 'Truy cập nhanh',
+            'sales' => 'Bán hàng & tài chính',
+            'hr' => 'Nhân sự & ca làm',
+            'ops' => 'Vận hành cửa hàng',
+            'control' => 'Kiểm soát',
+        ];
+    }
+
+    /**
+     * Group the filtered navigation into sections.
+     *
+     * Uses the already-built collection so badge queries are not repeated.
+     * Empty groups are omitted.
+     *
+     * @param  Collection<int, array<string, mixed>>  $navigation
+     * @return Collection<int, array{id: string, label: string, items: Collection<int, array<string, mixed>>, badge: int, isActive: bool}>
+     */
+    public static function groups(Collection $navigation): Collection
+    {
+        $labels = self::groupLabels();
+
+        return $navigation
+            ->groupBy('group')
+            ->map(function (Collection $items, string $groupId) use ($labels): array {
+                $badge = $items->sum('badge');
+                $isActive = $items->contains(
+                    fn (array $item): bool => request()->routeIs(
+                        is_array($item['pattern']) ? $item['pattern'] : [$item['pattern']]
+                    )
+                );
+
+                return [
+                    'id' => $groupId,
+                    'label' => $labels[$groupId] ?? $groupId,
+                    'items' => $items,
+                    'badge' => $badge,
+                    'isActive' => $isActive,
+                ];
+            })
             ->values();
     }
 
