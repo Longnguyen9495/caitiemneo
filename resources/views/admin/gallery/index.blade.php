@@ -5,7 +5,7 @@
 
     @can('create', App\Models\GalleryItem::class)
         <section class="card mb-3">
-            <form class="card-body row g-3 align-items-end" method="POST" action="{{ route('admin.gallery.store') }}" enctype="multipart/form-data">
+            <form class="card-body row g-3 align-items-end" method="POST" action="{{ route('admin.gallery.store') }}" enctype="multipart/form-data" data-gallery-upload-form>
                 @csrf
 
                 <div class="col-12 col-lg-8">
@@ -17,12 +17,14 @@
                         name="media[]"
                         accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,video/webm"
                         multiple
-                        required>
+                        required
+                        data-gallery-media>
                     <small class="d-block mt-1 text-body-secondary">
-                        Tối đa {{ $maxFiles }} tệp mỗi lần, mỗi tệp {{ $maxMegabytes }} MB.
-                        Ảnh sẽ được nén sẵn nhiều khổ; video giữ nguyên nên hãy quay ngắn.
-                        Ảnh HEIC của iPhone cần xuất sang JPG trước.
+                        Tối đa {{ $maxFiles }} tệp mỗi lần. Ảnh JPG, PNG, WebP dung lượng lớn sẽ tự tối ưu trước khi gửi.
+                        Video giữ nguyên và tối đa {{ $maxMegabytes }} MB. Ảnh HEIC của iPhone cần xuất sang JPG trước.
                     </small>
+                    <div class="form-text" data-gallery-upload-status hidden aria-live="polite"></div>
+                    <div class="invalid-feedback d-block" data-gallery-upload-error hidden></div>
                 </div>
 
                 <div class="col-12 col-lg-4 d-flex justify-content-lg-end">

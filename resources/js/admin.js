@@ -132,6 +132,102 @@ const compressPaymentProof = async (file) => {
     throw new Error('Không thể giảm ảnh xuống dưới 5 MB. Hãy chụp lại ảnh gần hơn hoặc chọn ảnh khác.');
 };
 
+const GALLERY_MAX_BYTES = 9 * 1024 * 1024;
+const GALLERY_TARGET_BYTES = 8 * 1024 * 1024;
+const GALLERY_MAX_DIMENSION = 2560;
+const GALLERY_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+
+const compressGalleryImage = async (file) => {
+    if (!GALLERY_IMAGE_TYPES.includes(file.type) || file.size <= GALLERY_MAX_BYTES) {
+        return file;
+    }
+
+    if (!('createImageBitmap' in window) || !HTMLCanvasElement.prototype.toBlob) {
+        throw new Error(`${file.name} quá lớn. Thiết bị này không hỗ trợ tự tối ưu ảnh.`);
+    }
+
+    const image = await createImageBitmap(file);
+    const scale = Math.min(1, GALLERY_MAX_DIMENSION / Math.max(image.width, image.height));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(image.width * scale));
+    canvas.height = Math.max(1, Math.round(image.height * scale));
+    canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height);
+    image.close();
+
+    for (const quality of [0.88, 0.8, 0.72, 0.64]) {
+        const blob = await canvasBlob(canvas, quality);
+
+        if (blob && blob.size <= GALLERY_TARGET_BYTES) {
+            return new File([blob], `${file.name.replace(/\.[^.]+$/, '') || 'gallery'}.jpg`, {
+                type: 'image/jpeg',
+                lastModified: file.lastModified,
+            });
+        }
+    }
+
+    throw new Error(`Không thể giảm ${file.name} xuống dưới 9 MB. Hãy chọn ảnh khác.`);
+};
+
+document.querySelectorAll('[data-gallery-upload-form]').forEach((form) => {
+    const input = form.querySelector('[data-gallery-media]');
+    const status = form.querySelector('[data-gallery-upload-status]');
+    const error = form.querySelector('[data-gallery-upload-error]');
+    const submit = form.querySelector('button[type="submit"]');
+    let processing = false;
+
+    input?.addEventListener('change', async () => {
+        const selected = Array.from(input.files ?? []);
+        const output = new DataTransfer();
+        let optimizedCount = 0;
+        processing = true;
+        submit?.setAttribute('disabled', 'disabled');
+        input.classList.remove('is-invalid');
+        error.hidden = true;
+        status.hidden = false;
+        status.textContent = 'Đang kiểm tra và tối ưu ảnh…';
+
+        try {
+            for (const file of selected) {
+                if (file.type.startsWith('video/') && file.size > GALLERY_MAX_BYTES) {
+                    throw new Error(`${file.name} vượt quá 9 MB. Video hiện được giữ nguyên nên hãy chọn video ngắn hơn.`);
+                }
+
+                const optimized = await compressGalleryImage(file);
+
+                if (optimized !== file) {
+                    optimizedCount++;
+                }
+
+                if (optimized.size > GALLERY_MAX_BYTES) {
+                    throw new Error(`${file.name} vượt quá 9 MB.`);
+                }
+
+                output.items.add(optimized);
+            }
+
+            input.files = output.files;
+            status.textContent = optimizedCount > 0
+                ? `Đã tối ưu ${optimizedCount} ảnh, sẵn sàng đăng.`
+                : 'Các tệp đã sẵn sàng đăng.';
+        } catch (exception) {
+            input.value = '';
+            input.classList.add('is-invalid');
+            status.hidden = true;
+            error.textContent = exception.message;
+            error.hidden = false;
+        } finally {
+            processing = false;
+            submit?.removeAttribute('disabled');
+        }
+    });
+
+    form.addEventListener('submit', (event) => {
+        if (processing) {
+            event.preventDefault();
+        }
+    });
+});
+
 document.querySelectorAll('[data-payment-proof-form]').forEach((form) => {
     const input = form.querySelector('[data-payment-proof-image]');
     let processing = false;
