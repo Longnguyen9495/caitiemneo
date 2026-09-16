@@ -6,6 +6,7 @@ use App\Actions\Attendance\CheckInAction;
 use App\Actions\Attendance\CheckOutAction;
 use App\Http\Requests\ClockEventRequest;
 use App\Services\Attendance\ShiftBoard;
+use App\Services\Calendar\PersonalCalendarQuery;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -21,9 +22,16 @@ class StaffAttendanceController extends Controller
 {
     public function __construct(private ShiftBoard $shiftBoard) {}
 
-    public function index(Request $request): View
+    public function index(Request $request, PersonalCalendarQuery $calendarQuery): View
     {
-        return view('attendance.board', $this->shiftBoard->for($request->user()));
+        $data = $this->shiftBoard->for($request->user());
+        $data['calendar'] = $calendarQuery->for(
+            $request->user(),
+            $request->query('month'),
+            route('attendance.board'),
+        );
+
+        return view('attendance.board', $data);
     }
 
     public function checkIn(ClockEventRequest $request, CheckInAction $checkIn): RedirectResponse

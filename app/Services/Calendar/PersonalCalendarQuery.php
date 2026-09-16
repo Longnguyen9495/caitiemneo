@@ -41,7 +41,7 @@ final readonly class PersonalCalendarQuery
             itemsByDay: $itemsByDay,
             legend: $this->legend(),
             mode: 'personal',
-            canInteract: false,
+            canInteract: true,
         );
     }
 

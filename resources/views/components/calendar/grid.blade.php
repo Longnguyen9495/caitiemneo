@@ -1,14 +1,10 @@
-@props(['viewModel', 'toolbarSlot' => null, 'detailSlot' => null])
+@props(['viewModel', 'toolbarSlot' => null])
 
 @php
     /** @var \App\Support\CalendarViewModel $viewModel */
 @endphp
 
-<div
-    class="neo-cal"
-    x-data="calendarPanel()"
-    @calendar:show-detail.window="open($event.detail.date)"
->
+<div class="neo-cal">
     {{-- Toolbar tháng/kỳ --}}
     <div class="neo-cal__toolbar">
         <div class="neo-cal__nav">
@@ -69,18 +65,4 @@
         </div>
     @endif
 
-    {{-- Detail panel (rendered server-side, toggled by Alpine) --}}
-    <template x-if="activeDate">
-        <div class="neo-cal__panel" role="dialog" aria-modal="true" aria-label="Chi tiết ngày" @click.away="close()">
-            <div class="neo-cal__panel-header">
-                <span class="neo-cal__panel-title" x-text="activeDateLabel"></span>
-                <button type="button" class="neo-cal__panel-close" @click="close()" aria-label="Đóng">
-                    <x-admin.icon name="chevron-down" size="20" />
-                </button>
-            </div>
-            <div class="neo-cal__panel-body">
-                {{ $detailSlot }}
-            </div>
-        </div>
-    </template>
 </div>

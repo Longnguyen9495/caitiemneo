@@ -154,5 +154,65 @@
                 </table>
             </section>
         </div>
+
+        {{-- Lịch tháng --}}
+        @if (isset($calendar))
+            <div class="col-12" x-data="calendarPanel()" @calendar:show-detail.window="open($event.detail.date)">
+                <section class="card overflow-hidden">
+                    <div class="p-3 border-bottom">
+                        <h3 class="fs-6 fw-semibold mb-0">Lịch chấm công tháng</h3>
+                    </div>
+
+                    <x-calendar.grid :viewModel="$calendar" />
+
+                    {{-- Panel chi tiết ngày — server-render, Alpine chỉ điều khiển hiển thị --}}
+                    <div
+                        class="neo-cal__panel"
+                        :class="{ 'is-open': activeDate !== null }"
+                        x-show="activeDate !== null"
+                        x-cloak
+                    >
+                        <div class="neo-cal__panel-header">
+                            <span class="fw-semibold" x-text="activeDateLabel"></span>
+                            <button type="button" class="btn btn-sm btn-link" @click="close()">Đóng</button>
+                        </div>
+                        <div class="neo-cal__panel-body">
+                            @foreach ($calendar->days as $day)
+                                @php
+                                    $iso = $day->isoDate;
+                                    $items = $calendar->itemsForDay($iso);
+                                @endphp
+                                <div x-show="activeDate === '{{ $iso }}'" x-cloak>
+                                    @if ($items->isNotEmpty())
+                                        <div class="d-flex flex-column gap-2">
+                                            @foreach ($items as $item)
+                                                <div class="d-flex align-items-start gap-2 py-2 border-bottom">
+                                                    <div class="flex-grow-1">
+                                                        <p class="mb-0 fw-semibold">{{ $item->shiftName ?? 'Ca không tên' }}</p>
+                                                        <p class="mb-0 small text-body-secondary">
+                                                            {{ $item->checkedInAt ?? ($item->plannedStartAt ?? '—') }}
+                                                            /
+                                                            {{ $item->checkedOutAt ?? ($item->plannedEndAt ?? '—') }}
+                                                        </p>
+                                                        @if ($item->note)
+                                                            <p class="mb-0 small text-body-secondary">{{ $item->note }}</p>
+                                                        @endif
+                                                    </div>
+                                                    @if ($item->status)
+                                                        <x-admin.status-badge :status="$item->status" />
+                                                    @endif
+                                                </div>
+                                            @endforeach
+                                        </div>
+                                    @else
+                                        <p class="small text-body-secondary mb-0">Không có dữ liệu cho ngày này.</p>
+                                    @endif
+                                </div>
+                            @endforeach
+                        </div>
+                    </div>
+                </section>
+            </div>
+        @endif
     </div>
 </x-layouts.admin>

@@ -20,6 +20,7 @@ final readonly class CalendarMonth
 
     public function __construct(?string $yearMonth = null)
     {
+        CarbonImmutable::setLocale('vi');
         $this->startOfMonth = self::resolve($yearMonth);
     }
 
@@ -125,9 +126,12 @@ final readonly class CalendarMonth
 
         $query['month'] = $month->format('Y-m');
 
+        $scheme = isset($parsed['scheme']) ? $parsed['scheme'] . '://' : '';
+        $host = $parsed['host'] ?? '';
+        $port = isset($parsed['port']) ? ':' . $parsed['port'] : '';
         $path = $parsed['path'] ?? '/';
         $qs = http_build_query($query);
 
-        return $path . '?' . $qs;
+        return $scheme . $host . $port . $path . '?' . $qs;
     }
 }

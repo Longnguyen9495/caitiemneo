@@ -97,15 +97,15 @@ final class CalendarComponentRenderTest extends TestCase
         $this->assertStringContainsString('neo-cal__badge--warn', $html);
     }
 
-    public function test_detail_panel_is_not_visible_initially(): void
+    public function test_grid_does_not_render_detail_panel_markup(): void
     {
         $viewModel = $this->makeViewModel();
 
         $html = view('components.calendar.grid', ['viewModel' => $viewModel])->render();
 
-        // Panel dùng x-if nên template không render ra DOM thật khi activeDate null
-        $this->assertStringContainsString('x-if="activeDate"', $html);
-        $this->assertStringContainsString('role="dialog"', $html);
+        // Panel được render bởi view cha (board), không nằm trong grid component
+        $this->assertStringNotContainsString('role="dialog"', $html);
+        $this->assertStringNotContainsString('x-show="activeDate"', $html);
     }
 
     public function test_legend_component_renders_items(): void
