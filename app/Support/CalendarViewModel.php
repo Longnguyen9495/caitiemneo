@@ -74,7 +74,7 @@ final readonly class CalendarViewModel
      */
     public function dayRecordCount(string $isoDate): int
     {
-        return $this->itemsForDay($isoDate)->count(fn (CalendarItem $i): bool => $i->recordId !== null);
+        return $this->itemsForDay($isoDate)->filter(fn (CalendarItem $i): bool => $i->recordId !== null)->count();
     }
 
     /**

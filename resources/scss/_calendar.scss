@@ -1,0 +1,297 @@
+// --- Calendar component -------------------------------------------------------
+// Dùng chung cho lịch cá nhân, quản trị và payroll.
+// Ưu tiên điện thoại; touch target tối thiểu 44px.
+
+.neo-cal {
+    --cal-gap: .25rem;
+    --cal-pad: .5rem;
+    --cal-min-cell-h: 3.5rem;
+
+    border-radius: $neo-radius-container;
+    background: $neo-paper;
+    box-shadow: $neo-shadow-sm;
+    padding: var(--cal-pad);
+
+    @include media-breakpoint-up(md) {
+        --cal-gap: .4rem;
+        --cal-pad: .75rem;
+        --cal-min-cell-h: 4.5rem;
+    }
+}
+
+// Toolbar
+.neo-cal__toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .5rem;
+    margin-bottom: .75rem;
+}
+
+.neo-cal__nav {
+    display: flex;
+    align-items: center;
+    gap: .35rem;
+}
+
+.neo-cal__arrow {
+    display: inline-grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    border-radius: $neo-radius-control;
+    color: $neo-ink-muted;
+    text-decoration: none;
+    transition: background-color 160ms ease, color 160ms ease;
+
+    &:hover { background: rgba(123, 47, 80, .08); color: $neo-wine; }
+}
+
+.neo-cal__arrow-icon {
+    transform: rotate(90deg);
+    &:last-child { transform: rotate(-90deg); }
+}
+
+.neo-cal__title {
+    display: inline-block;
+    min-width: 8rem;
+    padding: .35rem .6rem;
+    border-radius: $neo-radius-control;
+    color: $neo-wine;
+    font-weight: 600;
+    font-size: .92rem;
+    text-align: center;
+    text-decoration: none;
+    transition: background-color 160ms ease;
+
+    &:hover { background: rgba(123, 47, 80, .08); }
+}
+
+// Weekday labels
+.neo-cal__weekdays {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: var(--cal-gap);
+    margin-bottom: .35rem;
+}
+
+.neo-cal__weekday {
+    text-align: center;
+    font-size: .72rem;
+    font-weight: 600;
+    color: $neo-ink-muted;
+    padding: .25rem 0;
+}
+
+// Grid
+.neo-cal__grid {
+    display: grid;
+    gap: var(--cal-gap);
+}
+
+.neo-cal__row {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: var(--cal-gap);
+}
+
+// Day cell
+.neo-cal__cell {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: space-between;
+    min-height: var(--cal-min-cell-h);
+    padding: .35rem .4rem;
+    border: 1px solid rgba(123, 47, 80, .1);
+    border-radius: $neo-radius-control;
+    background: $neo-canvas;
+    color: $neo-ink;
+    text-align: left;
+    cursor: default;
+    transition: background-color 160ms ease, border-color 160ms ease, transform 160ms ease;
+
+    &.has-data {
+        cursor: pointer;
+        &:hover {
+            transform: translateY(-1px);
+            box-shadow: $neo-shadow-sm;
+        }
+    }
+
+    &.is-outside {
+        background: rgba(255, 253, 253, .6);
+        color: $neo-ink-muted;
+        opacity: .8;
+    }
+
+    &.is-today {
+        border-color: $neo-wine-bright;
+        .neo-cal__daynum {
+            font-weight: 700;
+            color: $neo-wine;
+        }
+    }
+}
+
+.neo-cal__daynum {
+    font-size: .82rem;
+    line-height: 1;
+}
+
+.neo-cal__indicators {
+    display: flex;
+    gap: .2rem;
+    align-items: center;
+    margin-top: .15rem;
+}
+
+.neo-cal__badge {
+    display: inline-grid;
+    place-items: center;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 .25rem;
+    border-radius: 99px;
+    font-size: .6rem;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.neo-cal__badge--count {
+    background: rgba(123, 47, 80, .1);
+    color: $neo-wine;
+}
+
+.neo-cal__badge--warn {
+    background: rgba(166, 48, 87, .12);
+    color: $neo-danger;
+}
+
+// Tone strip at bottom
+.neo-cal__strip {
+    position: absolute;
+    inset: auto 0 0 0;
+    height: 3px;
+    border-radius: 0 0 $neo-radius-control $neo-radius-control;
+}
+
+.neo-cal__tone--success .neo-cal__strip { background: $neo-success; }
+.neo-cal__tone--danger .neo-cal__strip { background: $neo-danger; }
+.neo-cal__tone--warning .neo-cal__strip { background: $neo-warning; }
+.neo-cal__tone--active .neo-cal__strip { background: $neo-wine-bright; }
+.neo-cal__tone--planned .neo-cal__strip { background: rgba(123, 47, 80, .35); }
+.neo-cal__tone--empty .neo-cal__strip { background: transparent; }
+
+// Legend
+.neo-cal__legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem .9rem;
+    margin-top: .75rem;
+    padding-top: .6rem;
+    border-top: 1px solid rgba(123, 47, 80, .1);
+}
+
+.neo-cal__legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    font-size: .72rem;
+    color: $neo-ink-muted;
+}
+
+.neo-cal__dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 99px;
+}
+
+.neo-cal__dot--success { background: $neo-success; }
+.neo-cal__dot--danger { background: $neo-danger; }
+.neo-cal__dot--warning { background: $neo-warning; }
+.neo-cal__dot--active { background: $neo-wine-bright; }
+.neo-cal__dot--planned { background: rgba(123, 47, 80, .35); }
+.neo-cal__dot--muted { background: rgba(118, 88, 100, .3); }
+
+// Detail panel
+.neo-cal__panel {
+    position: fixed;
+    inset: auto 0 0 0;
+    z-index: $zindex-modal;
+    background: $neo-paper;
+    border-radius: $neo-radius-container $neo-radius-container 0 0;
+    box-shadow: $neo-shadow-lg;
+    padding: 1rem;
+    max-height: 70vh;
+    overflow-y: auto;
+    animation: cal-slide-up 220ms ease;
+
+    @include media-breakpoint-up(lg) {
+        position: relative;
+        inset: auto;
+        border-radius: $neo-radius-container;
+        max-height: none;
+        margin-top: 1rem;
+        box-shadow: $neo-shadow;
+        animation: none;
+    }
+}
+
+@keyframes cal-slide-up {
+    from { transform: translateY(100%); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
+.neo-cal__panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: .75rem;
+    padding-bottom: .5rem;
+    border-bottom: 1px solid rgba(123, 47, 80, .1);
+}
+
+.neo-cal__panel-title {
+    font-weight: 600;
+    color: $neo-wine;
+    font-size: .92rem;
+}
+
+.neo-cal__panel-close {
+    display: inline-grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    border: 0;
+    border-radius: $neo-radius-control;
+    background: transparent;
+    color: $neo-ink-muted;
+    cursor: pointer;
+    transition: background-color 160ms ease;
+
+    &:hover { background: rgba(123, 47, 80, .08); color: $neo-wine; }
+}
+
+// Backdrop for mobile detail panel
+.neo-cal__panel::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: rgba(56, 36, 46, .35);
+    z-index: -1;
+    pointer-events: none;
+
+    @include media-breakpoint-up(lg) {
+        display: none;
+    }
+}
+
+// Print: hide interactive parts
+@media print {
+    .neo-cal__cell.has-data { cursor: default; }
+    .neo-cal__panel { display: none !important; }
+    .neo-cal__arrow { display: none; }
+}

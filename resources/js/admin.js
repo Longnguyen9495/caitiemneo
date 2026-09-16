@@ -547,4 +547,24 @@ window.Alpine = Alpine;
 
 Alpine.data('searchableSelect', searchableSelect);
 
+/**
+ * Tối thiểu: mở/đóng panel chi tiết ngày trên lịch.
+ * Nội dung panel được server render; Alpine chỉ điều khiển hiển thị.
+ */
+Alpine.data('calendarPanel', () => ({
+    activeDate: null,
+    activeDateLabel: '',
+
+    open(date) {
+        this.activeDate = date;
+        const btn = document.querySelector(`[data-cal-date="${date}"]`);
+        this.activeDateLabel = btn ? btn.getAttribute('aria-label') : date;
+    },
+
+    close() {
+        this.activeDate = null;
+        this.activeDateLabel = '';
+    },
+}));
+
 Alpine.start();
