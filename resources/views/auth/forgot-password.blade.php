@@ -6,7 +6,9 @@
     </header>
 
     @if (session('status'))
-        <div class="auth-alert auth-success" role="status">{{ session('status') }}</div>
+        <div class="auth-alert auth-success" role="status">
+            Chúng tôi đã gửi liên kết đặt lại mật khẩu tới email của bạn.
+        </div>
     @endif
 
     <form method="POST" action="{{ route('password.email') }}" class="auth-form">

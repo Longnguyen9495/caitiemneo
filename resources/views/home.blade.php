@@ -228,6 +228,8 @@
             @error('customer_name')<small>{{ $message }}</small>@enderror
             <label>Số điện thoại<input name="customer_phone" value="{{ old('customer_phone') }}" required inputmode="tel" autocomplete="tel" /></label>
             @error('customer_phone')<small>{{ $message }}</small>@enderror
+            <label>Email<input type="email" name="customer_email" value="{{ old('customer_email') }}" autocomplete="email" placeholder="Để nhận thông tin lịch hẹn" /></label>
+            @error('customer_email')<small>{{ $message }}</small>@enderror
             <label>Thời gian mong muốn<input type="datetime-local" name="starts_at" value="{{ old('starts_at') }}" min="{{ now('Asia/Ho_Chi_Minh')->addHour()->format('Y-m-d\\TH:i') }}" required /></label>
             @error('starts_at')<small>{{ $message }}</small>@enderror
             <label>Thời lượng dự kiến<select name="duration_minutes" required><option value="60" @selected(old('duration_minutes', 60) == 60)>60 phút</option><option value="90" @selected(old('duration_minutes') == 90)>90 phút</option><option value="120" @selected(old('duration_minutes') == 120)>120 phút</option><option value="150" @selected(old('duration_minutes') == 150)>150 phút</option></select></label>

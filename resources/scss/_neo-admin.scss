@@ -209,7 +209,7 @@ body.neo {
     padding-left: .5rem;
 
     .neo-navlink {
-        padding-left: calc(.75rem + 19px + .7rem); // indent = icon + gap
+        padding-left: calc(.75rem + .7rem); // indent = gap only
         border-radius: 0 $neo-radius-control $neo-radius-control 0;
     }
 }

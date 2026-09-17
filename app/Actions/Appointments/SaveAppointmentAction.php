@@ -17,7 +17,7 @@ class SaveAppointmentAction
     /**
      * Create or update an appointment together with its customer and service lines.
      *
-     * @param  array{branch_id: int|string, customer_name: string, customer_phone: string, employee_id?: int|string|null, starts_at: string, duration_minutes: int|string, status: string, note?: string|null, service_ids?: array<int, int|string>}  $data
+     * @param  array{branch_id: int|string, customer_name: string, customer_phone: string, customer_email?: string|null, employee_id?: int|string|null, starts_at: string, duration_minutes: int|string, status: string, note?: string|null, service_ids?: array<int, int|string>}  $data
      *
      * @throws ValidationException when the branch, the posting or the slot does not hold up
      */
@@ -36,7 +36,11 @@ class SaveAppointmentAction
         $this->guardAgainstOverlap($employeeId, $startsAt, $endsAt, $appointment?->getKey());
 
         return DB::transaction(function () use ($data, $appointment, $branchId, $employeeId, $startsAt, $endsAt, $durationMinutes): Appointment {
-            $customer = $this->saveCustomer($data['customer_name'], $data['customer_phone']);
+            $customer = $this->saveCustomer(
+                $data['customer_name'],
+                $data['customer_phone'],
+                $data['customer_email'] ?? null,
+            );
 
             $attributes = [
                 'branch_id' => $branchId,
@@ -44,6 +48,7 @@ class SaveAppointmentAction
                 'employee_id' => $employeeId,
                 'customer_name' => $data['customer_name'],
                 'customer_phone' => $data['customer_phone'],
+                'customer_email' => $data['customer_email'] ?? null,
                 'starts_at' => $startsAt,
                 'ends_at' => $endsAt,
                 'duration_minutes' => $durationMinutes,
@@ -149,10 +154,16 @@ class SaveAppointmentAction
         }
     }
 
-    private function saveCustomer(string $name, string $phone): Customer
+    private function saveCustomer(string $name, string $phone, ?string $email = null): Customer
     {
-        $customer = Customer::query()->firstOrCreate(['phone' => $phone], ['name' => $name]);
-        $customer->update(['name' => $name]);
+        $customer = Customer::query()->firstOrCreate(['phone' => $phone], [
+            'name' => $name,
+            'email' => $email,
+        ]);
+        $customer->update([
+            'name' => $name,
+            'email' => $email ?: $customer->email,
+        ]);
 
         return $customer;
     }

@@ -9,6 +9,7 @@ use App\Models\Customer;
 use App\Models\Service;
 use App\Models\User;
 use App\Notifications\NewOnlineBookingNotification;
+use App\Notifications\OnlineBookingReceivedNotification;
 use Carbon\Carbon;
 use Database\Factories\BranchFactory;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -87,6 +88,53 @@ class BookingTest extends TestCase
 
         Notification::assertSentTo([$owner, $manager], NewOnlineBookingNotification::class);
         Notification::assertNotSentTo([$inactiveManager, $staffMember], NewOnlineBookingNotification::class);
+    }
+
+    public function test_a_customer_email_is_saved_and_receives_its_own_notification(): void
+    {
+        Notification::fake();
+
+        $this->post(route('booking.store'), $this->payload(
+            now()->addDays(2)->startOfHour()->format('Y-m-d\TH:i'),
+            ['customer_email' => 'khach@example.com'],
+        ))->assertRedirect(route('home').'#dat-lich');
+
+        $appointment = Appointment::query()->firstOrFail();
+        $customer = Customer::query()->firstOrFail();
+
+        $this->assertSame('khach@example.com', $appointment->customer_email);
+        $this->assertSame('khach@example.com', $customer->email);
+        Notification::assertSentOnDemand(
+            OnlineBookingReceivedNotification::class,
+            fn (OnlineBookingReceivedNotification $notification, array $channels, object $notifiable): bool => in_array('mail', $channels, true)
+                && $notifiable->routes['mail']['khach@example.com'] === 'Khách online',
+        );
+    }
+
+    public function test_a_booking_without_email_does_not_send_a_customer_notification(): void
+    {
+        Notification::fake();
+
+        $this->post(route('booking.store'), $this->payload(
+            now()->addDays(2)->startOfHour()->format('Y-m-d\TH:i'),
+        ))->assertRedirect(route('home').'#dat-lich');
+
+        Notification::assertSentOnDemandTimes(OnlineBookingReceivedNotification::class, 0);
+    }
+
+    public function test_an_invalid_customer_email_is_rejected(): void
+    {
+        Notification::fake();
+
+        $this->from(route('home'))
+            ->post(route('booking.store'), $this->payload(
+                now()->addDays(2)->startOfHour()->format('Y-m-d\TH:i'),
+                ['customer_email' => 'email-khong-hop-le'],
+            ))
+            ->assertSessionHasErrors('customer_email');
+
+        $this->assertSame(0, Appointment::query()->count());
+        Notification::assertNothingSent();
     }
 
     public function test_a_publicly_supplied_employee_id_is_ignored_and_booking_stays_unassigned(): void

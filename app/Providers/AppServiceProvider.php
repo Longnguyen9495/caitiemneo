@@ -3,8 +3,12 @@
 namespace App\Providers;
 
 use App\Models\User;
+use App\Services\Ai\Contracts\AiProvider;
+use App\Services\Ai\OpenAiCompatibleProvider;
 use App\Services\Audit\AuditRecorder;
 use App\Support\BranchContext;
+use Illuminate\Auth\Notifications\ResetPassword;
+use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
@@ -23,6 +27,8 @@ class AppServiceProvider extends ServiceProvider
         // Scoped as well, so every audit event raised while handling one
         // request shares a correlation id and reads back as a single action.
         $this->app->scoped(AuditRecorder::class, fn ($app) => new AuditRecorder($app['request']));
+
+        $this->app->bind(AiProvider::class, OpenAiCompatibleProvider::class);
     }
 
     /**
@@ -31,8 +37,34 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->registerGates();
+        $this->registerPasswordResetMail();
 
         Blade::directive('money', fn (string $expression): string => "<?php echo e(\App\Support\Money::format({$expression})); ?>");
+    }
+
+    /**
+     * Email đặt lại mật khẩu mang nội dung tiếng Việt và nhận diện của tiệm.
+     */
+    private function registerPasswordResetMail(): void
+    {
+        ResetPassword::toMailUsing(function (User $user, string $token): MailMessage {
+            $url = url(route('password.reset', [
+                'token' => $token,
+                'email' => $user->getEmailForPasswordReset(),
+            ], false));
+            $expiration = config('auth.passwords.'.config('auth.defaults.passwords').'.expire');
+            $name = trim((string) $user->name);
+
+            return (new MailMessage)
+                ->subject('Đặt lại mật khẩu Cái Tiệm Neo')
+                ->greeting($name !== '' ? "Xin chào {$name}," : 'Xin chào,')
+                ->line('Chúng tôi nhận được yêu cầu đặt lại mật khẩu cho tài khoản của bạn tại Cái Tiệm Neo.')
+                ->line('Nhấn nút bên dưới để tạo mật khẩu mới:')
+                ->action('Đặt lại mật khẩu', $url)
+                ->line("Liên kết này sẽ hết hạn sau {$expiration} phút.")
+                ->line('Nếu bạn không thực hiện yêu cầu này, bạn có thể bỏ qua email và tài khoản vẫn được bảo mật.')
+                ->salutation("Trân trọng,\nCái Tiệm Neo");
+        });
     }
 
     /**
@@ -43,6 +75,7 @@ class AppServiceProvider extends ServiceProvider
      */
     private function registerGates(): void
     {
+        Gate::define('use-ai-assistant', fn (User $user): bool => $user->isLeadership());
         Gate::define('view-reports', fn (User $user): bool => $user->isOwner() || $user->isManager());
         Gate::define('view-profit-reports', fn (User $user): bool => $user->isOwner());
         Gate::define('view-company-wide', fn (User $user): bool => $user->isOwner());

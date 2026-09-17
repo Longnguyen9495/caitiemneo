@@ -17,6 +17,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
     'employee_id',
     'customer_name',
     'customer_phone',
+    'customer_email',
     'starts_at',
     'ends_at',
     'duration_minutes',

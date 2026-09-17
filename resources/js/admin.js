@@ -765,6 +765,47 @@ document.addEventListener('DOMContentLoaded', () => {
     Modal.getOrCreateInstance(modalEl).show();
 });
 
+/**
+ * Trợ lý AI: đưa tin mới nhất vào tầm nhìn và khóa gửi lặp trong lúc chờ server.
+ */
+document.addEventListener('DOMContentLoaded', () => {
+    const messageList = document.querySelector('[data-ai-message-list]');
+    const form = document.querySelector('[data-ai-form]');
+
+    if (messageList) {
+        messageList.scrollTop = messageList.scrollHeight;
+    }
+
+    if (!form) {
+        return;
+    }
+
+    const textarea = form.querySelector('textarea');
+    const submit = form.querySelector('button[type="submit"]');
+
+    const resizeTextarea = () => {
+        if (!textarea) {
+            return;
+        }
+
+        textarea.style.height = 'auto';
+        textarea.style.height = `${Math.min(textarea.scrollHeight, 192)}px`;
+    };
+
+    textarea?.addEventListener('input', resizeTextarea);
+    resizeTextarea();
+
+    form.addEventListener('submit', () => {
+        if (!submit || submit.disabled) {
+            return;
+        }
+
+        submit.disabled = true;
+        submit.setAttribute('aria-busy', 'true');
+        submit.textContent = 'Đang phân tích…';
+    });
+});
+
 window.Alpine = Alpine;
 
 Alpine.data('searchableSelect', searchableSelect);

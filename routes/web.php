@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Controllers\Admin\AiActionController;
+use App\Http\Controllers\Admin\AiAssistantController;
 use App\Http\Controllers\Admin\AppointmentController;
 use App\Http\Controllers\Admin\AttendanceController;
 use App\Http\Controllers\Admin\AttendanceReviewController;
@@ -71,6 +73,16 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
         Route::post('branch-switch', BranchSwitchController::class)->name('branch.switch');
 
         Route::get('/', DashboardController::class)->name('dashboard');
+
+        Route::get('ai', [AiAssistantController::class, 'index'])->name('ai.index');
+        Route::post('ai/messages', [AiAssistantController::class, 'store'])
+            ->middleware('throttle:20,1')->name('ai.messages.store');
+        Route::middleware(['password.confirm', 'throttle:10,1'])->group(function (): void {
+            Route::post('ai/actions/{proposal}/confirm', [AiActionController::class, 'confirm'])
+                ->name('ai.actions.confirm');
+            Route::post('ai/actions/{proposal}/reject', [AiActionController::class, 'reject'])
+                ->name('ai.actions.reject');
+        });
 
         Route::resource('services', ServiceController::class)->except('show', 'destroy');
 

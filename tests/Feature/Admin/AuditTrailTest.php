@@ -297,6 +297,30 @@ class AuditTrailTest extends TestCase
             ->assertDontSee('Lịch sử thay đổi');
     }
 
+    /** The trail is read by salon staff, so it must not leak column names. */
+    public function test_the_timeline_renders_field_names_and_values_in_vietnamese(): void
+    {
+        $invoice = $this->payableInvoice();
+
+        $this->actingAs($this->manager)->withConfirmedPassword()
+            ->post(route('admin.invoices.pay', $invoice), [
+                'payment_method' => PaymentMethod::Transfer->value,
+                'payment_proof_image' => UploadedFile::fake()->image('payment-proof.jpg'),
+            ])
+            ->assertSessionHasNoErrors();
+
+        $response = $this->actingAs($this->manager)->withConfirmedPassword()
+            ->get(route('admin.invoices.edit', $invoice))
+            ->assertOk();
+
+        // Labels only the timeline's dictionary can produce on this page.
+        $response
+            ->assertSee('Hình thức thanh toán')
+            ->assertSee('Chuyển khoản')
+            ->assertSee('Thời điểm thanh toán')
+            ->assertSee('Tính vào KPI bill');
+    }
+
     private function payableInvoice(): Invoice
     {
         $invoice = Invoice::factory()->create([
