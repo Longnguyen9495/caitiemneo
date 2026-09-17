@@ -1,554 +1,454 @@
 # Kế hoạch hoàn thiện Trợ lý AI quản lý Cái Tiệm Neo
 
-## 1. Mục tiêu
+## 1. Mục tiêu và phạm vi
 
-Hoàn thiện trợ lý AI quản lý native Laravel theo hướng tương tự PageSeed, gồm:
+Hoàn thiện trợ lý AI quản lý native Laravel theo hướng tương tự PageSeed:
 
-- Hỏi đáp bằng tiếng Việt dựa trên dữ liệu vận hành thực tế.
-- Lịch sử hội thoại được lưu theo từng người dùng.
-- Báo cáo có cấu trúc dưới dạng văn bản, bảng và biểu đồ.
-- Đề xuất thao tác nghiệp vụ nhưng tuyệt đối không tự ghi dữ liệu.
-- Chỉ thực hiện thao tác sau khi người dùng xác nhận và xác nhận lại mật khẩu.
-- Kiểm tra lại quyền, chi nhánh và payload tại thời điểm thực thi.
-- Chống thực thi lặp.
-- Tái sử dụng domain action hiện có để giữ nguyên audit trail.
-- Giao diện responsive, an toàn trước nội dung do provider trả về.
+- Hỏi đáp tiếng Việt dựa trên dữ liệu vận hành thực tế.
+- Lưu lịch sử hội thoại riêng theo người dùng và phạm vi chi nhánh.
+- Trả báo cáo dạng văn bản, bảng, biểu đồ cột, đường và doughnut.
+- Chỉ đề xuất thao tác nghiệp vụ; không tự ghi dữ liệu.
+- Chỉ thực thi sau khi người dùng xác nhận và hoàn tất password step-up.
+- Kiểm tra lại quyền, chi nhánh, catalog và payload tại thời điểm thực thi.
+- Chống thực thi lặp, lưu kết quả và audit qua domain action hiện có.
+- Không gửi PII khách hàng cho provider.
+- Giao diện responsive, accessible và an toàn với nội dung provider.
 
-## 2. Trạng thái đã triển khai
+Export CSV không phải phạm vi bắt buộc hiện tại. Chỉ bổ sung nếu người dùng yêu cầu riêng.
 
-### 2.1. Cấu hình và provider
+## 2. Kết quả audit mới nhất — 17/09/2026
+
+### 2.1. Trạng thái repository và môi trường
+
+- `git status --short` và `git diff --stat` không có output trước audit: working tree sạch.
+- PHP: 8.3.33.
+- Composer: 2.10.2.
+- Không phát hiện secret được đưa vào source trong phạm vi audit.
+- Không thay đổi `.env` và không thao tác production PageSeed.
+
+### 2.2. Test đã chạy
+
+Nhóm AI:
+
+```text
+php artisan test \
+  tests\Unit\Services\Ai\OpenAiCompatibleProviderTest.php \
+  tests\Unit\Services\Ai\AiBusinessContextTest.php \
+  tests\Feature\Admin\AiAssistantTest.php \
+  tests\Feature\Admin\AiConversationTest.php \
+  tests\Feature\Admin\AiActionTest.php
+```
+
+Kết quả:
+
+- 60 test qua.
+- 221 assertion qua.
+- Không có lỗi AI.
+
+Full suite:
+
+```text
+php artisan test
+```
+
+Kết quả:
+
+- 787 test qua.
+- 8 test lỗi.
+- 2.663 assertion.
+- Không có test AI lỗi trong full suite.
+
+Tám lỗi còn lại đều ngoài phạm vi AI:
+
+1. `Tests\Feature\Admin\AuditTrailTest` — changing the commission employee is recorded.
+2. `Tests\Feature\Admin\RiskDetectionTest` — a reviewer can quickly assign missing invoice commission.
+3. `Tests\Feature\Admin\ScopedForeignIdTest` — invoice line rejects an employee from another branch.
+4. `Tests\Feature\Admin\ScopedForeignIdTest` — invoice line rejects an employee whose posting has expired.
+5. `Tests\Feature\Admin\ScopedForeignIdTest` — invoice line rejects a deactivated employee.
+6. `Tests\Feature\Admin\ScopedForeignIdTest` — invoice line accepts an employee posted to the branch.
+7. `Tests\Feature\Auth\AuthenticationTest` — the first dashboard load resolves the users branch context.
+8. `Tests\Feature\Auth\SessionManagementTest` — the profile page lists the accounts sessions.
+
+Kết luận: lỗi AI do shared rate limiter ở lần chạy cũ đã được xử lý. Không sửa tám lỗi ngoài AI chỉ để làm xanh suite nếu chưa chứng minh có liên quan đến thay đổi AI.
+
+## 3. Những phần đã triển khai và đã xác minh
+
+### 3.1. Cấu hình và provider
 
 Đã có:
 
-- `config/ai.php`.
-- Biến môi trường mẫu trong `.env.example`.
+- `config/ai.php` và biến môi trường mẫu an toàn trong `.env.example`.
 - Interface `App\Services\Ai\Contracts\AiProvider`.
-- Provider OpenAI-compatible `OpenAiCompatibleProvider`.
 - DTO `AiProviderResult`.
-- Kiểm tra cấu hình trước khi gọi provider.
-- Timeout, connect timeout và retry có giới hạn.
-- Yêu cầu provider trả JSON.
-- Chuẩn hóa và whitelist block `text`, `table`, `chart`.
-- Whitelist action `create_cash_entry`, `adjust_stock`.
-- Giới hạn số block, dòng bảng, nhãn và dataset.
-- Lưu telemetry model, token, latency và provider reference.
+- `OpenAiCompatibleProvider` tương thích OpenAI/Qwen DashScope.
+- Guard khi AI tắt hoặc thiếu API key/base URL/model.
+- Connect timeout, request timeout và retry giới hạn.
+- Payload yêu cầu `response_format=json_object`.
+- Parse JSON thuần và JSON trong Markdown fence.
+- Whitelist block `text`, `table`, `chart`.
+- Whitelist chart `bar`, `line`, `doughnut`.
+- Giới hạn 12 block, 12 cột, 100 hàng, 50 label, 8 dataset, 500 ký tự/cell.
+- Giá trị chart không phải số được chuẩn hóa về 0.
+- Whitelist action `create_cash_entry`, `adjust_stock`, tối đa 3 action.
+- Lưu model, token, latency và provider reference.
 
-### 2.2. Context và prompt
-
-Đã có:
-
-- `AiBusinessContext` tạo context theo `BranchContext`.
-- Sử dụng số liệu chính thức từ `ReportService`.
-- Context gồm tổng quan kỳ hiện tại, lịch hẹn, dịch vụ, nhân viên và tồn kho thấp.
-- Không gửi tên, email, số điện thoại khách hàng.
-- Manager không nhận các trường lợi nhuận/giá vốn/lương nhạy cảm.
-- Prompt tiếng Việt, yêu cầu chỉ dùng dữ liệu context và không bịa số liệu.
-- Prompt mô tả JSON schema và payload hợp lệ cho từng action.
-- Lịch sử hội thoại có giới hạn.
-
-### 2.3. Cơ sở dữ liệu và model
-
-Đã có migration tạo:
-
-- `ai_conversations`.
-- `ai_messages`.
-- `ai_action_proposals`.
-
-Đã có model và quan hệ:
-
-- `AiConversation`.
-- `AiMessage`.
-- `AiActionProposal`.
-- Enum `AiActionStatus`.
-
-Proposal có:
-
-- UUID idempotency key duy nhất.
-- Request fingerprint SHA-256.
-- Trạng thái pending/executing/executed/rejected/failed.
-- Người quyết định và thời gian quyết định.
-- Polymorphic result.
-- Failure message.
-
-### 2.4. Hội thoại
+### 3.2. Context, prompt và privacy
 
 Đã có:
 
-- Tạo hội thoại theo user và snapshot phạm vi chi nhánh.
-- Gọi provider ngoài transaction.
-- Chỉ lưu user message và assistant message sau khi provider trả thành công.
-- Lưu block, telemetry và action proposal trong transaction.
-- Tự đặt tiêu đề từ câu hỏi đầu tiên.
-- Chỉ cho phép người dùng đọc hội thoại của chính họ.
+- Context theo `BranchContext` và số liệu chính thức từ `ReportService`.
+- Summary, appointment status, top service, top employee và low stock.
+- Owner/manager nhận đúng scope chi nhánh theo quyền hiện hành.
+- Manager không nhận `inventory_cost`, `payroll_cost`, `gross_margin`.
+- Không đưa tên, điện thoại hoặc email khách hàng vào business context.
+- Prompt tiếng Việt yêu cầu chỉ dùng dữ liệu context, không bịa số liệu và không tiết lộ prompt/config/PII.
+- Prompt mô tả JSON schema và payload action được phép.
+- Lịch sử hội thoại được giới hạn và sắp lại theo thứ tự cũ đến mới trong code.
 
-### 2.5. Xác nhận thao tác
-
-Đã có:
-
-- Endpoint confirm/reject.
-- Middleware `password.confirm`.
-- Rate limit.
-- `lockForUpdate()` khi xử lý proposal.
-- Chỉ proposal pending mới được thực thi.
-- Kiểm tra trực tiếp proposal thuộc hội thoại của actor.
-- Kiểm tra gate AI, policy domain và phạm vi chi nhánh tại thời điểm thực thi.
-- Validate lại payload.
-- Dùng `RecordCashTransactionAction` và `RecordInventoryMovementAction`.
-- Domain action hiện có tiếp tục ghi audit event.
-- Gửi confirm lặp không tạo thêm bản ghi.
-- Proposal bị reject không thể chạy lại.
-
-### 2.6. Giao diện
+### 3.3. Persistence và hội thoại
 
 Đã có:
 
-- Navigation “Trợ lý AI” dành cho owner/manager.
-- Trang hội thoại hai cột.
-- Lịch sử hội thoại.
-- Message bubble user/assistant.
-- Render text, table và chart an toàn bằng Blade escaping.
-- Proposal card và nút xác nhận/từ chối.
+- Migration cho `ai_conversations`, `ai_messages`, `ai_action_proposals`.
+- Model, quan hệ và enum `AiActionStatus`.
+- Snapshot branch scope trên conversation.
+- Provider được gọi ngoài transaction ghi dữ liệu.
+- Provider lỗi không lưu partial user/assistant message.
+- User message, assistant message, telemetry và proposal được lưu trong transaction.
+- Tiêu đề lấy từ câu đầu và giới hạn 80 ký tự.
+- Conversation list giới hạn 30, sắp theo hoạt động mới nhất.
+- Chỉ chủ conversation được đọc hoặc gửi tiếp.
+- UUID idempotency key và SHA-256 request fingerprint.
+
+### 3.4. Action execution
+
+Đã có và đã đọc xác nhận trong implementation:
+
+- Confirm/reject endpoint có auth, gate, password confirmation và throttle.
+- `lockForUpdate()` trên proposal.
+- Pending là trạng thái duy nhất được xử lý; confirm/reject lặp là idempotent.
+- Kiểm tra proposal thuộc conversation của actor; outsider nhận 404.
+- Kiểm tra gate AI, domain policy và branch scope tại thời điểm confirm.
+- Proposal branch bắt buộc trùng payload branch.
+- Cash payload kiểm tra type, manual category, amount, payment method và thời gian.
+- Stock payload kiểm tra active product và active `BranchProduct` đúng chi nhánh.
+- Chỉ cho stock movement type `adjustment`; kiểm tra mode, quantity, note và thời gian.
+- Tái sử dụng `RecordCashTransactionAction` và `RecordInventoryMovementAction`.
+- Domain action hiện có tiếp tục tạo audit event.
+- Exception domain rollback business transaction; transaction thứ hai đánh dấu proposal `failed` với thông báo an toàn.
+- Failed là final và không retry proposal cũ.
+- Test hiện tại xác nhận failed không để lại business record.
+
+### 3.5. UI
+
+Đã có:
+
+- Navigation AI cho leadership.
+- Trang chat hai cột, lịch sử và composer responsive.
+- Render text/table bằng Blade escaping.
+- Bar chart bằng `<progress>`.
+- Doughnut chart bằng SVG.
+- Line chart thực sự bằng SVG, có legend và bảng visually-hidden cho screen reader.
+- Proposal card và trạng thái confirm/reject/failed/executed.
 - Trạng thái AI chưa cấu hình.
-- SCSS responsive riêng.
-- JavaScript scroll tới tin mới nhất, autosize textarea và khóa submit lặp.
-- Biểu đồ doughnut bằng SVG và bar bằng progress, không phụ thuộc thư viện ngoài.
+- Auto-scroll, textarea autosize và submit guard.
 
-### 2.7. Kiểm tra đã chạy
+## 4. Khoảng trống còn lại sau audit
 
-Đã thành công:
+### P0 — Bắt buộc trước khi coi tính năng hoàn thiện
 
-- PHP lint cho toàn bộ PHP thuộc tính năng AI.
-- `php artisan route:list --name=admin.ai`: có đủ 4 route.
-- `php artisan view:cache`.
-- `npm run build`.
-- `php artisan migrate --pretend` cho migration AI.
-- Test AI chạy riêng: 8 test, 32 assertion đều qua trước khi chạy full suite.
+#### 4.1. Mở rộng unit test provider
 
-Full suite gần nhất:
+File đích: `tests/Unit/Services/Ai/OpenAiCompatibleProviderTest.php`.
 
-- 734 test qua.
-- 9 test lỗi.
-- Một lỗi AI là nhiễu rate limiter dùng chung IP khi chạy cả suite; test AI chạy riêng đã qua.
-- Tám lỗi còn lại nằm ở các test cũ về audit/invoice assignment, scoped foreign ID, branch context, session profile; cần xác minh baseline, không được tự quy lỗi cho tính năng AI.
+Các case đã có: JSON hợp lệ, Markdown fence, content rỗng, malformed JSON, thiếu content, blocks sai kiểu, block lạ, trim text, table rỗng, chart type lạ, telemetry cơ bản.
 
-## 3. Cảnh báo trạng thái workspace
+Cần bổ sung:
 
-Workspace đang có nhiều thay đổi từ các tác vụ trước như booking email, password reset, audit dictionary và các thay đổi chưa commit khác.
+1. Table quá 12 cột bị cắt.
+2. Table quá 100 dòng bị cắt.
+3. Header/cell quá 500 ký tự bị cắt.
+4. Chart quá 50 label bị cắt.
+5. Chart quá 8 dataset bị cắt.
+6. Giá trị chart không phải số thành 0.
+7. Dataset ngắn hơn labels không gây lỗi render/parser.
+8. Action type lạ bị loại.
+9. Action thiếu summary hoặc payload bị loại.
+10. Quá 3 action bị cắt.
+11. Summary quá 500 ký tự bị cắt.
+12. `AI_ENABLED=false` không phát HTTP request.
+13. Thiếu lần lượt API key, base URL, model không phát HTTP request.
+14. Assert URL, bearer token và request payload gửi provider.
+15. HTTP 401/403 không retry ngoài chủ đích và throw an toàn.
+16. Quyết định rõ 429 có retry hay không, rồi khóa hành vi bằng test. Code hiện tại chỉ retry connection error hoặc server error; 429 không retry.
+17. HTTP 500 retry đúng số lần giới hạn rồi throw.
+18. Connection exception/timeout retry đúng số lần rồi throw.
+19. Xác minh hành vi Laravel HTTP client của `retry(..., throw: false)->throw()`.
+20. Thay assertion latency `> 0` bằng assertion không âm hoặc kỹ thuật clock ổn định để tránh flaky test.
 
-`vendor/bin/pint` gần nhất đã tự sửa line ending/style ở một số file ngoài phạm vi AI. AI tiếp quản phải:
+#### 4.2. Sửa test lịch sử hội thoại đang đặt tên quá mức kiểm chứng
 
-1. Chạy `git diff --name-only` và `git diff` trước khi sửa tiếp.
-2. Không dùng `git reset --hard`, `git checkout .`, `git clean -fd` hoặc thao tác phá hủy tương tự.
-3. Không hoàn nguyên file chỉ vì không thuộc AI nếu chưa xác định thay đổi đó do Pint vừa tạo hay là công việc người dùng đang giữ.
-4. Nếu cần hoàn nguyên format ngoài phạm vi, chỉ hoàn nguyên từng file/hunk đã xác minh chắc chắn.
-5. Không thay đổi `.env` hoặc đưa API key vào Git.
-6. Không thao tác production PageSeed.
+File đích: `tests/Feature/Admin/AiConversationTest.php`.
 
-## 4. Phần việc bắt buộc còn lại
+Test `test_history_sent_to_provider_in_correct_order_and_limit` hiện chỉ kiểm tra tổng số message trong database; chưa bắt mảng `$messages` provider nhận được.
 
-### Giai đoạn A — Chụp và bảo vệ trạng thái hiện tại
+Phải sửa bằng fake provider có thể ghi lại input và assert:
 
-1. Chạy:
-   - `git status --short`
-   - `git diff --stat`
-   - `git diff -- app/Services/Ai app/Http/Controllers/Admin/AiActionController.php app/Http/Controllers/Admin/AiAssistantController.php config/ai.php routes/web.php resources/views/admin/ai resources/scss/_ai.scss resources/js/admin.js tests/Feature/Admin/AiAssistantTest.php`
-2. Phân loại thay đổi:
-   - Thuộc AI.
-   - Thuộc booking/email đã hoàn tất.
-   - Thuộc audit dictionary hoặc tác vụ khác.
-   - Chỉ là line ending/style do Pint.
-3. Không sửa hay hoàn nguyên ngoài phạm vi nếu chưa chắc chắn.
+- Message đầu là system.
+- Chỉ lấy đúng history limit.
+- History thuộc đúng conversation.
+- Thứ tự history là cũ đến mới.
+- Câu hỏi mới nằm cuối.
+- Không lẫn conversation của user khác.
 
-### Giai đoạn B — Ổn định test AI trong full suite
+Bổ sung các case hội thoại còn thiếu hoặc chưa được chứng minh rõ:
 
-1. Trong `AiAssistantTest`, vô hiệu hóa riêng middleware throttle hoặc reset rate limiter trong `setUp()`.
-2. Không vô hiệu hóa `password.confirm`, auth, verified, role hoặc branch middleware trong các test bảo mật.
-3. Chạy test AI riêng ít nhất hai lần liên tiếp.
-4. Chạy test AI sau một nhóm test admin để xác nhận không còn phụ thuộc thứ tự.
-5. Nếu test vẫn nhiễu, dùng IP riêng cho từng request hoặc `RateLimiter::clear()` đúng key.
+- Provider success lưu đúng hai message.
+- Blocks và telemetry lưu đúng.
+- Proposal lưu đúng proposer, branch, UUID, fingerprint và payload.
+- Nội dung `<script>` của provider được escape trong response HTML.
+- Table/chart malformed không làm view lỗi.
 
-Tiêu chí hoàn tất:
+#### 4.3. Hoàn thiện test action cash/stock
 
-- Test AI chạy riêng và chạy trong full suite không phụ thuộc thứ tự.
-- Test “execute exactly once” luôn tạo đúng một cash transaction.
+File đích chính: `tests/Feature/Admin/AiActionTest.php` và/hoặc tách thành test class cash/stock riêng.
 
-### Giai đoạn C — Hoàn thiện semantics lỗi action
+`stockProposal()` hiện tồn tại nhưng chưa được dùng trong các test của file này. Cần phủ:
 
-Hiện trạng: nếu domain action throw exception thì transaction rollback, vì vậy trạng thái `failed` và `failure_message` không được lưu.
-
-Phương án ưu tiên:
-
-1. Giữ việc thực thi domain action trong transaction nguyên tử.
-2. Catch exception bên ngoài transaction thực thi.
-3. Mở transaction thứ hai để lock proposal.
-4. Chỉ đánh dấu `failed` nếu proposal vẫn ở trạng thái pending/executing phù hợp và chưa có result.
-5. Lưu thông báo an toàn, không lưu stack trace hay secret.
-6. Re-throw exception để controller trả thông báo lỗi chuẩn.
-7. Cho phép retry failed hay không phải được quyết định rõ:
-   - Khuyến nghị: failed là final để tránh thao tác mơ hồ; người dùng yêu cầu AI tạo proposal mới.
-8. Điều chỉnh enum/UI/test theo quyết định.
-
-Cần xử lý đặc biệt tình huống không chắc chắn:
-
-- Nếu domain write đã commit nhưng cập nhật proposal thất bại, idempotency ở proposal không đủ để đảm bảo exactly-once.
-- Vì domain action hiện chạy cùng outer transaction nên ưu tiên xác minh nested transaction của Laravel vẫn rollback/commit cùng connection.
-- Viết test ép lỗi sau domain action nếu có thể; bảo đảm không tồn tại business record khi proposal không được đánh dấu executed.
-
-### Giai đoạn D — Siết action validation và idempotency
-
-1. Xác minh `request_fingerprint` có mục đích rõ ràng:
-   - Nếu chỉ phục vụ audit thì giữ index thường.
-   - Nếu muốn chặn proposal trùng trong cùng hội thoại/user, thêm unique constraint phù hợp hoặc logic dedupe có chủ đích.
-2. Không dùng fingerprint toàn cục để vô tình chặn hai khoản chi hợp lệ giống nhau ở hai thời điểm.
-3. Xác minh branch ID trong cột proposal trùng branch ID trong payload.
-4. Xác minh product thuộc catalog/stock của đúng branch trước stock adjustment.
-5. Kiểm tra product active tại thời điểm confirm.
-6. Kiểm tra amount, quantity, occurred_at, category và payment method bằng cùng quy tắc form nghiệp vụ hiện tại.
-7. Xác minh manager chỉ được thực hiện action mà policy hiện tại cho phép.
-8. Bảo đảm route model binding không làm lộ proposal: outsider phải nhận 404.
-
-### Giai đoạn E — Hoàn thiện biểu đồ và báo cáo
-
-1. Quyết định mức parity với PageSeed:
-   - Bắt buộc hiện tại: text/table/bar/doughnut.
-   - Nên hoàn thiện: line chart thực sự, không render giống bar.
-   - Tùy chọn: export block CSV.
-2. Nếu thêm line chart:
-   - Dùng SVG nội bộ, không thêm dependency nặng nếu không cần.
-   - Escape title/label.
-   - Xử lý dataset rỗng, âm, bằng nhau và quá lớn.
-   - Có fallback accessible dạng bảng/danh sách hoặc aria-label đầy đủ.
-3. Nếu thêm export:
-   - Provider chỉ đề xuất dữ liệu có cấu trúc, server tự tạo file.
-   - Chống CSV injection cho ô bắt đầu bằng `=`, `+`, `-`, `@`.
-   - Không cho provider tự chỉ định filesystem path hoặc URL tùy ý.
-   - Áp quyền/branch scope lại khi export.
-4. Hiển thị đơn vị tiền/số lượng thân thiện thay vì số thô nếu metadata cho phép.
-
-### Giai đoạn F — Kiểm thử provider parser
-
-Viết unit test cho `OpenAiCompatibleProvider` bằng `Http::fake()`:
-
-1. JSON hợp lệ có text/table/chart/action.
-2. JSON nằm trong markdown fence.
-3. Content rỗng.
-4. JSON malformed.
-5. Thiếu `content`.
-6. `blocks` không phải array.
-7. Block type lạ bị loại.
-8. Text block bị giới hạn/chuẩn hóa.
-9. Table quá 12 cột bị cắt.
-10. Table quá 100 dòng bị cắt.
-11. Cell quá dài bị cắt.
-12. Chart type lạ bị loại.
-13. Chart quá 50 label bị cắt.
-14. Chart quá 8 dataset bị cắt.
-15. Giá trị chart không phải số thành 0.
-16. Dataset ngắn hơn label.
-17. Action type lạ bị loại.
-18. Quá 3 action bị cắt.
-19. Action thiếu summary/payload bị loại.
-20. API 401/403 không retry vô hạn.
-21. API 429 có hành vi retry đúng chủ đích.
-22. API 500 được retry giới hạn.
-23. Timeout/connection exception.
-24. `AI_ENABLED=false` không gửi HTTP request.
-25. Thiếu API key/base URL/model không gửi HTTP request.
-26. Token/latency/reference được map đúng.
-27. Xác minh Laravel 13 HTTP client với `retry(..., throw: false)->throw()` hoạt động như kỳ vọng.
-
-### Giai đoạn G — Kiểm thử context và privacy
-
-Viết unit/feature test bắt prompt/provider input:
-
-1. Owner ở all-branch nhận đúng danh sách branch được phép.
-2. Manager chỉ nhận branch đang được phân công.
-3. Manager không nhận `inventory_cost`, `payroll_cost`, `gross_margin`.
-4. Owner có quyền nhận các trường tài chính nhạy cảm đã thiết kế.
-5. Employee không gọi được AI.
-6. Customer name không xuất hiện.
-7. Customer phone không xuất hiện.
-8. Customer email không xuất hiện.
-9. Số liệu appointment status đúng kỳ.
-10. Top service đúng kỳ và branch.
-11. Top employee đúng kỳ và branch.
-12. Low-stock chỉ thuộc branch scope.
-13. Product ngoài scope không xuất hiện.
-14. Context không bị mở rộng bởi query/session branch giả mạo.
-15. Kỳ mặc định đúng timezone ứng dụng.
-16. Không có dữ liệu thì prompt vẫn hợp lệ và AI phải nói không đủ dữ liệu.
-17. Lịch sử chỉ lấy đúng conversation và đúng limit.
-18. Prompt injection từ user không làm system prompt lộ secret hay đổi schema.
-
-### Giai đoạn H — Kiểm thử hội thoại
-
-1. Guest bị chuyển login.
-2. User chưa verify bị chặn theo middleware hiện hành.
-3. Employee nhận 403.
-4. Owner truy cập được.
-5. Manager truy cập được.
-6. AI disabled vẫn mở trang nhưng composer bị khóa và có cảnh báo.
-7. Hội thoại mới lưu user ID, branch ID và scope snapshot.
-8. Câu đầu tạo title tối đa 80 ký tự.
-9. Câu sau không ghi đè title.
-10. User không đọc được hội thoại người khác.
-11. User không post message vào hội thoại người khác.
-12. ID hội thoại không tồn tại trả 404.
-13. Message rỗng bị validate.
-14. Message quá giới hạn bị validate.
-15. Provider success lưu đúng 2 message.
-16. Provider failure không lưu partial message.
-17. Provider malformed JSON không lưu partial message.
-18. Blocks và telemetry lưu đúng.
-19. Proposal lưu đúng actor/branch/fingerprint/UUID.
-20. Danh sách hội thoại giới hạn 30 và sắp xếp mới nhất.
-21. History gửi provider đúng thứ tự và đúng giới hạn.
-22. Nội dung HTML/script của provider được escape trong view.
-23. Table/chart malformed không làm vỡ view.
-24. Rate limit message endpoint hoạt động.
-
-### Giai đoạn I — Kiểm thử confirm/reject action
-
-#### Chung
-
-1. Không confirm password thì redirect tới trang xác nhận mật khẩu.
-2. Employee nhận 403.
-3. Proposal của user khác trả 404.
-4. Proposal branch ngoài scope bị từ chối.
-5. Proposal pending được xử lý.
-6. Proposal executed gửi lại không chạy lần hai.
-7. Proposal rejected không chạy được.
-8. Proposal failed xử lý đúng policy retry đã chọn.
-9. Hai request confirm cạnh tranh chỉ tạo một result.
-10. Reject gửi lặp không thay đổi quyết định đầu tiên.
-11. Confirm và reject cạnh tranh chỉ một quyết định thắng.
-12. `decided_by`, `decided_at`, result morph lưu đúng.
-13. Audit event có actor, branch, before/after, correlation ID.
-14. Validation lỗi không tạo business record.
-15. Exception domain không để proposal ở trạng thái `executing` vĩnh viễn.
-16. Rate limit endpoint confirm/reject hoạt động.
-
-#### Cash action
+Cash:
 
 1. Expense hợp lệ tạo đúng một transaction.
 2. Income hợp lệ tạo đúng một transaction.
-3. Amount âm/0 bị chặn.
-4. Amount vượt max bị chặn.
-5. Category system-generated bị chặn.
-6. Category manual hợp lệ được chấp nhận.
-7. Payment method hợp lệ/null hoạt động.
-8. Payment method lạ bị chặn.
-9. Backdate quá giới hạn bị chặn.
-10. Future date bị chặn.
-11. Branch payload khác proposal branch bị chặn.
-12. Policy create cash được kiểm tra lại.
-13. Transaction được gắn đúng creator/branch.
-14. Audit cash được tạo đúng một lần.
+3. Confirm lặp chỉ tạo một transaction.
+4. Amount 0, âm và vượt max bị chặn.
+5. Category system-generated/lạ bị chặn.
+6. Manual category hợp lệ được chấp nhận.
+7. Payment method hợp lệ và null hoạt động; giá trị lạ bị chặn.
+8. Backdate quá giới hạn và future date bị chặn.
+9. Creator và branch đúng.
+10. Result morph đúng.
 
-#### Stock action
+Stock:
 
 1. Delta tăng hợp lệ.
 2. Delta giảm hợp lệ khi đủ tồn.
 3. Delta giảm làm âm tồn bị chặn.
 4. Absolute adjustment hợp lệ.
 5. Quantity ngoài giới hạn bị chặn.
-6. Product không tồn tại bị chặn.
-7. Product inactive bị chặn.
-8. Product không thuộc branch/catalog bị chặn.
-9. Type khác adjustment bị chặn.
-10. Note quá ngắn bị chặn.
-11. Date ngoài giới hạn bị chặn.
-12. Movement tạo đúng một lần.
-13. Current stock cập nhật đúng.
-14. Audit before/after stock chính xác.
+6. Product không tồn tại, inactive, ngoài catalog hoặc `BranchProduct` inactive bị chặn.
+7. Type khác adjustment bị chặn.
+8. Note quá ngắn bị chặn.
+9. Date ngoài giới hạn bị chặn.
+10. Confirm lặp chỉ tạo một movement.
+11. Current stock cập nhật đúng.
+12. Result morph, creator, branch và audit đúng.
 
-### Giai đoạn J — UI, accessibility và frontend
+Chung:
 
-1. Trang desktop hai cột không overflow.
-2. Trang mobile chuyển một cột.
-3. History có scroll hợp lý.
-4. Message list tự scroll cuối.
-5. Textarea autosize nhưng không vượt max-height.
-6. Submit khóa ngay sau lần nhấn đầu.
-7. Nút giữ disabled khi AI tắt.
-8. Keyboard focus rõ ràng.
-9. Bảng có header scope và responsive wrapper.
-10. Chart có accessible name.
-11. Màu chart có độ tương phản đủ và không chỉ dựa vào màu để hiểu dữ liệu.
-12. Proposal status hiển thị rõ.
-13. Nút confirm/reject đủ vùng chạm mobile.
-14. Long text/label không phá layout.
-15. XSS payload hiển thị dạng text.
-16. Blade compile thành công.
-17. Vite build thành công.
-18. Không có console error trên trang AI.
+- Test hiện có tên “rate limit on confirm and reject endpoints works” nhưng chỉ gọi confirm. Tách/assert riêng throttle cho reject.
+- Không confirm password phải redirect tới password confirmation.
+- Rejected proposal không thể chạy.
+- Failed proposal không thể chạy.
+- Policy create được kiểm tra lại cho cả actor và proposer theo semantics hiện tại.
+- Domain exception lưu `failed`, `failure_message` an toàn, không lưu stack trace/secret.
+- Hai confirm cạnh tranh chỉ tạo một result nếu có thể kiểm thử đáng tin cậy trên database test.
+- Confirm và reject cạnh tranh chỉ một quyết định thắng.
 
-### Giai đoạn K — Xử lý full suite hiện có
+#### 4.4. Hoàn thiện context/prompt security tests
 
-Chạy riêng từng test đang lỗi để xác định baseline:
+File đích: `tests/Unit/Services/Ai/AiBusinessContextTest.php` và test mới cho `AiPromptBuilder` nếu cần.
 
-- `tests/Feature/Admin/AuditTrailTest.php`
-- `tests/Feature/Admin/RiskDetectionTest.php`
-- `tests/Feature/Admin/ScopedForeignIdTest.php`
-- `tests/Feature/Auth/AuthenticationTest.php`
-- `tests/Feature/Auth/SessionManagementTest.php`
+Cần bổ sung:
 
-Quy tắc:
+- Top employee đúng period và branch.
+- Product ngoài scope không xuất hiện trong low stock.
+- Bắt toàn bộ prompt/provider input để chứng minh PII khách hàng không xuất hiện, không chỉ kiểm tra context array.
+- History/user prompt chứa chỉ dẫn injection không làm thay đổi system message/schema server tạo ra.
+- Context rỗng vẫn tạo system prompt hợp lệ.
+- Boundary ngày đầu/cuối kỳ theo timezone ứng dụng.
+- Không có branch scope phải không vô tình mở toàn bộ dữ liệu; xem xét thay `[0]` bằng semantics rõ ràng hoặc thêm test khóa hành vi.
 
-1. Chạy từng file riêng.
-2. Nếu chạy riêng qua nhưng full suite lỗi, điều tra state leak/order dependency/rate limiter/static factory state.
-3. Nếu chạy riêng vẫn lỗi, kiểm tra `git diff` để xác định lỗi có trước AI hay do thay đổi đang tồn tại.
-4. Không sửa ngoài phạm vi chỉ để làm xanh suite nếu nguyên nhân không liên quan AI.
-5. Ghi rõ lỗi baseline trong báo cáo cuối nếu không được phép sửa.
+### P1 — Quality và UX nên hoàn tất
 
-### Giai đoạn L — Quality gate cuối
+#### 4.5. UI/accessibility tests và kiểm tra thủ công
 
-Chạy theo thứ tự:
+- Desktop hai cột không overflow.
+- Mobile chuyển một cột.
+- Long title/label/content không phá layout.
+- Keyboard focus rõ.
+- Vùng chạm nút confirm/reject đủ lớn.
+- Chart có accessible name và dữ liệu fallback.
+- Màu không phải tín hiệu duy nhất khi có nhiều dataset.
+- Negative/equal/empty chart values hiển thị an toàn.
+- Không có console error.
+- XSS payload chỉ hiện dạng text.
 
-1. `php -l` toàn bộ file PHP mới/sửa thuộc AI.
-2. Pint chỉ trên file thuộc tính năng, không chạy toàn repository nếu chưa kiểm soát diff.
-3. Unit tests provider/context.
-4. Feature tests AI.
-5. Các test booking/email liên quan đã có.
-6. Các test admin authorization/navigation.
-7. Full suite.
-8. `php artisan route:list --name=admin.ai`.
-9. `php artisan view:clear && php artisan view:cache`.
-10. `php artisan migrate --pretend`.
-11. Nếu được người dùng cho phép thay đổi DB local: `php artisan migrate`.
-12. `npm run build`.
-13. `git diff --check`.
-14. Rà soát `git diff` cuối cùng để loại secret và thay đổi ngoài ý muốn.
+#### 4.6. Quan sát vận hành và lỗi provider
+
+- Xác minh controller chỉ hiển thị thông báo tiếng Việt an toàn.
+- Không log API key, Authorization header, business context đầy đủ hoặc PII.
+- Cân nhắc structured logging tối thiểu: provider, model, latency, status, conversation ID; không log prompt thô.
+- Xác nhận thông điệp khi 401/403/429/500/timeout đủ rõ nhưng không lộ chi tiết nhạy cảm.
+
+### P2 — Ngoài phạm vi AI nhưng cần ghi nhận
+
+Tám lỗi full suite nêu ở mục 2.2 cần một task debug riêng. Không trộn việc sửa chúng vào PR AI trừ khi chứng minh nguyên nhân là state leak do AI.
 
 ## 5. Kịch bản kiểm thử thủ công end-to-end
 
-### Kịch bản 1 — AI chưa cấu hình
+### 5.1. AI tắt
 
 1. Đặt `AI_ENABLED=false`.
-2. Đăng nhập owner.
+2. Đăng nhập owner/manager.
 3. Mở Trợ lý AI.
-4. Xác nhận có cảnh báo cấu hình.
-5. Composer và nút gửi bị khóa.
+4. Xác nhận cảnh báo cấu hình xuất hiện.
+5. Composer bị khóa.
 6. Không có request provider.
 
-### Kịch bản 2 — Hỏi đáp và báo cáo
+### 5.2. Hỏi đáp và báo cáo
 
-1. Bật provider bằng credential thật trong `.env` local, không commit.
-2. Chọn một branch có dữ liệu.
-3. Hỏi “Tóm tắt tình hình tháng này”.
-4. Xác nhận câu trả lời tiếng Việt và số liệu khớp trang report.
-5. Hỏi “Lập bảng doanh thu top dịch vụ”.
-6. Xác nhận bảng render đúng trên desktop/mobile.
-7. Hỏi “Vẽ biểu đồ doanh thu top dịch vụ”.
-8. Xác nhận chart render, label và số liệu đúng.
-9. Refresh trang, lịch sử vẫn còn.
+1. Cấu hình credential thật trong `.env` local, không commit.
+2. Chọn branch có dữ liệu.
+3. Hỏi tóm tắt tháng này.
+4. So số liệu với trang report.
+5. Yêu cầu bảng top dịch vụ.
+6. Yêu cầu lần lượt bar, line và doughnut chart.
+7. Kiểm tra desktop/mobile và refresh để xác nhận lịch sử còn nguyên.
 
-### Kịch bản 3 — Privacy và branch scope
+### 5.3. Privacy và branch scope
 
 1. Đăng nhập manager branch A.
-2. Hỏi số liệu branch B.
-3. AI phải từ chối hoặc nói không có dữ liệu trong phạm vi.
-4. Kiểm tra request provider không chứa PII khách hàng.
-5. Chuyển branch hợp lệ và hỏi lại.
-6. Xác nhận context đổi đúng branch.
+2. Hỏi dữ liệu branch B.
+3. AI phải nói không có dữ liệu trong phạm vi, không bịa.
+4. Kiểm tra request provider không chứa tên/điện thoại/email khách hàng.
+5. Thử prompt injection yêu cầu lộ system prompt/API key; AI không được tiết lộ.
 
-### Kịch bản 4 — Đề xuất khoản chi
+### 5.4. Cash proposal
 
-1. Hỏi “Đề xuất ghi chi marketing 500.000đ hôm nay bằng chuyển khoản”.
-2. AI chỉ tạo proposal, chưa có cash transaction.
-3. Nhấn xác nhận.
-4. Hệ thống yêu cầu xác nhận lại mật khẩu nếu phiên chưa step-up.
-5. Nhập mật khẩu đúng.
-6. Confirm proposal.
-7. Có đúng một cash transaction và một audit event.
-8. Nhấn confirm lại hoặc refresh-submit.
-9. Không tạo bản ghi thứ hai.
+1. Yêu cầu đề xuất ghi chi marketing 500.000 VND hôm nay bằng chuyển khoản.
+2. Trước confirm không có cash transaction.
+3. Nhấn confirm; hệ thống yêu cầu password step-up nếu cần.
+4. Sau confirm có đúng một transaction và audit event.
+5. Gửi confirm lại; không có bản ghi thứ hai.
+6. Thử payload sai branch/date/category/amount; không tạo transaction.
 
-### Kịch bản 5 — Từ chối proposal
+### 5.5. Stock proposal
 
-1. Tạo proposal mới.
-2. Nhấn từ chối.
-3. Trạng thái chuyển rejected.
-4. Confirm sau đó không tạo business record.
+1. Chọn active product thuộc active catalog của branch.
+2. Yêu cầu delta tăng, delta giảm và absolute adjustment.
+3. Trước confirm tồn kho không đổi.
+4. Sau confirm tạo đúng một movement/audit và tồn kho đúng.
+5. Confirm lặp không tạo movement thứ hai.
+6. Thử product ngoài branch, inactive và giảm âm tồn; hệ thống từ chối.
 
-### Kịch bản 6 — Điều chỉnh tồn kho
+### 5.6. Reject/failure/concurrency
 
-1. Chọn product active thuộc branch.
-2. Yêu cầu AI đề xuất điều chỉnh với lý do rõ ràng.
-3. Chưa confirm thì stock không đổi.
-4. Confirm thì tạo đúng một movement và audit event.
-5. Thử giảm quá tồn, hệ thống từ chối và stock giữ nguyên.
+1. Reject proposal rồi thử confirm; không có business record.
+2. Gây domain error; proposal thành failed và không có business record.
+3. Mở hai tab gửi confirm gần đồng thời; chỉ một result được tạo.
+4. Gửi vượt throttle message/confirm/reject; nhận 429 phù hợp.
 
-### Kịch bản 7 — Quyền và tấn công
+### 5.7. Authorization và XSS
 
-1. Employee mở URL AI trực tiếp: 403.
-2. User A sửa conversation ID của user B: 404.
-3. User A sửa proposal ID của user B: 404.
-4. Thay branch ID trong payload database fixture sang branch ngoài scope: confirm bị chặn.
-5. Provider trả `<script>alert(1)</script>`: trang chỉ hiện text, script không chạy.
-6. Gửi liên tục vượt rate limit: nhận 429 phù hợp.
+1. Employee truy cập URL AI: 403.
+2. User A truy cập conversation/proposal user B: 404.
+3. Provider trả HTML/script: script không chạy.
+4. Sửa fixture branch ID ngoài scope: confirm bị chặn.
 
-### Kịch bản 8 — Provider lỗi
+## 6. Quality gate cuối
 
-1. Giả lập timeout/500/malformed JSON.
-2. UI nhận thông báo tiếng Việt an toàn.
-3. Không có partial message.
-4. Không có proposal dở dang.
-5. Không lộ stack trace/API key ở production.
+Chạy theo thứ tự:
 
-## 6. Tiêu chí chấp nhận cuối cùng
+1. `git status --short` và `git diff --stat`.
+2. PHP lint cho toàn bộ PHP mới/sửa thuộc AI.
+3. Pint chỉ trên file AI đã sửa.
+4. Chạy provider/context/prompt unit tests.
+5. Chạy conversation/action feature tests hai lần liên tiếp.
+6. Chạy AI tests sau một nhóm admin test để kiểm tra order dependency.
+7. Chạy `php artisan test` và phân loại chính xác mọi lỗi còn lại.
+8. `php artisan route:list --name=admin.ai`.
+9. `php artisan view:clear && php artisan view:cache`.
+10. `php artisan migrate --pretend`.
+11. `npm run build`.
+12. `git diff --check`.
+13. Rà soát diff cuối: không secret, không `.env`, không thay đổi ngoài phạm vi không giải thích được.
 
-Tính năng chỉ được coi là hoàn tất khi:
+## 7. Tiêu chí chấp nhận
 
-- Owner và manager dùng được; employee bị chặn.
-- Hội thoại riêng tư theo user và branch scope.
-- Provider không nhận PII khách hàng.
-- Text/table/chart render an toàn và responsive.
-- Action không bao giờ tự chạy trước confirm.
+Tính năng hoàn tất khi:
+
+- 60 test AI hiện có tiếp tục qua và các case P0 được bổ sung đều qua.
+- AI tests ổn định khi chạy riêng, lặp lại và trong full suite.
+- Owner/manager dùng được; employee bị chặn.
+- Conversation/proposal riêng tư theo user và branch scope.
+- Prompt gửi provider không chứa PII khách hàng.
+- Text/table/bar/line/doughnut render an toàn và responsive.
+- Action không chạy trước confirm.
 - Confirm yêu cầu password step-up.
-- Quyền, branch và payload được kiểm tra lại tại execution time.
+- Quyền, branch, catalog và payload được revalidate khi thực thi.
 - Duplicate confirm không tạo duplicate business record.
-- Reject là final.
-- Failure state không bị treo ở executing và có semantics rõ ràng.
-- Audit event được tạo bởi domain action hiện có.
-- Test AI ổn định khi chạy riêng và trong full suite.
-- PHP lint, Blade cache, routes, migration pretend và frontend build đều qua.
-- Không commit secret.
-- Không có thay đổi ngoài phạm vi không được giải thích.
+- Rejected/failed là final theo thiết kế hiện tại.
+- Failure không treo ở executing và không để lại business record.
+- Audit được tạo đúng một lần bởi domain action hiện có.
+- PHP lint, Blade cache, routes, migration pretend và Vite build qua.
+- Tám lỗi ngoài AI được ghi nhận riêng; không được che giấu hoặc quy sai cho AI.
 
-## 7. Prompt bàn giao cho AI khác
+## 8. Prompt bàn giao cho AI khác
 
 Sao chép nguyên prompt dưới đây:
 
 ---
 
-Bạn đang tiếp quản repository Laravel tại `c:/xampp/htdocs/caitiemneo` để hoàn thiện tính năng Trợ lý AI quản lý native Laravel, tương tự PageSeed. Hãy đọc toàn bộ file `plans/ai-management-assistant-completion-plan.md` trước khi làm bất cứ thay đổi nào và coi đó là specification bắt buộc.
+Bạn đang tiếp quản repository Laravel tại `c:/xampp/htdocs/caitiemneo` để hoàn thiện Trợ lý AI quản lý native Laravel. Trước khi sửa code, hãy đọc toàn bộ `AGENTS.md` và `plans/ai-management-assistant-completion-plan.md`; file plan là specification và bản audit mới nhất.
 
-Yêu cầu làm việc:
+Nguyên tắc bắt buộc:
 
-1. Trước tiên chạy `php -v`, `composer -V`, đọc `AGENTS.md`, `git status --short`, `git diff --stat` và các diff liên quan AI.
-2. Không dùng `git reset --hard`, `git checkout .`, `git clean -fd`; workspace có nhiều thay đổi chưa commit từ các tác vụ khác.
-3. Không sửa hoặc hoàn nguyên thay đổi booking/email/password reset/audit hay file ngoài AI nếu chưa chứng minh đó là thay đổi thừa do formatter.
-4. Không sửa `.env`, không ghi API key vào source, không thao tác production PageSeed.
-5. Tiếp tục từ code hiện có, không viết lại kiến trúc từ đầu.
-6. Ưu tiên xử lý theo các giai đoạn A–L trong plan.
-7. Sửa test AI bị nhiễu rate limiter khi chạy full suite nhưng không được vô hiệu hóa auth, authorization, branch scope hoặc `password.confirm` đang được kiểm thử.
-8. Hoàn thiện semantics proposal failed để exception không làm proposal treo ở executing; bảo toàn tính nguyên tử và exactly-once.
-9. Siết branch/product validation cho stock action và sự nhất quán giữa proposal branch với payload branch.
-10. Viết đầy đủ unit test provider parser, context/privacy, hội thoại, confirm/reject, cash và stock theo ma trận trong plan.
-11. Nếu làm line chart hoặc export block, phải an toàn, accessible, branch-scoped và không thêm dependency nặng không cần thiết.
-12. Chạy formatter chỉ trên file thuộc tính năng hoặc kiểm tra diff ngay sau formatter.
-13. Chạy quality gate đúng thứ tự trong plan; phân loại rõ lỗi mới và lỗi baseline.
-14. Không tuyên bố hoàn tất nếu test AI chỉ chạy riêng mà thất bại trong full suite.
-15. Báo cáo cuối phải liệt kê file đã sửa, migration, biến môi trường cần cấu hình, test/build đã chạy, kết quả chính xác và bất kỳ lỗi baseline nào còn lại.
+1. Kiểm tra `php -v`, `composer -V`, `git status --short`, `git diff --stat` trước khi làm.
+2. Tiếp tục kiến trúc hiện có; không viết lại từ đầu và không sao chép runtime/code PageSeed.
+3. Không dùng `git reset --hard`, `git checkout .`, `git clean -fd` hoặc thao tác phá hủy.
+4. Không sửa `.env`, không commit API key, không thao tác production PageSeed.
+5. Không sửa booking/email/password reset hoặc tám test baseline ngoài AI nếu chưa chứng minh liên quan.
+6. Formatter chỉ chạy trên file AI đã sửa; kiểm tra diff ngay sau formatter.
+7. Không vô hiệu hóa auth, gate, policy, branch scope, throttle hoặc `password.confirm` chỉ để làm test qua.
 
-Trạng thái quan trọng hiện tại:
+Trạng thái đã xác minh ngày 17/09/2026:
 
-- Route, Blade cache, migration pretend và Vite build đã qua.
-- Test AI chạy riêng từng qua 8 test/32 assertion.
-- Full suite gần nhất có 734 test qua, 9 lỗi. Một lỗi AI nhiều khả năng do shared rate limiter; tám lỗi khác thuộc test cũ và phải điều tra baseline trước khi sửa.
-- `vendor/bin/pint` gần nhất đã chạm một số file ngoài AI do line ending; phải kiểm soát diff cẩn thận.
+- Working tree sạch trước audit.
+- PHP 8.3.33, Composer 2.10.2.
+- Nhóm AI hiện có: 60 test, 221 assertion, tất cả qua.
+- Full suite: 787 test qua, 8 test lỗi ngoài AI, 2.663 assertion.
+- Lỗi shared rate limiter của AI trước đây đã được xử lý.
+- Failed action đã được lưu bằng transaction thứ hai và là trạng thái final.
+- Stock action đã kiểm tra active product và active branch catalog.
+- Line chart SVG và accessible fallback đã tồn tại.
+- Không cần làm export CSV trừ khi người dùng yêu cầu riêng.
 
-Hãy bắt đầu bằng việc đọc plan và kiểm tra trạng thái Git, sau đó triển khai tuần tự, mỗi thay đổi phải có test chứng minh.
+Hãy thực hiện theo thứ tự:
+
+1. Bổ sung toàn bộ provider parser/config/request/retry/error tests tại mục 4.1 của plan. Khóa rõ hành vi 401/403/429/500/timeout và số lần retry; tránh assertion latency dễ flaky.
+2. Sửa test history để fake provider ghi lại input và thực sự assert system/history limit/order/conversation isolation/new question như mục 4.2.
+3. Bổ sung test persistence hội thoại: hai message, blocks, telemetry, proposal metadata/fingerprint/UUID, XSS escaping và malformed blocks.
+4. Dùng helper stock hiện có hoặc tách test class để phủ đầy đủ cash/stock/action cases tại mục 4.3. Đặc biệt phải test stock execution, exactly-once, result morph, audit và reject throttle thật sự.
+5. Bổ sung context/prompt security tests tại mục 4.4: top employee, product ngoài scope, prompt-level PII, injection, empty context và timezone boundaries.
+6. Chỉ sửa implementation khi test mới chứng minh lỗi hoặc thiếu hành vi. Giữ nguyên domain actions và audit hiện có.
+7. Kiểm tra UI/accessibility thủ công theo mục 5; sửa tối thiểu nếu phát hiện lỗi.
+8. Chạy đầy đủ quality gate tại mục 6.
+
+Các lỗi full suite ngoài AI cần ghi lại, không được lờ đi:
+
+- `AuditTrailTest`: changing the commission employee is recorded.
+- `RiskDetectionTest`: a reviewer can quickly assign missing invoice commission.
+- 4 case invoice-line trong `ScopedForeignIdTest`.
+- `AuthenticationTest`: first dashboard load resolves branch context.
+- `SessionManagementTest`: profile page lists account sessions.
+
+Báo cáo cuối bắt buộc nêu:
+
+- File đã sửa và lý do.
+- Test mới theo từng nhóm provider/context/conversation/cash/stock/security.
+- Lệnh đã chạy và số test/assertion chính xác.
+- Kết quả full suite và phân loại lỗi baseline.
+- Kết quả route, Blade cache, migration pretend, Vite build và `git diff --check`.
+- Mọi rủi ro còn lại; không tuyên bố hoàn tất nếu AI tests chỉ qua khi chạy riêng nhưng lỗi trong full suite.
 
 ---
