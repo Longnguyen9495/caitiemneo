@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Admin;
 
+use App\Actions\Cash\RecordCashTransactionAction;
 use App\Enums\AiActionStatus;
 use App\Enums\InventoryMovementType;
 use App\Models\AiActionProposal;
@@ -10,12 +11,11 @@ use App\Models\AiMessage;
 use App\Models\Branch;
 use App\Models\BranchProduct;
 use App\Models\CashTransaction;
-use App\Models\InventoryMovement;
 use App\Models\Product;
 use App\Models\User;
-use App\Actions\Cash\RecordCashTransactionAction;
 use App\Services\Ai\AiProviderResult;
 use App\Services\Ai\Contracts\AiProvider;
+use App\Services\Audit\AuditRecorder;
 use App\Support\BranchContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\RateLimiter;
@@ -137,7 +137,7 @@ class AiAssistantTest extends TestCase
         ]);
     }
 
-    public function test_provider_failure_does_not_persist_partial_messages(): void
+    public function test_provider_failure_keeps_the_user_message(): void
     {
         $this->app->instance(AiProvider::class, new class implements AiProvider
         {
@@ -155,7 +155,11 @@ class AiAssistantTest extends TestCase
             ->assertSessionHas('error');
 
         $this->assertDatabaseCount('ai_conversations', 1);
-        $this->assertDatabaseCount('ai_messages', 0);
+        $this->assertDatabaseCount('ai_messages', 1);
+        $this->assertDatabaseHas('ai_messages', [
+            'role' => 'user',
+            'content' => 'Tóm tắt hôm nay',
+        ]);
     }
 
     public function test_action_confirmation_requires_a_recent_password_confirmation(): void
@@ -234,10 +238,11 @@ class AiAssistantTest extends TestCase
         [$owner, $proposal] = $this->cashProposal();
 
         $this->app->bind(RecordCashTransactionAction::class, function () {
-            return new class(resolve(\App\Services\Audit\AuditRecorder::class)) extends RecordCashTransactionAction {
-                public function handle(array $data, \App\Models\User $actor, ?\App\Models\CashTransaction $transaction = null): \App\Models\CashTransaction
+            return new class(resolve(AuditRecorder::class)) extends RecordCashTransactionAction
+            {
+                public function handle(array $data, User $actor, ?CashTransaction $transaction = null): CashTransaction
                 {
-                    throw new \RuntimeException('Domain action failed.');
+                    throw new RuntimeException('Domain action failed.');
                 }
             };
         });
@@ -254,8 +259,9 @@ class AiAssistantTest extends TestCase
 
         // Re-allow the gate and try again – must stay failed.
         $this->app->bind(RecordCashTransactionAction::class, function () {
-            return new class(resolve(\App\Services\Audit\AuditRecorder::class)) extends RecordCashTransactionAction {
-                public function handle(array $data, \App\Models\User $actor, ?\App\Models\CashTransaction $transaction = null): \App\Models\CashTransaction
+            return new class(resolve(AuditRecorder::class)) extends RecordCashTransactionAction
+            {
+                public function handle(array $data, User $actor, ?CashTransaction $transaction = null): CashTransaction
                 {
                     throw new \LogicException('Should not reach here because proposal is already Failed.');
                 }
@@ -278,10 +284,11 @@ class AiAssistantTest extends TestCase
         [$owner, $proposal] = $this->cashProposal();
 
         $this->app->bind(RecordCashTransactionAction::class, function () {
-            return new class(resolve(\App\Services\Audit\AuditRecorder::class)) extends RecordCashTransactionAction {
-                public function handle(array $data, \App\Models\User $actor, ?\App\Models\CashTransaction $transaction = null): \App\Models\CashTransaction
+            return new class(resolve(AuditRecorder::class)) extends RecordCashTransactionAction
+            {
+                public function handle(array $data, User $actor, ?CashTransaction $transaction = null): CashTransaction
                 {
-                    throw new \RuntimeException('Domain action failed.');
+                    throw new RuntimeException('Domain action failed.');
                 }
             };
         });

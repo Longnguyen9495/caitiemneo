@@ -313,6 +313,53 @@ class AiBusinessContextTest extends TestCase
         $this->assertEquals([], $result['top_services']);
     }
 
+    public function test_invoice_question_selects_requested_date_range(): void
+    {
+        $branch = Branch::factory()->create(['is_active' => true]);
+        $manager = User::factory()->manager()->atBranch($branch)->create();
+
+        $context = $this->buildContextFor($manager, $branch->id);
+        $result = $context->build($manager, 'Thống kê hóa đơn ngày 15 và 16/9/2026');
+
+        $this->assertSame(['invoices'], $result['query_plan']['domains']);
+        $this->assertSame('2026-09-15', $result['query_plan']['period']['from']);
+        $this->assertSame('2026-09-16', $result['query_plan']['period']['to']);
+        $this->assertArrayHasKey('invoices', $result['data']);
+    }
+
+    public function test_invoice_context_is_limited_to_selected_branch(): void
+    {
+        $branch = Branch::factory()->create(['is_active' => true]);
+        $otherBranch = Branch::factory()->create(['is_active' => true]);
+        $manager = User::factory()->manager()->atBranch($branch)->create();
+
+        Invoice::factory()->create([
+            'branch_id' => $branch->id,
+            'number' => 'HD-IN-SCOPE',
+            'status' => InvoiceStatus::Paid,
+            'total' => 150_000,
+            'created_at' => '2026-09-15 10:00:00',
+            'paid_at' => '2026-09-15 10:00:00',
+        ]);
+        Invoice::factory()->create([
+            'branch_id' => $otherBranch->id,
+            'number' => 'HD-OUT-OF-SCOPE',
+            'status' => InvoiceStatus::Paid,
+            'total' => 900_000,
+            'created_at' => '2026-09-15 11:00:00',
+            'paid_at' => '2026-09-15 11:00:00',
+        ]);
+
+        $context = $this->buildContextFor($manager, $branch->id);
+        $result = $context->build($manager, 'Thống kê hóa đơn ngày 15 và 16/9/2026');
+        $json = json_encode($result, JSON_THROW_ON_ERROR);
+
+        $this->assertSame(1, $result['data']['invoices']['created_count']);
+        $this->assertStringContainsString('HD-IN-SCOPE', $json);
+        $this->assertStringNotContainsString('HD-OUT-OF-SCOPE', $json);
+        $this->assertStringNotContainsString('900000', $json);
+    }
+
     public function test_context_role_is_owner_for_owner(): void
     {
         $owner = User::factory()->owner()->create();

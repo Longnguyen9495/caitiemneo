@@ -210,7 +210,7 @@ class AiConversationTest extends TestCase
             ->assertSessionHasErrors('message');
     }
 
-    public function test_provider_malformed_json_does_not_persist_partial_messages(): void
+    public function test_provider_malformed_json_keeps_the_user_message(): void
     {
         $this->app->instance(AiProvider::class, new class implements AiProvider
         {
@@ -229,9 +229,13 @@ class AiConversationTest extends TestCase
             ->assertRedirect()
             ->assertSessionHas('error');
 
-        // The controller catches the exception and redirects with an error,
-        // so no messages (user or assistant) should be persisted.
-        $this->assertDatabaseCount('ai_messages', 0);
+        // Câu hỏi vẫn còn trong lịch sử để người dùng không phải nhập lại;
+        // chỉ phản hồi không hợp lệ của AI là không được lưu.
+        $this->assertDatabaseCount('ai_messages', 1);
+        $this->assertDatabaseHas('ai_messages', [
+            'role' => 'user',
+            'content' => 'Hỏi',
+        ]);
     }
 
     public function test_rate_limit_on_message_endpoint_works(): void

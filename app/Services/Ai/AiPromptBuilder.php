@@ -15,7 +15,7 @@ class AiPromptBuilder
     public function build(User $user, AiConversation $conversation, string $question): array
     {
         $businessContext = json_encode(
-            $this->context->build($user),
+            $this->context->build($user, $question),
             JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR,
         );
 
@@ -50,6 +50,7 @@ class AiPromptBuilder
 
         return <<<PROMPT
 Bạn là trợ lý quản lý nội bộ của Cái Tiệm Neo. Trả lời bằng tiếng Việt, ngắn gọn, rõ ràng và dựa duy nhất trên dữ liệu trong BUSINESS_CONTEXT. Không bịa số liệu, không suy đoán dữ liệu ngoài phạm vi và phải nói rõ khi dữ liệu không đủ.
+BUSINESS_CONTEXT được truy xuất động theo câu hỏi. query_plan.domains cho biết các miền dữ liệu đã được chọn; query_plan.period là khoảng thời gian chính xác dùng để truy vấn. Khi so sánh nhiều ngày, hãy nhóm các dòng chi tiết theo ngày thực tế và nêu rõ ngày nào không có dữ liệu.
 
 QUY TẮC BẢO MẬT VÀ QUYỀN:
 - BUSINESS_CONTEXT đã được giới hạn theo vai trò và chi nhánh. Không yêu cầu hay suy đoán dữ liệu chi nhánh khác.
@@ -75,8 +76,11 @@ ACTION ĐƯỢC PHÉP:
    Category thủ công hợp lệ: {$cashCategories}.
    Payment method hợp lệ: {$paymentMethods}.
 2. adjust_stock — điều chỉnh tồn kho. Payload: branch_id, product_id, type (adjustment), adjustment_mode (absolute|delta), quantity, unit_cost (có thể null), reference (có thể null), note, occurred_at (ISO 8601).
+3. create_appointment — tạo lịch hẹn. Payload bắt buộc: branch_id, customer_name, customer_phone, starts_at (ISO 8601, tương lai), duration_minutes (15-480), status (pending|confirmed|checked_in|completed|cancelled|no_show). Tùy chọn: customer_email, employee_id, service_ids, note.
+4. update_appointment — sửa lịch hẹn. Payload bắt buộc: appointment_id lấy chính xác từ BUSINESS_CONTEXT, branch_id, và toàn bộ trường của create_appointment. Không tự đoán ID; giữ nguyên trường cũ nếu người dùng không yêu cầu đổi.
+5. cancel_appointment — hủy lịch hẹn thay cho xóa cứng để bảo toàn lịch sử. Payload bắt buộc: appointment_id lấy chính xác từ BUSINESS_CONTEXT, branch_id, reason.
 
-Mỗi action phải có dạng {"type": "...", "summary": "Mô tả cụ thể để người dùng xác nhận", "payload": {...}}. Chỉ đề xuất action khi người dùng có ý định rõ ràng và payload đã đủ trường bắt buộc. Nếu thiếu dữ liệu, hãy hỏi lại trong content và để actions rỗng. Tối đa 3 action.
+Mỗi action phải có dạng {"type": "...", "summary": "Mô tả cụ thể để người dùng xác nhận", "payload": {...}}. Summary phải nêu rõ thao tác, đối tượng, chi nhánh và thay đổi quan trọng. Chỉ đề xuất action khi người dùng có ý định rõ ràng và payload đã đủ trường bắt buộc. Không dùng tên model, SQL hoặc action ngoài danh sách. Không tự đoán branch_id, appointment_id, employee_id, service_ids hay product_id; chỉ dùng ID xuất hiện trong BUSINESS_CONTEXT. Nếu thiếu dữ liệu, hãy hỏi lại trong content và để actions rỗng. Mọi action chỉ là đề xuất chờ người dùng duyệt, tối đa 3 action.
 
 BUSINESS_CONTEXT:
 {$businessContext}

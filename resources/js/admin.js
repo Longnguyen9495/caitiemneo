@@ -789,20 +789,92 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         textarea.style.height = 'auto';
-        textarea.style.height = `${Math.min(textarea.scrollHeight, 192)}px`;
+
+        // scrollHeight không tính viền; thiếu phần này ô nhập hụt 2px so với nút
+        // gửi bên cạnh và hiện thanh cuộn dù chỉ có một dòng.
+        const borders = textarea.offsetHeight - textarea.clientHeight;
+
+        textarea.style.height = `${Math.min(textarea.scrollHeight + borders, 160)}px`;
     };
 
     textarea?.addEventListener('input', resizeTextarea);
     resizeTextarea();
+
+    // Gợi ý ở màn hình trống: bấm là điền sẵn câu hỏi, người dùng chỉ việc gửi.
+    messageList?.addEventListener('click', (event) => {
+        const suggestion = event.target.closest('[data-ai-suggestion]');
+
+        if (!suggestion || !textarea) {
+            return;
+        }
+
+        textarea.value = suggestion.textContent.trim();
+        resizeTextarea();
+        textarea.focus();
+    });
 
     form.addEventListener('submit', () => {
         if (!submit || submit.disabled) {
             return;
         }
 
+        const question = textarea?.value.trim();
+
+        if (question && messageList) {
+            messageList.querySelector('.ai-welcome')?.remove();
+
+            const message = document.createElement('article');
+            message.className = 'ai-message ai-message-user';
+
+            const meta = document.createElement('div');
+            meta.className = 'ai-message-meta';
+            meta.textContent = 'Bạn · vừa gửi';
+
+            const bubble = document.createElement('div');
+            bubble.className = 'ai-message-bubble';
+
+            const content = document.createElement('p');
+            content.className = 'mb-0';
+            content.textContent = question;
+
+            bubble.append(content);
+            message.append(meta, bubble);
+
+            const thinking = document.createElement('article');
+            thinking.className = 'ai-message ai-message-assistant ai-message-thinking';
+            thinking.setAttribute('role', 'status');
+            thinking.setAttribute('aria-live', 'polite');
+            thinking.innerHTML = `
+                <div class="ai-message-meta">Neo AI</div>
+                <div class="ai-message-bubble">
+                    <span class="ai-thinking-label">Đang suy nghĩ</span>
+                    <span class="ai-thinking-dots" aria-hidden="true">
+                        <span></span><span></span><span></span>
+                    </span>
+                </div>
+            `;
+
+            messageList.append(message, thinking);
+            messageList.scrollTop = messageList.scrollHeight;
+
+            // Đợi trình duyệt tạo payload form trước khi dọn composer; nếu xóa
+            // đồng bộ ở đây thì trường message có thể bị gửi thành chuỗi rỗng.
+            window.setTimeout(() => {
+                textarea.value = '';
+                textarea.style.height = 'auto';
+            }, 0);
+        }
+
         submit.disabled = true;
         submit.setAttribute('aria-busy', 'true');
-        submit.textContent = 'Đang phân tích…';
+        submit.setAttribute('aria-label', 'Đang chờ Neo AI…');
+
+        // Chỉ đổi nhãn chữ; trên điện thoại nút chỉ còn biểu tượng nên phải giữ.
+        const submitLabel = submit.querySelector('[data-ai-submit-label]');
+
+        if (submitLabel) {
+            submitLabel.textContent = 'Đang chờ…';
+        }
     });
 });
 

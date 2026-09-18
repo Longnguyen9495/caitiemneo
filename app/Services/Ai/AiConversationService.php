@@ -32,15 +32,27 @@ class AiConversationService
     public function reply(User $user, AiConversation $conversation, string $question): AiMessage
     {
         $messages = $this->prompts->build($user, $conversation, $question);
-        $result = $this->provider->chat($messages);
 
-        return DB::transaction(function () use ($user, $conversation, $question, $result): AiMessage {
+        DB::transaction(function () use ($conversation, $question): void {
             $conversation = AiConversation::query()->lockForUpdate()->findOrFail($conversation->id);
 
             $conversation->messages()->create([
                 'role' => 'user',
                 'content' => $question,
             ]);
+
+            $conversation->forceFill([
+                'title' => $conversation->title ?: Str::limit($question, 80, ''),
+                'branch_id' => $this->branches->currentId(),
+                'scope_branch_ids' => $this->branches->scopeIds(),
+                'last_message_at' => now(),
+            ])->save();
+        });
+
+        $result = $this->provider->chat($messages);
+
+        return DB::transaction(function () use ($user, $conversation, $result): AiMessage {
+            $conversation = AiConversation::query()->lockForUpdate()->findOrFail($conversation->id);
 
             $assistant = $conversation->messages()->create([
                 'role' => 'assistant',
@@ -76,12 +88,7 @@ class AiConversationService
                 ]);
             }
 
-            $conversation->forceFill([
-                'title' => $conversation->title ?: Str::limit($question, 80, ''),
-                'branch_id' => $this->branches->currentId(),
-                'scope_branch_ids' => $this->branches->scopeIds(),
-                'last_message_at' => now(),
-            ])->save();
+            $conversation->forceFill(['last_message_at' => now()])->save();
 
             return $assistant->load('actionProposals');
         });

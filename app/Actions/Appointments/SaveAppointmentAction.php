@@ -2,18 +2,23 @@
 
 namespace App\Actions\Appointments;
 
+use App\Enums\AuditAction;
 use App\Models\Appointment;
 use App\Models\AppointmentService;
 use App\Models\Branch;
 use App\Models\BranchService;
 use App\Models\Customer;
 use App\Models\EmployeeBranchAssignment;
+use App\Models\User;
+use App\Services\Audit\AuditRecorder;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class SaveAppointmentAction
 {
+    public function __construct(private AuditRecorder $auditor) {}
+
     /**
      * Create or update an appointment together with its customer and service lines.
      *
@@ -21,7 +26,7 @@ class SaveAppointmentAction
      *
      * @throws ValidationException when the branch, the posting or the slot does not hold up
      */
-    public function handle(array $data, ?Appointment $appointment = null): Appointment
+    public function handle(array $data, ?Appointment $appointment = null, ?User $actor = null): Appointment
     {
         $branchId = (int) $data['branch_id'];
         $startsAt = $data['starts_at'] instanceof Carbon
@@ -35,7 +40,11 @@ class SaveAppointmentAction
         $this->guardEmployeeIsPosted($employeeId, $branchId, $startsAt);
         $this->guardAgainstOverlap($employeeId, $startsAt, $endsAt, $appointment?->getKey());
 
-        return DB::transaction(function () use ($data, $appointment, $branchId, $employeeId, $startsAt, $endsAt, $durationMinutes): Appointment {
+        return DB::transaction(function () use ($data, $appointment, $actor, $branchId, $employeeId, $startsAt, $endsAt, $durationMinutes): Appointment {
+            $appointment = $appointment === null
+                ? null
+                : Appointment::query()->lockForUpdate()->findOrFail($appointment->getKey());
+            $before = $appointment?->load('services')->auditSnapshot();
             $customer = $this->saveCustomer(
                 $data['customer_name'],
                 $data['customer_phone'],
@@ -65,6 +74,16 @@ class SaveAppointmentAction
             }
 
             $this->syncServices($appointment, $data['service_ids'] ?? [], $branchId);
+            $appointment->load('services');
+
+            $this->auditor->record(
+                $appointment,
+                $actor,
+                $before === null ? AuditAction::Created : AuditAction::Updated,
+                $before,
+                $appointment->auditSnapshot(),
+                isset($data['note']) ? (string) $data['note'] : null,
+            );
 
             return $appointment;
         });

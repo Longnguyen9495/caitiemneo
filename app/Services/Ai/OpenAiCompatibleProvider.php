@@ -11,6 +11,8 @@ use Throwable;
 
 class OpenAiCompatibleProvider implements AiProvider
 {
+    public function __construct(private ?AiActionCatalog $actions = null) {}
+
     /** @param array<int, array<string, string>> $messages */
     public function chat(array $messages): AiProviderResult
     {
@@ -21,7 +23,6 @@ class OpenAiCompatibleProvider implements AiProvider
             ->post(config('ai.base_url').'/chat/completions', [
                 'model' => config('ai.model'),
                 'messages' => $messages,
-                'temperature' => config('ai.temperature'),
                 'max_tokens' => config('ai.max_output_tokens'),
                 'response_format' => ['type' => 'json_object'],
             ])
@@ -190,7 +191,7 @@ class OpenAiCompatibleProvider implements AiProvider
             return [];
         }
 
-        $allowed = ['create_cash_entry', 'adjust_stock'];
+        $allowed = ($this->actions ?? new AiActionCatalog)->allowedTypes();
         $safe = [];
 
         foreach (array_slice($actions, 0, 3) as $action) {

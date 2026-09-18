@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\AiConversation;
 use App\Services\Ai\AiConversationService;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -64,10 +65,14 @@ class AiAssistantController extends Controller
         } catch (Throwable $exception) {
             report($exception);
 
-            return to_route('admin.ai.index', ['conversation' => $conversation->id])
-                ->with('error', app()->isProduction()
-                    ? 'Trợ lý AI tạm thời chưa phản hồi. Vui lòng thử lại sau.'
+            $message = $exception instanceof RequestException && $exception->response->serverError()
+                ? 'Máy chủ AI đang tạm thời quá tải hoặc bảo trì. Câu hỏi của bạn đã được lưu; vui lòng thử gửi lại sau.'
+                : (app()->isProduction()
+                    ? 'Trợ lý AI tạm thời chưa phản hồi. Câu hỏi của bạn đã được lưu; vui lòng thử lại sau.'
                     : $exception->getMessage());
+
+            return to_route('admin.ai.index', ['conversation' => $conversation->id])
+                ->with('error', $message);
         }
 
         return to_route('admin.ai.index', ['conversation' => $conversation->id]);

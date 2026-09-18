@@ -2,15 +2,20 @@
 
 namespace App\Services\Ai;
 
+use App\Actions\Appointments\CancelAppointmentAction;
+use App\Actions\Appointments\SaveAppointmentAction;
 use App\Actions\Cash\RecordCashTransactionAction;
 use App\Actions\Inventory\RecordInventoryMovementAction;
 use App\Enums\AiActionStatus;
+use App\Enums\AppointmentStatus;
 use App\Enums\CashTransactionCategory;
 use App\Enums\CashTransactionType;
 use App\Enums\InventoryMovementType;
 use App\Enums\PaymentMethod;
 use App\Models\AiActionProposal;
+use App\Models\Appointment;
 use App\Models\BranchProduct;
+use App\Models\BranchService;
 use App\Models\CashTransaction;
 use App\Models\InventoryMovement;
 use App\Models\Product;
@@ -29,8 +34,11 @@ class AiActionExecutor
 {
     public function __construct(
         private BranchContext $branches,
+        private AiActionCatalog $catalog,
         private RecordCashTransactionAction $cash,
         private RecordInventoryMovementAction $inventory,
+        private SaveAppointmentAction $appointments,
+        private CancelAppointmentAction $cancelAppointment,
     ) {}
 
     public function execute(AiActionProposal $proposal, User $actor): AiActionProposal
@@ -139,6 +147,37 @@ class AiActionExecutor
         $backdate = now()->subDays((int) config('business.backdate_days'))->startOfDay()->toDateTimeString();
         $todayEnd = now()->endOfDay()->toDateTimeString();
 
+        if (! $this->catalog->supports($proposal->type)) {
+            throw ValidationException::withMessages([
+                'action' => 'Loại thao tác AI này không được hệ thống hỗ trợ.',
+            ]);
+        }
+
+        $appointmentIdRules = [
+            'required',
+            'integer',
+            Rule::exists(Appointment::class, 'id')->where('branch_id', $proposal->branch_id),
+        ];
+        $serviceRules = [
+            'integer',
+            Rule::exists(BranchService::class, 'service_id')
+                ->where('branch_id', $proposal->branch_id)
+                ->where('is_active', true),
+        ];
+        $appointmentRules = [
+            'branch_id' => ['required', 'integer', Rule::in($this->branches->scopeIds())],
+            'customer_name' => ['required', 'string', 'max:255'],
+            'customer_phone' => ['required', 'string', 'max:30'],
+            'customer_email' => ['nullable', 'email:rfc', 'max:255'],
+            'employee_id' => ['nullable', 'integer', Rule::exists(User::class, 'id')->where('is_active', true)],
+            'starts_at' => ['required', 'date', 'after:now', 'before:'.now()->addDays((int) config('business.max_booking_days_ahead'))->toDateTimeString()],
+            'duration_minutes' => ['required', 'integer', 'min:15', 'max:480'],
+            'status' => ['required', Rule::enum(AppointmentStatus::class)],
+            'service_ids' => ['nullable', 'array', 'max:20'],
+            'service_ids.*' => $serviceRules,
+            'note' => ['nullable', 'string', 'max:2000'],
+        ];
+
         $rules = match ($proposal->type) {
             'create_cash_entry' => [
                 'branch_id' => ['required', 'integer', Rule::in($this->branches->scopeIds())],
@@ -178,9 +217,14 @@ class AiActionExecutor
                 'note' => ['required', 'string', 'min:6', 'max:2000'],
                 'occurred_at' => ['required', 'date', "before_or_equal:{$todayEnd}", "after_or_equal:{$backdate}"],
             ],
-            default => throw ValidationException::withMessages([
-                'action' => 'Loại thao tác AI này không được hệ thống hỗ trợ.',
-            ]),
+            'create_appointment' => $appointmentRules,
+            'update_appointment' => ['appointment_id' => $appointmentIdRules] + $appointmentRules,
+            'cancel_appointment' => [
+                'branch_id' => ['required', 'integer', Rule::in($this->branches->scopeIds())],
+                'appointment_id' => $appointmentIdRules,
+                'reason' => ['required', 'string', 'min:3', 'max:500'],
+            ],
+            default => throw ValidationException::withMessages(['action' => 'Thao tác không được hỗ trợ.']),
         };
 
         $validated = Validator::make($payload, $rules, [], [
@@ -190,12 +234,14 @@ class AiActionExecutor
             'quantity' => 'số lượng',
             'note' => 'lý do',
             'occurred_at' => 'thời điểm',
+            'appointment_id' => 'lịch hẹn',
+            'customer_name' => 'tên khách hàng',
+            'customer_phone' => 'số điện thoại',
+            'starts_at' => 'thời gian bắt đầu',
+            'duration_minutes' => 'thời lượng',
+            'service_ids' => 'dịch vụ',
+            'reason' => 'lý do hủy',
         ])->validate();
-
-        Gate::forUser($proposal->proposer)->authorize(
-            'create',
-            $proposal->type === 'create_cash_entry' ? CashTransaction::class : InventoryMovement::class,
-        );
 
         return $validated;
     }
@@ -206,6 +252,9 @@ class AiActionExecutor
         return match ($type) {
             'create_cash_entry' => $this->createCashEntry($payload, $actor),
             'adjust_stock' => $this->adjustStock($payload, $actor),
+            'create_appointment' => $this->createAppointment($payload, $actor),
+            'update_appointment' => $this->updateAppointment($payload, $actor),
+            'cancel_appointment' => $this->cancelAppointment($payload, $actor),
             default => throw ValidationException::withMessages(['action' => 'Thao tác không được hỗ trợ.']),
         };
     }
@@ -224,6 +273,33 @@ class AiActionExecutor
         Gate::forUser($actor)->authorize('create', InventoryMovement::class);
 
         return $this->inventory->handle($payload, $actor);
+    }
+
+    /** @param array<string, mixed> $payload */
+    private function createAppointment(array $payload, User $actor): Appointment
+    {
+        Gate::forUser($actor)->authorize('create', Appointment::class);
+
+        return $this->appointments->handle($payload, actor: $actor);
+    }
+
+    /** @param array<string, mixed> $payload */
+    private function updateAppointment(array $payload, User $actor): Appointment
+    {
+        $appointment = Appointment::query()->findOrFail($payload['appointment_id']);
+        Gate::forUser($actor)->authorize('update', $appointment);
+        unset($payload['appointment_id']);
+
+        return $this->appointments->handle($payload, $appointment, $actor);
+    }
+
+    /** @param array<string, mixed> $payload */
+    private function cancelAppointment(array $payload, User $actor): Appointment
+    {
+        $appointment = Appointment::query()->findOrFail($payload['appointment_id']);
+        Gate::forUser($actor)->authorize('update', $appointment);
+
+        return $this->cancelAppointment->handle($appointment, $actor, $payload['reason']);
     }
 
     private function safeFailureMessage(Throwable $exception): string

@@ -1,28 +1,112 @@
 // Trợ lý AI: bố cục hội thoại tối ưu cho màn hình quản trị và điện thoại.
 .ai-workspace {
-    align-items: stretch;
+    min-width: 0;
 }
 
-.ai-history-card,
 .ai-chat-card {
+    height: min(46rem, calc(100dvh - 10rem));
+    min-height: 38rem;
     overflow: hidden;
 }
 
-.ai-history-card {
-    .list-group {
-        max-height: 34rem;
-        overflow-y: auto;
+.ai-chat-layout {
+    display: grid;
+    grid-template-columns: minmax(14rem, 18rem) minmax(0, 1fr);
+    height: 100%;
+    min-height: 0;
+}
+
+.ai-history-panel {
+    background: rgba($neo-wine, .025);
+    border-right: 1px solid rgba($neo-wine, .12);
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.ai-history-heading {
+    border-bottom: 1px solid rgba($neo-wine, .1);
+    min-height: 4.5rem;
+    padding: .85rem 1rem;
+}
+
+.ai-history-list {
+    min-height: 0;
+    overflow-y: auto;
+
+    .list-group-item {
+        background: transparent;
+        border-color: rgba($neo-wine, .08);
+        padding: .85rem 1rem;
     }
 
     .list-group-item.active {
-        background: rgba($neo-wine, .09);
-        border-color: rgba($neo-wine, .16);
+        background: rgba($neo-wine, .1);
+        border-color: rgba($neo-wine, .14);
         color: $neo-wine;
     }
 }
 
-.ai-chat-card {
-    min-height: min(46rem, calc(100vh - 10rem));
+// Hàng điều khiển gộp trên điện thoại: tên hội thoại đang mở + nút tạo mới.
+.ai-mobile-bar {
+    align-items: center;
+    background: $neo-paper;
+    border-bottom: 1px solid rgba($neo-wine, .1);
+    display: flex;
+    gap: .35rem;
+    padding-right: .6rem;
+}
+
+.ai-history-toggle {
+    align-items: center;
+    background: transparent;
+    border: 0;
+    color: $neo-wine;
+    display: flex;
+    flex: 1 1 auto;
+    font-weight: 600;
+    gap: .5rem;
+    min-width: 0;
+    padding: .5rem .75rem;
+    text-align: left;
+
+    > .text-truncate {
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+
+    &[aria-expanded="true"] .ai-history-toggle-icon {
+        transform: rotate(180deg);
+    }
+}
+
+.ai-new-chat {
+    align-items: center;
+    display: inline-flex;
+    flex: 0 0 auto;
+    height: 2.1rem;
+    justify-content: center;
+    padding: 0;
+    width: 2.1rem;
+}
+
+.ai-history-toggle-icon {
+    flex: 0 0 auto;
+    opacity: .65;
+    transition: transform .2s ease;
+}
+
+.ai-chat-main {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    min-width: 0;
+}
+
+.ai-chat-header {
+    border-bottom: 1px solid rgba($neo-wine, .1);
+    min-height: 4.5rem;
+    padding: .75rem 1rem;
 }
 
 .ai-avatar {
@@ -36,6 +120,11 @@
     justify-content: center;
     width: 2.25rem;
 
+    &-sm {
+        height: 1.75rem;
+        width: 1.75rem;
+    }
+
     &-lg {
         height: 3.75rem;
         width: 3.75rem;
@@ -47,8 +136,7 @@
     flex: 1 1 auto;
     flex-direction: column;
     gap: 1.25rem;
-    max-height: calc(100vh - 21rem);
-    min-height: 24rem;
+    min-height: 0;
     overflow-y: auto;
     overscroll-behavior: contain;
     scroll-behavior: smooth;
@@ -58,6 +146,29 @@
     margin-block: auto;
     max-width: 36rem;
     padding: 2rem 1rem;
+}
+
+// Gợi ý bấm là được: thay cho đoạn ví dụ dài dòng trong màn hình trống.
+.ai-suggestions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem;
+    justify-content: center;
+}
+
+.ai-suggestion {
+    background: rgba($neo-wine, .05);
+    border: 1px solid rgba($neo-wine, .16);
+    border-radius: 999px;
+    color: $neo-wine;
+    font-size: .8125rem;
+    font-weight: 600;
+    padding: .45rem .85rem;
+
+    &:hover,
+    &:focus-visible {
+        background: rgba($neo-wine, .12);
+    }
 }
 
 .ai-message {
@@ -108,6 +219,102 @@
     }
 }
 
+.ai-table-scroll {
+    border: 1px solid rgba($neo-wine, .1);
+    border-radius: $neo-radius-control;
+    overscroll-behavior-inline: contain;
+    scrollbar-width: thin;
+
+    &:focus-visible {
+        box-shadow: 0 0 0 .2rem rgba($neo-wine, .12);
+        outline: 0;
+    }
+}
+
+.ai-data-table {
+    min-width: 42rem;
+
+    th,
+    td {
+        overflow-wrap: normal;
+        padding: .55rem .65rem;
+        vertical-align: middle;
+        white-space: nowrap;
+        word-break: normal;
+    }
+
+    th {
+        background: rgba($neo-wine, .055);
+        color: $neo-ink;
+        font-size: .75rem;
+    }
+
+    td {
+        font-size: .8125rem;
+    }
+}
+
+.ai-message-thinking {
+    .ai-message-bubble {
+        align-items: center;
+        background: rgba($neo-wine, .045);
+        box-shadow: none;
+        display: inline-flex;
+        gap: .65rem;
+        min-height: 2.75rem;
+    }
+}
+
+.ai-thinking-label {
+    color: $neo-ink-muted;
+    font-size: .875rem;
+    font-weight: 600;
+}
+
+.ai-thinking-dots {
+    align-items: center;
+    display: inline-flex;
+    gap: .25rem;
+
+    span {
+        animation: ai-thinking-bounce 1.2s infinite ease-in-out;
+        background: $neo-wine;
+        border-radius: 50%;
+        height: .38rem;
+        opacity: .35;
+        width: .38rem;
+
+        &:nth-child(2) {
+            animation-delay: .15s;
+        }
+
+        &:nth-child(3) {
+            animation-delay: .3s;
+        }
+    }
+}
+
+@keyframes ai-thinking-bounce {
+    0%,
+    60%,
+    100% {
+        opacity: .3;
+        transform: translateY(0);
+    }
+
+    30% {
+        opacity: 1;
+        transform: translateY(-.22rem);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ai-thinking-dots span {
+        animation: none;
+        opacity: .65;
+    }
+}
+
 .ai-block-card,
 .ai-action {
     background: rgba($neo-wine, .035);
@@ -118,17 +325,57 @@
 
 .ai-action {
     border-left: .25rem solid $neo-warning;
+
+    &.ai-action-danger {
+        background: rgba($danger, .045);
+        border-color: rgba($danger, .22);
+        border-left-color: $danger;
+    }
+}
+
+.ai-action-details {
+    background: rgba($white, .7);
+    border: 1px solid rgba($neo-wine, .1);
+    border-radius: calc(#{$neo-radius-control} - .2rem);
+    padding: .65rem .75rem;
+
+    summary {
+        color: $neo-wine;
+        cursor: pointer;
+        font-size: .8125rem;
+        font-weight: 600;
+    }
 }
 
 .ai-composer {
     background: $neo-paper;
     border-top: 1px solid rgba($neo-wine, .1);
 
+    // Ô nhập cao theo nội dung (JS tự giãn), nhường chỗ cho lịch sử hội thoại.
     textarea {
-        max-height: 12rem;
-        min-height: 5.5rem;
-        resize: vertical;
+        max-height: 10rem;
+        min-height: 2.75rem;
+        resize: none;
     }
+}
+
+.ai-composer-row {
+    align-items: flex-end;
+    display: flex;
+    gap: .5rem;
+}
+
+// Nút gửi cao đúng bằng một dòng ô nhập để hai khối thẳng mép, kể cả khi ô nhập
+// giãn ra nhiều dòng (khi đó nút bám mép dưới).
+.ai-send {
+    align-items: center;
+    display: inline-flex;
+    flex: 0 0 auto;
+    gap: .4rem;
+    height: $neo-tap-target;
+    justify-content: center;
+    min-height: $neo-tap-target;
+    padding: 0 .9rem;
 }
 
 .ai-chart-doughnut {
@@ -249,27 +496,106 @@
 }
 
 @media (max-width: 991.98px) {
-    .ai-history-card .list-group {
-        max-height: 12rem;
+    // Khung chat chiếm trọn phần màn hình còn lại giữa thanh trên và thanh dưới,
+    // tràn sát mép để nội dung hội thoại rộng nhất có thể.
+    .ai-workspace {
+        margin-block: -1rem;
+        margin-inline: -1rem;
     }
 
     .ai-chat-card {
-        min-height: 38rem;
+        border-inline: 0;
+        border-radius: 0;
+        height: calc(100dvh - 56px - #{$neo-bottom-nav-height} - env(safe-area-inset-bottom));
+        min-height: 24rem;
     }
 
-    .ai-message-list {
-        max-height: none;
-        min-height: 22rem;
+    .ai-chat-layout {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .ai-history-panel {
+        border-right: 0;
+        flex: 0 0 auto;
+        position: relative;
+        z-index: 2;
+    }
+
+    .ai-history-list {
+        background: $neo-paper;
+        left: 0;
+        max-height: min(18rem, 42dvh);
+        overflow-y: auto;
+        position: absolute;
+        right: 0;
+        top: 100%;
+        box-shadow: $neo-shadow-sm;
+    }
+
+    .ai-chat-main {
+        flex: 1 1 auto;
     }
 }
 
 @media (max-width: 575.98px) {
-    .ai-message {
-        max-width: 96%;
+    .ai-message-list {
+        padding: .85rem .75rem;
+        position: relative;
+    }
+
+    // Căn giữa trạng thái rỗng trong vùng nội dung, không chồng lên header/footer.
+    .ai-welcome {
+        left: 50%;
+        margin: 0;
+        padding: 1rem;
+        position: absolute;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        width: min(calc(100% - 2rem), 36rem);
+    }
+
+    .ai-message-user {
+        max-width: 90%;
+    }
+
+    // Bảng và biểu đồ của trợ lý cần cả bề ngang màn hình.
+    .ai-message-assistant {
+        max-width: 100%;
+        width: 100%;
+    }
+
+    .ai-table-scroll {
+        margin-inline: -.35rem;
+        position: relative;
+
+        // Mép phải mờ nhẹ báo hiệu bảng còn có thể vuốt ngang.
+        &::after {
+            background: linear-gradient(90deg, transparent, rgba($neo-wine, .1));
+            content: '';
+            inset: 0 0 0 auto;
+            pointer-events: none;
+            position: sticky;
+            width: 1.5rem;
+        }
+    }
+
+    .ai-data-table {
+        min-width: 40rem;
+    }
+
+    .ai-composer {
+        padding: .6rem .75rem;
+    }
+
+    // Chỉ còn biểu tượng: nút vuông đúng cỡ vùng chạm.
+    .ai-send {
+        padding: 0;
+        width: $neo-tap-target;
     }
 
     .ai-message-bubble {
-        padding: .8rem;
+        padding: .75rem .8rem;
     }
 
     .ai-chart-row {
