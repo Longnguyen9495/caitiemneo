@@ -139,6 +139,22 @@ class ObservabilityTest extends TestCase
         unlink($path);
     }
 
+    /**
+     * Trên production, PHP-FPM (www-data) và các lệnh artisan (user sở hữu mã
+     * nguồn) cùng ghi vào storage/logs. Mất `permission` thì tệp sinh ra là
+     * 0644, ai tạo trước thì người kia ghi hỏng — đã xảy ra với security log.
+     */
+    public function test_every_file_log_channel_stays_writable_by_both_writers(): void
+    {
+        foreach (['security', 'single', 'daily', 'monthly'] as $channel) {
+            $this->assertSame(
+                0664,
+                config("logging.channels.{$channel}.permission"),
+                "Kênh log [{$channel}] thiếu quyền 0664 nên chỉ một tiến trình ghi được."
+            );
+        }
+    }
+
     /** A monitor has to be able to tell "running" from "working". */
     public function test_the_health_check_reports_each_dependency(): void
     {

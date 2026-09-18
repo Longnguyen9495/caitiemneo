@@ -64,12 +64,19 @@ return [
          * Tách khỏi log ứng dụng vì hai thứ này có vòng đời và người đọc khác
          * nhau: lỗi ứng dụng sẽ được dọn, còn dấu vết đăng nhập cần giữ lâu
          * hơn và ít người được xem hơn. Giữ 90 ngày.
+         *
+         * `permission` 0664 ở mọi kênh ghi tệp là bắt buộc trên production: hai
+         * tiến trình cùng ghi vào storage/logs — PHP-FPM chạy bằng www-data và
+         * các lệnh artisan chạy bằng user sở hữu mã nguồn. Mặc định 0644 khiến
+         * ai tạo tệp trước thì người kia không ghi được nữa, và Monolog ném lỗi
+         * ngay giữa request. Thư mục đã đặt setgid nên nhóm luôn là www-data.
          */
         'security' => [
             'driver' => 'daily',
             'path' => storage_path('logs/security.log'),
             'level' => 'info',
             'days' => (int) env('SECURITY_LOG_DAYS', 90),
+            'permission' => 0664,
             'replace_placeholders' => true,
         ],
 
@@ -77,6 +84,7 @@ return [
             'driver' => 'single',
             'path' => storage_path('logs/laravel.log'),
             'level' => env('LOG_LEVEL', 'debug'),
+            'permission' => 0664,
             'replace_placeholders' => true,
         ],
 
@@ -85,6 +93,7 @@ return [
             'path' => storage_path('logs/laravel.log'),
             'level' => env('LOG_LEVEL', 'debug'),
             'max_files' => env('LOG_DAILY_DAYS', 14),
+            'permission' => 0664,
             'replace_placeholders' => true,
         ],
 
@@ -93,6 +102,7 @@ return [
             'path' => storage_path('logs/laravel.log'),
             'level' => env('LOG_LEVEL', 'debug'),
             'max_files' => 3,
+            'permission' => 0664,
             'replace_placeholders' => true,
         ],
 
