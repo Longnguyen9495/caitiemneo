@@ -147,6 +147,39 @@ class AiAppointmentActionTest extends TestCase
         $this->assertSame('Khách yêu cầu hủy lịch', $event->reason);
     }
 
+    public function test_the_proposal_card_describes_the_payload_without_technical_field_names(): void
+    {
+        $branch = Branch::factory()->create(['name' => 'Cái Tiệm Neo Thái Hà']);
+        $owner = User::factory()->owner()->atBranch($branch)->create();
+        $proposal = $this->proposal($owner, $branch, 'create_appointment', [
+            'branch_id' => $branch->id,
+            'customer_name' => 'Chị Lan',
+            'customer_phone' => '0901234567',
+            'customer_email' => null,
+            'employee_id' => null,
+            'starts_at' => now()->addDay()->startOfHour()->toIso8601String(),
+            'duration_minutes' => 60,
+            'status' => AppointmentStatus::Pending->value,
+            'service_ids' => [],
+            'note' => 'Khách quen',
+        ]);
+
+        $response = $this->actingAs($owner)
+            ->withSession(['admin.current_branch_id' => $branch->id])
+            ->get(route('admin.ai.index', ['conversation' => $proposal->message->conversation_id]));
+
+        $response->assertOk()
+            ->assertSee('Khách hàng')
+            ->assertSee('Chị Lan')
+            ->assertSee('Thời lượng')
+            ->assertSee('Chờ xác nhận')
+            ->assertSee('Cái Tiệm Neo Thái Hà');
+
+        foreach (['starts_at', 'Starts At', 'customer_name', 'Customer Name', 'Branch Id', 'duration_minutes'] as $technicalToken) {
+            $response->assertDontSee($technicalToken);
+        }
+    }
+
     private function confirm(User $owner, Branch $branch, AiActionProposal $proposal): TestResponse
     {
         return $this->actingAs($owner)

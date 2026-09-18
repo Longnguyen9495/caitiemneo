@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Models\User;
+use App\Services\Ai\AiPayloadPresenter;
 use App\Services\Ai\Contracts\AiProvider;
 use App\Services\Ai\OpenAiCompatibleProvider;
 use App\Services\Audit\AuditRecorder;
@@ -29,6 +30,10 @@ class AppServiceProvider extends ServiceProvider
         $this->app->scoped(AuditRecorder::class, fn ($app) => new AuditRecorder($app['request']));
 
         $this->app->bind(AiProvider::class, OpenAiCompatibleProvider::class);
+
+        // Scoped để mọi đề xuất hiển thị trên cùng một trang dùng chung bộ nhớ
+        // tra tên chi nhánh, vật tư, nhân viên — tra một lần thay vì mỗi thẻ.
+        $this->app->scoped(AiPayloadPresenter::class);
     }
 
     /**

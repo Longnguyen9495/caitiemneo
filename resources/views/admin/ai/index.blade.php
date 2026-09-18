@@ -132,17 +132,7 @@
                                                     <x-admin.icon name="alert" size="20" class="{{ ($actionDefinition['destructive'] ?? false) ? 'text-danger' : 'text-warning' }} flex-shrink-0" />
                                                 </div>
 
-                                                <details class="ai-action-details mt-3">
-                                                    <summary>Xem dữ liệu sẽ áp dụng</summary>
-                                                    <dl class="row g-2 mb-0 mt-1 small">
-                                                        @foreach ($proposal->payload as $key => $value)
-                                                            <dt class="col-5 text-body-secondary">{{ str($key)->replace('_', ' ')->headline() }}</dt>
-                                                            <dd class="col-7 mb-0 text-break">
-                                                                {{ is_array($value) ? implode(', ', $value) : ($value === null ? '—' : (is_bool($value) ? ($value ? 'Có' : 'Không') : $value)) }}
-                                                            </dd>
-                                                        @endforeach
-                                                    </dl>
-                                                </details>
+                                                <x-admin.ai-action-payload :proposal="$proposal" />
 
                                                 @if ($proposal->failure_message)
                                                     <div class="alert alert-danger py-2 px-3 mt-3 mb-0 small">{{ $proposal->failure_message }}</div>
