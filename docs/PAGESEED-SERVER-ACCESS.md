@@ -25,19 +25,11 @@ ssh -i "C:\Users\thanh\.ssh\pageseed_bizfly" -o BatchMode=yes -o ConnectTimeout=
 ## Vị trí project trên VPS
 
 - PageSeed production: `/opt/pageseed/current`
-- Cái Tiệm Neo: `/home/rexllm/workspace/caitiemneo`
+- Cái Tiệm Neo: `/var/www/caitiemneo-app` — **một thư mục duy nhất**, vừa là git checkout vừa là bản Nginx phục vụ.
 
-Thư mục Cái Tiệm Neo được xác minh bằng thao tác chỉ đọc ngày 11/09/2026:
-
-```powershell
-ssh -i "C:\Users\thanh\.ssh\pageseed_bizfly" -o BatchMode=yes root@221.121.1.68 "find /opt /var/www /home -maxdepth 5 -type d -iname caitiemneo 2>/dev/null"
-```
-
-Kết quả:
-
-```text
-/home/rexllm/workspace/caitiemneo
-```
+Từ 18/09/2026 không còn thư mục nguồn riêng ở `/home/rexllm/workspace/caitiemneo`: giữ hai bản
+khiến mỗi lần deploy phải rsync, mà rsync ghi đè quyền thư mục `database` làm SQLite mất quyền ghi.
+Deploy giờ là `git pull` thẳng trong thư mục đang chạy.
 
 ## Cái Tiệm Neo production
 
@@ -45,8 +37,7 @@ Kết quả:
 |---|---|
 | Website | `https://caitiemneo.221-121-1-68.sslip.io/` |
 | Admin | `https://caitiemneo.221-121-1-68.sslip.io/admin` |
-| Git worktree (chỉ dùng để pull source) | `/home/rexllm/workspace/caitiemneo` |
-| Laravel release đang được Nginx phục vụ | `/var/www/caitiemneo-app` |
+| Thư mục project (git checkout + bản chạy) | `/var/www/caitiemneo-app` |
 | Web root | `/var/www/caitiemneo-app/public` |
 | SQLite production | `/var/www/caitiemneo-app/database/database.sqlite` |
 | Nginx vhost | `/etc/nginx/sites-available/caitiemneo` |
@@ -56,10 +47,11 @@ Kết quả:
 
 ### Kiến trúc và ràng buộc
 
-- Nginx **không được** trỏ trực tiếp vào `/home/rexllm/workspace/caitiemneo/public`: thư mục home không mở quyền traverse cho `www-data`.
-- Giữ source Git tại `/home/rexllm/workspace/caitiemneo`; deploy bản release sang `/var/www/caitiemneo-app`.
+- Toàn bộ project nằm trong `/var/www/caitiemneo-app`, thuộc user `rexllm`. Mọi lệnh `git`, `composer`, `npm`, `artisan` chạy bằng `sudo -u rexllm`, không chạy bằng root — build bằng root sẽ để lại file root-owned khiến lần deploy sau hỏng (`EACCES` khi Vite dọn `public/build`).
+- Không đặt project trong `/home/rexllm`: thư mục home là `750`, `www-data` không traverse được. Mở `o+x` cho home chỉ để phục vụ web là đánh đổi bảo mật không cần thiết khi `/var/www` sẵn sàng.
 - Vhost Cái Tiệm Neo và vhost PageSeed độc lập. Không sửa `/etc/nginx/sites-available/pageseed` khi chỉ deploy Cái Tiệm Neo.
-- File `.env`, database SQLite, `vendor`, `node_modules` và secrets là runtime-only; tuyệt đối không commit hoặc copy ngược về Git worktree.
+- File `.env`, database SQLite, `vendor`, `node_modules` và secrets là runtime-only, đều nằm trong `.gitignore`; tuyệt đối không commit.
+- `.env` phải là `640 rexllm:www-data`: `www-data` cần đọc, user khác thì không.
 - Không chạy `DatabaseSeeder`: nó gọi `StaffSeeder` có tài khoản mẫu/mật khẩu mẫu. Chỉ chạy seeder cấu hình được phê duyệt rõ ràng.
 
 ### Kiểm tra read-only trước khi thao tác
@@ -92,17 +84,20 @@ Không đưa các directive này vào vhost PageSeed. Sau khi được phê duy�
 Chỉ thực hiện khi người dùng đã phê duyệt deploy và sau khi code đã được commit/push.
 
 1. Chạy quality gate local: Pint, test phù hợp và `npm run build` khi thay đổi frontend.
-2. Pull Git bằng user `rexllm`, không dùng Git root:
+2. Sao lưu SQLite trước khi có migration:
 
 ```bash
-sudo -u rexllm git -C /home/rexllm/workspace/caitiemneo fetch origin main
-sudo -u rexllm git -C /home/rexllm/workspace/caitiemneo checkout main
-sudo -u rexllm git -C /home/rexllm/workspace/caitiemneo pull --ff-only origin main
+cp -p /var/www/caitiemneo-app/database/database.sqlite /var/backups/caitiemneo/database-$(date +%Y%m%d-%H%M%S).sqlite
 ```
 
-3. Đồng bộ source vào `/var/www/caitiemneo-app`, đồng thời loại trừ `.git`, `.env`, database SQLite, `vendor` và `node_modules`.
-4. Chạy trong release: `composer install --no-dev --prefer-dist --no-interaction --optimize-autoloader`, migration với `--force`, `npm ci`, `npm run build`, rồi xóa `node_modules` nếu không cần giữ.
-5. Dùng `.env` production với `APP_ENV=production`, `APP_DEBUG=false`, `APP_URL=https://caitiemneo.221-121-1-68.sslip.io`, `DB_CONNECTION=sqlite`, database path tuyệt đối và session/cache database.
+3. Pull thẳng trong thư mục đang chạy, bằng user `rexllm`:
+
+```bash
+sudo -u rexllm git -C /var/www/caitiemneo-app pull --ff-only origin main
+```
+
+4. Chạy trong thư mục đó, đều bằng `sudo -u rexllm`: `composer install --no-dev --prefer-dist --no-interaction --optimize-autoloader`, `php artisan migrate --force`, và khi frontend đổi thì `npm ci && npm run build` rồi `rm -rf node_modules`.
+5. `.env` production giữ `APP_ENV=production`, `APP_DEBUG=false`, `APP_URL=https://caitiemneo.221-121-1-68.sslip.io`, `DB_CONNECTION=sqlite`, database path tuyệt đối, session/cache `database`. Trợ lý AI cần thêm `AI_ENABLED=true` và `AI_API_KEY`; thiếu thì trang `/admin/ai` chỉ hiện cảnh báo chưa bật. `.env` **không** đi theo `git pull`, mỗi biến mới phải thêm tay.
 6. Cấp quyền `rexllm:www-data` cho `storage`, `bootstrap/cache` và thư mục `database`. SQLite phải ghi được cả file **và thư mục cha**:
 
 ```bash
@@ -111,9 +106,9 @@ chmod 2770 /var/www/caitiemneo-app/database
 chmod 660 /var/www/caitiemneo-app/database/database.sqlite
 ```
 
-7. Xóa và tạo lại Laravel caches: `php artisan optimize:clear`, `config:cache`, `route:cache`, `view:cache`.
-8. Luôn chạy `nginx -t` trước `systemctl reload nginx`. Giữ nguyên các directive SSL do Certbot quản lý.
-9. Xác minh `/`, `/login`, `/admin` (guest phải chuyển về login), asset Vite, migration status, `nginx`, `php8.5-fpm`, và PageSeed.
+7. Xóa và tạo lại Laravel caches: `php artisan optimize:clear`, `config:cache`, `route:cache`, `view:cache`. Sửa `.env` mà quên `config:cache` thì cấu hình cũ vẫn có hiệu lực.
+8. Không cần đụng Nginx khi chỉ deploy code — `root` đã cố định. Nếu buộc phải sửa vhost thì `nginx -t` trước `systemctl reload nginx`, giữ nguyên các directive SSL do Certbot quản lý.
+9. Xác minh `/`, `/login`, `/admin` và `/admin/ai` (guest phải chuyển về login), asset Vite, migration status, `nginx`, `php8.5-fpm`, và PageSeed.
 
 ### Lưu ý an toàn
 
