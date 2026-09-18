@@ -8,6 +8,7 @@ use App\Enums\UserRole;
 use App\Models\Branch;
 use App\Models\User;
 use App\Notifications\NewOnlineBookingNotification;
+use App\Notifications\OnlineBookingReceivedNotification;
 use App\Rules\InBranchCatalogue;
 use Carbon\Carbon;
 use Closure;
@@ -29,6 +30,7 @@ class BookingController extends Controller
                 'branch_id' => ['required', Rule::exists(Branch::class, 'id')->where('is_active', true)],
                 'customer_name' => ['required', 'string', 'max:255'],
                 'customer_phone' => ['required', 'string', 'max:30'],
+                'customer_email' => ['nullable', 'email:rfc', 'max:255'],
                 'starts_at' => [
                     'bail',
                     'required',
@@ -53,6 +55,7 @@ class BookingController extends Controller
                 'branch_id' => 'chi nhánh',
                 'customer_name' => 'tên khách hàng',
                 'customer_phone' => 'số điện thoại',
+                'customer_email' => 'email',
                 'starts_at' => 'thời gian',
                 'duration_minutes' => 'thời lượng',
                 'service_ids' => 'dịch vụ',
@@ -97,6 +100,12 @@ class BookingController extends Controller
             ->get();
 
         Notification::send($recipients, new NewOnlineBookingNotification($appointment));
+
+        if ($appointment->customer_email) {
+            Notification::route('mail', [
+                $appointment->customer_email => $appointment->customer_name,
+            ])->notify(new OnlineBookingReceivedNotification($appointment));
+        }
 
         return redirect()->to(route('home').'#dat-lich')
             ->with('booking_success', 'Tiệm đã nhận lịch hẹn của bạn và sẽ sớm xác nhận.');

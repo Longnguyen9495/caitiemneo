@@ -2,26 +2,31 @@
 
 namespace App\Actions\Appointments;
 
+use App\Enums\AuditAction;
 use App\Models\Appointment;
 use App\Models\AppointmentService;
 use App\Models\Branch;
 use App\Models\BranchService;
 use App\Models\Customer;
 use App\Models\EmployeeBranchAssignment;
+use App\Models\User;
+use App\Services\Audit\AuditRecorder;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class SaveAppointmentAction
 {
+    public function __construct(private AuditRecorder $auditor) {}
+
     /**
      * Create or update an appointment together with its customer and service lines.
      *
-     * @param  array{branch_id: int|string, customer_name: string, customer_phone: string, employee_id?: int|string|null, starts_at: string, duration_minutes: int|string, status: string, note?: string|null, service_ids?: array<int, int|string>}  $data
+     * @param  array{branch_id: int|string, customer_name: string, customer_phone: string, customer_email?: string|null, employee_id?: int|string|null, starts_at: string, duration_minutes: int|string, status: string, note?: string|null, service_ids?: array<int, int|string>}  $data
      *
      * @throws ValidationException when the branch, the posting or the slot does not hold up
      */
-    public function handle(array $data, ?Appointment $appointment = null): Appointment
+    public function handle(array $data, ?Appointment $appointment = null, ?User $actor = null): Appointment
     {
         $branchId = (int) $data['branch_id'];
         $startsAt = $data['starts_at'] instanceof Carbon
@@ -35,8 +40,16 @@ class SaveAppointmentAction
         $this->guardEmployeeIsPosted($employeeId, $branchId, $startsAt);
         $this->guardAgainstOverlap($employeeId, $startsAt, $endsAt, $appointment?->getKey());
 
-        return DB::transaction(function () use ($data, $appointment, $branchId, $employeeId, $startsAt, $endsAt, $durationMinutes): Appointment {
-            $customer = $this->saveCustomer($data['customer_name'], $data['customer_phone']);
+        return DB::transaction(function () use ($data, $appointment, $actor, $branchId, $employeeId, $startsAt, $endsAt, $durationMinutes): Appointment {
+            $appointment = $appointment === null
+                ? null
+                : Appointment::query()->lockForUpdate()->findOrFail($appointment->getKey());
+            $before = $appointment?->load('services')->auditSnapshot();
+            $customer = $this->saveCustomer(
+                $data['customer_name'],
+                $data['customer_phone'],
+                $data['customer_email'] ?? null,
+            );
 
             $attributes = [
                 'branch_id' => $branchId,
@@ -44,6 +57,7 @@ class SaveAppointmentAction
                 'employee_id' => $employeeId,
                 'customer_name' => $data['customer_name'],
                 'customer_phone' => $data['customer_phone'],
+                'customer_email' => $data['customer_email'] ?? null,
                 'starts_at' => $startsAt,
                 'ends_at' => $endsAt,
                 'duration_minutes' => $durationMinutes,
@@ -60,6 +74,16 @@ class SaveAppointmentAction
             }
 
             $this->syncServices($appointment, $data['service_ids'] ?? [], $branchId);
+            $appointment->load('services');
+
+            $this->auditor->record(
+                $appointment,
+                $actor,
+                $before === null ? AuditAction::Created : AuditAction::Updated,
+                $before,
+                $appointment->auditSnapshot(),
+                isset($data['note']) ? (string) $data['note'] : null,
+            );
 
             return $appointment;
         });
@@ -149,10 +173,16 @@ class SaveAppointmentAction
         }
     }
 
-    private function saveCustomer(string $name, string $phone): Customer
+    private function saveCustomer(string $name, string $phone, ?string $email = null): Customer
     {
-        $customer = Customer::query()->firstOrCreate(['phone' => $phone], ['name' => $name]);
-        $customer->update(['name' => $name]);
+        $customer = Customer::query()->firstOrCreate(['phone' => $phone], [
+            'name' => $name,
+            'email' => $email,
+        ]);
+        $customer->update([
+            'name' => $name,
+            'email' => $email ?: $customer->email,
+        ]);
 
         return $customer;
     }

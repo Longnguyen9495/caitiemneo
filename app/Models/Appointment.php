@@ -17,6 +17,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
     'employee_id',
     'customer_name',
     'customer_phone',
+    'customer_email',
     'starts_at',
     'ends_at',
     'duration_minutes',
@@ -77,5 +78,24 @@ class Appointment extends Model
     public function scopeOverlapping(Builder $query, mixed $startsAt, mixed $endsAt): Builder
     {
         return $query->where('starts_at', '<', $endsAt)->where('ends_at', '>', $startsAt);
+    }
+
+    /** @return array<string, mixed> */
+    public function auditSnapshot(): array
+    {
+        return [
+            'branch_id' => $this->branch_id,
+            'customer_id' => $this->customer_id,
+            'employee_id' => $this->employee_id,
+            'customer_name' => $this->customer_name,
+            'customer_phone' => $this->customer_phone,
+            'customer_email' => $this->customer_email,
+            'starts_at' => $this->starts_at?->toIso8601String(),
+            'ends_at' => $this->ends_at?->toIso8601String(),
+            'duration_minutes' => $this->duration_minutes,
+            'status' => $this->status?->value,
+            'note' => $this->note,
+            'service_ids' => $this->services->pluck('service_id')->map(fn (mixed $id): int => (int) $id)->values()->all(),
+        ];
     }
 }

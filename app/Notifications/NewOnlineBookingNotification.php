@@ -53,17 +53,12 @@ class NewOnlineBookingNotification extends Notification
 
         return (new MailMessage)
             ->subject('Lịch đặt online mới: '.$appointment->customer_name)
-            ->greeting('Có lịch đặt online mới')
-            ->line('Khách hàng: '.$appointment->customer_name)
-            ->line('Số điện thoại: '.$appointment->customer_phone)
-            ->line('Chi nhánh: '.($appointment->branch?->name ?? 'Chưa xác định'))
-            ->line('Thời gian: '.$appointment->starts_at->format('H:i, d/m/Y'))
-            ->line('Thời lượng: '.$appointment->duration_minutes.' phút')
-            ->line('Nhân viên: '.($appointment->employee?->name ?? 'Tiệm sắp xếp'))
-            ->line('Dịch vụ: '.$services)
-            ->when($appointment->note, fn (MailMessage $mail): MailMessage => $mail->line('Ghi chú: '.$appointment->note))
-            ->action('Mở lịch hẹn', route('admin.appointments.index', [
-                'date' => $appointment->starts_at->toDateString(),
-            ]));
+            ->view('mail.booking.admin', [
+                'appointment' => $appointment,
+                'services' => $services,
+                'appointmentUrl' => route('admin.appointments.index', [
+                    'date' => $appointment->starts_at->toDateString(),
+                ]),
+            ]);
     }
 }

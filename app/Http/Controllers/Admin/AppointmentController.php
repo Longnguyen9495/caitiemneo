@@ -62,7 +62,7 @@ class AppointmentController extends Controller
 
     public function store(AppointmentRequest $request, SaveAppointmentAction $saveAppointment): RedirectResponse
     {
-        $appointment = $saveAppointment->handle($request->validated());
+        $appointment = $saveAppointment->handle($request->validated(), actor: $request->user());
 
         return redirect()
             ->route('admin.appointments.index', ['date' => $appointment->starts_at->toDateString()])
@@ -80,7 +80,7 @@ class AppointmentController extends Controller
 
     public function update(AppointmentRequest $request, Appointment $appointment, SaveAppointmentAction $saveAppointment): RedirectResponse
     {
-        $saveAppointment->handle($request->validated(), $appointment);
+        $saveAppointment->handle($request->validated(), $appointment, $request->user());
 
         return redirect()
             ->route('admin.appointments.index', ['date' => $appointment->fresh()->starts_at->toDateString()])

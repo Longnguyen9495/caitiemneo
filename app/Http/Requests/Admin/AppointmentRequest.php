@@ -30,6 +30,7 @@ class AppointmentRequest extends FormRequest
             'branch_id' => $this->branchRules(),
             'customer_name' => ['required', 'string', 'max:255'],
             'customer_phone' => ['required', 'string', 'max:30'],
+            'customer_email' => ['nullable', 'email:rfc', 'max:255'],
             'employee_id' => ['nullable', Rule::exists(User::class, 'id')->where('is_active', true)],
             // Chỉ chặn quá khứ khi **tạo mới**: sửa một lịch hẹn cũ đã diễn ra
             // vẫn là việc bình thường, và chặn nó sẽ khóa luôn việc sửa lỗi.
@@ -75,6 +76,7 @@ class AppointmentRequest extends FormRequest
             'branch_id' => 'chi nhánh',
             'customer_name' => 'tên khách hàng',
             'customer_phone' => 'số điện thoại',
+            'customer_email' => 'email',
             'employee_id' => 'nhân viên',
             'starts_at' => 'thời gian bắt đầu',
             'duration_minutes' => 'thời lượng',

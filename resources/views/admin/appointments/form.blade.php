@@ -29,6 +29,12 @@
                        value="{{ old('customer_phone', $appointment->customer_phone) }}" required>
             </x-admin.field>
 
+            <x-admin.field name="customer_email" label="Email khách hàng" help="Không bắt buộc; dùng để lưu thông tin liên hệ của khách.">
+                <input class="form-control @error('customer_email') is-invalid @enderror" id="customer_email"
+                       name="customer_email" type="email" autocomplete="email"
+                       value="{{ old('customer_email', $appointment->customer_email) }}">
+            </x-admin.field>
+
             <x-admin.field name="employee_id" label="Nhân viên thực hiện"
                            help="Chỉ hiện nhân viên được phân công tại chi nhánh này.">
                 <select class="form-select @error('employee_id') is-invalid @enderror" id="employee_id" name="employee_id">

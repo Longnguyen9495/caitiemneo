@@ -30,12 +30,12 @@
                 <dl class="row row-cols-1 g-1 mb-0 mt-2 small">
                     @foreach ($changes as $field => $pair)
                         <div class="col">
-                            <dt class="d-inline fw-semibold">{{ $field }}:</dt>
+                            <dt class="d-inline fw-semibold">{{ \App\Support\AuditDictionary::field($field) }}:</dt>
                             <dd class="d-inline mb-0 text-body-secondary">
-                                <del>{{ \App\Support\AuditValue::display($pair['before']) }}</del>
+                                <del>{{ \App\Support\AuditDictionary::value($pair['before'], $field, $event->auditable_type) }}</del>
                                 <span aria-hidden="true">→</span>
                                 <span class="visually-hidden">đổi thành</span>
-                                <ins class="text-decoration-none fw-semibold">{{ \App\Support\AuditValue::display($pair['after']) }}</ins>
+                                <ins class="text-decoration-none fw-semibold">{{ \App\Support\AuditDictionary::value($pair['after'], $field, $event->auditable_type) }}</ins>
                             </dd>
                         </div>
                     @endforeach

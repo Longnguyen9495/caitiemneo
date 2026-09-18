@@ -39,6 +39,13 @@ final class AdminNavigation
 
         return collect([
             [
+                'label' => 'Trợ lý AI', 'short' => 'AI',
+                'route' => 'admin.ai.index', 'pattern' => 'admin.ai.*',
+                'icon' => 'sparkles', 'primary' => false,
+                'visible' => Gate::forUser($user)->allows('use-ai-assistant'),
+                'group' => 'quick',
+            ],
+            [
                 'label' => 'Tổng quan', 'short' => 'Tổng quan',
                 'route' => 'admin.dashboard', 'pattern' => 'admin.dashboard',
                 'icon' => 'dashboard', 'primary' => true,
