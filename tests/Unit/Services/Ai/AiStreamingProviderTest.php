@@ -191,6 +191,48 @@ class AiStreamingProviderTest extends TestCase
         $this->assertSame('Xong.', $result->content);
     }
 
+    public function test_temperature_is_omitted_when_it_is_not_configured(): void
+    {
+        $user = $this->makeOwner();
+        Config::set('ai.temperature', null);
+
+        Http::fake([
+            'https://ai.example.com/v1/chat/completions' => Http::response($this->sse([
+                ['id' => 'r', 'choices' => [['delta' => ['content' => json_encode([
+                    'content' => 'Xong.',
+                    'blocks' => [],
+                    'actions' => [],
+                ], JSON_UNESCAPED_UNICODE)]]]],
+            ])),
+        ]);
+
+        $this->provider()->converse([['role' => 'user', 'content' => 'hỏi']], $user);
+
+        // Gửi temperature tới model không nhận nó làm hỏng cả request (400), chứ
+        // không phải bị bỏ qua — đúng lỗi đã gặp trên production.
+        Http::assertSent(fn ($request) => ! array_key_exists('temperature', $request->data()));
+    }
+
+    public function test_temperature_is_sent_when_it_is_configured(): void
+    {
+        $user = $this->makeOwner();
+        Config::set('ai.temperature', 0.2);
+
+        Http::fake([
+            'https://ai.example.com/v1/chat/completions' => Http::response($this->sse([
+                ['id' => 'r', 'choices' => [['delta' => ['content' => json_encode([
+                    'content' => 'Xong.',
+                    'blocks' => [],
+                    'actions' => [],
+                ], JSON_UNESCAPED_UNICODE)]]]],
+            ])),
+        ]);
+
+        $this->provider()->converse([['role' => 'user', 'content' => 'hỏi']], $user);
+
+        Http::assertSent(fn ($request) => ($request->data()['temperature'] ?? null) === 0.2);
+    }
+
     public function test_usage_totals_are_carried_through_the_stream(): void
     {
         $user = $this->makeOwner();

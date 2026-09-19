@@ -41,13 +41,12 @@ class OpenAiCompatibleProvider implements AiProvider
         $startedAt = hrtime(true);
 
         $response = $this->client()
-            ->post(config('ai.base_url').'/chat/completions', [
+            ->post(config('ai.base_url').'/chat/completions', $this->withTemperature([
                 'model' => config('ai.model'),
                 'messages' => $messages,
                 'max_tokens' => config('ai.max_output_tokens'),
-                'temperature' => config('ai.temperature'),
                 'response_format' => ['type' => 'json_object'],
-            ])
+            ]))
             ->throw();
 
         $latencyMs = $this->elapsedMs($startedAt);
@@ -174,14 +173,13 @@ class OpenAiCompatibleProvider implements AiProvider
         bool $offerTools,
         ?Closure $onEvent,
     ): array {
-        $payload = [
+        $payload = $this->withTemperature([
             'model' => config('ai.model'),
             'messages' => $messages,
             'max_tokens' => config('ai.max_output_tokens'),
-            'temperature' => config('ai.temperature'),
             'stream' => true,
             'stream_options' => ['include_usage' => true],
-        ];
+        ]);
 
         if ($offerTools) {
             $payload['tools'] = $registry->toolSchemas();
@@ -533,6 +531,28 @@ class OpenAiCompatibleProvider implements AiProvider
             fn (mixed $value): string => mb_substr((string) $value, 0, 500),
             array_slice(array_values($values), 0, $limit),
         );
+    }
+
+    /**
+     * Đính `temperature` vào payload, và chỉ khi nó thật sự được cấu hình.
+     *
+     * Gửi tham số này tới một model không nhận nó làm hỏng cả request chứ không
+     * phải bị bỏ qua: claude-sonnet-5 trả về 400 kèm "`temperature` is
+     * deprecated for this model". Để trống trong cấu hình là cách an toàn cho
+     * mọi provider.
+     *
+     * @param  array<string, mixed>  $payload
+     * @return array<string, mixed>
+     */
+    private function withTemperature(array $payload): array
+    {
+        $temperature = config('ai.temperature');
+
+        if ($temperature !== null && $temperature !== '') {
+            $payload['temperature'] = (float) $temperature;
+        }
+
+        return $payload;
     }
 
     /**

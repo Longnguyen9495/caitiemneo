@@ -32,5 +32,11 @@ return [
 
     'max_output_tokens' => (int) env('AI_MAX_OUTPUT_TOKENS', 3000),
 
-    'temperature' => (float) env('AI_TEMPERATURE', 0.2),
+    /*
+     * Để trống thì không gửi `temperature` lên provider.
+     *
+     * Một số model mới (claude-sonnet-5 chẳng hạn) từ chối cả request khi thấy
+     * tham số này, nên mặc định là không gửi; chỉ đặt khi provider thật sự nhận.
+     */
+    'temperature' => env('AI_TEMPERATURE') !== null ? (float) env('AI_TEMPERATURE') : null,
 ];
