@@ -20,6 +20,13 @@ interface AiProvider
      *
      * @param  array<int, array<string, mixed>>  $messages
      * @param  Closure(AiStreamEvent): void|null  $onEvent
+     * @param  array<int, string>|null  $domains  Miền dữ liệu đã đoán từ câu hỏi,
+     *                                            dùng để lọc bớt công cụ gửi kèm.
      */
-    public function converse(array $messages, User $user, ?Closure $onEvent = null): AiProviderResult;
+    public function converse(
+        array $messages,
+        User $user,
+        ?Closure $onEvent = null,
+        ?array $domains = null,
+    ): AiProviderResult;
 }

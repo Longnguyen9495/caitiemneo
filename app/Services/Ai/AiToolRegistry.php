@@ -34,12 +34,67 @@ final class AiToolRegistry
     }
 
     /**
+     * Công cụ luôn được gửi kèm, bất kể câu hỏi nói về miền nào.
+     *
+     * Tra khách và tra lịch hẹn nằm đây vì người dùng hay nhắc tên khách giữa
+     * chừng một câu hỏi về doanh thu; thiếu chúng thì model phải đoán ID, đúng
+     * thứ mà bộ công cụ sinh ra để tránh. get_overview giữ lại làm đường lui khi
+     * bộ đoán miền trượt.
+     *
+     * @var array<int, string>
+     */
+    private const ALWAYS_OFFERED = [
+        'get_overview',
+        'find_appointment',
+        'find_customer',
+    ];
+
+    /**
+     * Công cụ tương ứng với từng miền dữ liệu mà bộ đoán nhận ra.
+     *
+     * @var array<string, array<int, string>>
+     */
+    private const DOMAIN_TOOLS = [
+        'invoices' => ['get_invoices', 'get_services'],
+        'appointments' => ['get_appointments', 'get_services', 'get_employees'],
+        'customers' => ['get_appointments', 'get_invoices'],
+        'services' => ['get_services', 'get_invoices'],
+        'cash' => ['get_cash_flow', 'get_invoices'],
+        'inventory' => ['get_inventory'],
+        'attendance' => ['get_attendance', 'get_employees'],
+        'payroll' => ['get_payroll', 'get_employees'],
+        'overview' => ['get_invoices', 'get_appointments', 'get_cash_flow', 'get_inventory'],
+    ];
+
+    /**
      * Schema theo chuẩn OpenAI function-calling để gửi kèm request.
      *
+     * Không lọc thì cả 11 schema (~2.800 token) đi kèm MỌI vòng gọi, và một câu
+     * hỏi hai vòng trả giá gấp đôi cho những công cụ nó không bao giờ dùng. Lọc
+     * theo miền đã đoán cắt phần lớn chi phí đó mà vẫn giữ đủ đường tra cứu.
+     *
+     * @param  array<int, string>|null  $domains  null nghĩa là gửi tất cả.
      * @return array<int, array<string, mixed>>
      */
-    public function toolSchemas(): array
+    public function toolSchemas(?array $domains = null): array
     {
+        $definitions = $this->definitions();
+
+        if ($domains !== null) {
+            $allowed = self::ALWAYS_OFFERED;
+
+            foreach ($domains as $domain) {
+                $allowed = array_merge($allowed, self::DOMAIN_TOOLS[$domain] ?? []);
+            }
+
+            $allowed = array_unique($allowed);
+            $definitions = array_filter(
+                $definitions,
+                fn (string $name): bool => in_array($name, $allowed, true),
+                ARRAY_FILTER_USE_KEY,
+            );
+        }
+
         return array_map(
             fn (array $definition): array => [
                 'type' => 'function',
@@ -49,7 +104,7 @@ final class AiToolRegistry
                     'parameters' => $definition['parameters'],
                 ],
             ],
-            array_values($this->definitions()),
+            array_values($definitions),
         );
     }
 

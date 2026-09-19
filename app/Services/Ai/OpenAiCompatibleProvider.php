@@ -86,8 +86,12 @@ class OpenAiCompatibleProvider implements AiProvider
      * @param  array<int, array<string, mixed>>  $messages
      * @param  Closure(AiStreamEvent): void|null  $onEvent
      */
-    public function converse(array $messages, User $user, ?Closure $onEvent = null): AiProviderResult
-    {
+    public function converse(
+        array $messages,
+        User $user,
+        ?Closure $onEvent = null,
+        ?array $domains = null,
+    ): AiProviderResult {
         $this->guardConfigured();
 
         $registry = $this->tools ?? app(AiToolRegistry::class);
@@ -100,12 +104,17 @@ class OpenAiCompatibleProvider implements AiProvider
         $reference = null;
         $toolsUsed = [];
 
+        // Kết quả của từng lời gọi trong lượt này, khóa theo tên công cụ kèm
+        // tham số. Model đôi khi gọi lại y hệt một bước đã chạy; trả lại kết quả
+        // cũ rẻ hơn nhiều so với chạy lại truy vấn và tốn thêm một vòng.
+        $seen = [];
+
         for ($round = 0; $round <= self::MAX_TOOL_ROUNDS; $round++) {
             // Vòng cuối bỏ công cụ đi để model buộc phải chốt câu trả lời thay
             // vì gọi thêm một công cụ nữa rồi bị cắt ngang.
             $offerTools = $round < self::MAX_TOOL_ROUNDS;
 
-            $turn = $this->streamTurn($conversation, $registry, $offerTools, $onEvent);
+            $turn = $this->streamTurn($conversation, $registry, $offerTools, $onEvent, $domains);
 
             $promptTokens += $turn['prompt_tokens'] ?? 0;
             $completionTokens += $turn['completion_tokens'] ?? 0;
@@ -136,6 +145,23 @@ class OpenAiCompatibleProvider implements AiProvider
                 $arguments = json_decode($rawArguments, true);
                 $arguments = is_array($arguments) ? $arguments : [];
 
+                $signature = $name.':'.json_encode(
+                    $this->sortRecursively($arguments),
+                    JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES,
+                );
+
+                if (array_key_exists($signature, $seen)) {
+                    // Lặp lại y hệt thì không báo tiến trình và không chạy lại
+                    // truy vấn; chỉ đưa lại kết quả cũ để model đi tiếp.
+                    $conversation[] = [
+                        'role' => 'tool',
+                        'tool_call_id' => (string) Arr::get($call, 'id', ''),
+                        'content' => $seen[$signature],
+                    ];
+
+                    continue;
+                }
+
                 if ($onEvent !== null) {
                     $onEvent(AiStreamEvent::toolCall($name, $this->toolLabel($name)));
                 }
@@ -149,10 +175,13 @@ class OpenAiCompatibleProvider implements AiProvider
 
                 $toolsUsed[] = ['tool' => $name, 'arguments' => $arguments];
 
+                $encoded = json_encode($output, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+                $seen[$signature] = $encoded;
+
                 $conversation[] = [
                     'role' => 'tool',
                     'tool_call_id' => (string) Arr::get($call, 'id', ''),
-                    'content' => json_encode($output, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                    'content' => $encoded,
                 ];
             }
         }
@@ -172,6 +201,7 @@ class OpenAiCompatibleProvider implements AiProvider
         AiToolRegistry $registry,
         bool $offerTools,
         ?Closure $onEvent,
+        ?array $domains = null,
     ): array {
         $payload = $this->withTemperature([
             'model' => config('ai.model'),
@@ -182,7 +212,7 @@ class OpenAiCompatibleProvider implements AiProvider
         ]);
 
         if ($offerTools) {
-            $payload['tools'] = $registry->toolSchemas();
+            $payload['tools'] = $registry->toolSchemas($domains);
             $payload['tool_choice'] = 'auto';
         } else {
             // Chỉ ép JSON ở lượt chốt. Ép từ đầu thì model không gọi được công cụ
@@ -531,6 +561,28 @@ class OpenAiCompatibleProvider implements AiProvider
             fn (mixed $value): string => mb_substr((string) $value, 0, 500),
             array_slice(array_values($values), 0, $limit),
         );
+    }
+
+    /**
+     * Sắp xếp khóa để hai lời gọi giống nhau cho ra cùng một chữ ký.
+     *
+     * Model không đảm bảo thứ tự khóa trong JSON tham số, nên không sắp lại thì
+     * cùng một lời gọi lại trông như hai lời gọi khác nhau.
+     *
+     * @param  array<string, mixed>  $value
+     * @return array<string, mixed>
+     */
+    private function sortRecursively(array $value): array
+    {
+        ksort($value);
+
+        foreach ($value as $key => $item) {
+            if (is_array($item)) {
+                $value[$key] = $this->sortRecursively($item);
+            }
+        }
+
+        return $value;
     }
 
     /**

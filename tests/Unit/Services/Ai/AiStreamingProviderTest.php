@@ -233,6 +233,144 @@ class AiStreamingProviderTest extends TestCase
         Http::assertSent(fn ($request) => ($request->data()['temperature'] ?? null) === 0.2);
     }
 
+    public function test_only_tools_relevant_to_the_question_are_offered(): void
+    {
+        $user = $this->makeOwner();
+
+        Http::fake([
+            'https://ai.example.com/v1/chat/completions' => Http::response($this->sse([
+                ['id' => 'r', 'choices' => [['delta' => ['content' => json_encode([
+                    'content' => 'Xong.',
+                    'blocks' => [],
+                    'actions' => [],
+                ], JSON_UNESCAPED_UNICODE)]]]],
+            ])),
+        ]);
+
+        $this->provider()->converse(
+            [['role' => 'user', 'content' => 'tồn kho thế nào']],
+            $user,
+            null,
+            ['inventory'],
+        );
+
+        Http::assertSent(function ($request): bool {
+            $names = array_map(
+                fn (array $tool): string => $tool['function']['name'],
+                $request->data()['tools'] ?? [],
+            );
+
+            // Công cụ của miền được hỏi và nhóm luôn-gửi phải có mặt…
+            $this->assertContains('get_inventory', $names);
+            $this->assertContains('find_appointment', $names);
+
+            // …còn bảng lương thì không liên quan gì tới câu hỏi tồn kho, gửi
+            // kèm chỉ tốn token mỗi vòng.
+            $this->assertNotContains('get_payroll', $names);
+            $this->assertNotContains('get_attendance', $names);
+
+            return true;
+        });
+    }
+
+    public function test_all_tools_are_offered_when_no_domain_is_given(): void
+    {
+        $user = $this->makeOwner();
+
+        Http::fake([
+            'https://ai.example.com/v1/chat/completions' => Http::response($this->sse([
+                ['id' => 'r', 'choices' => [['delta' => ['content' => json_encode([
+                    'content' => 'Xong.',
+                    'blocks' => [],
+                    'actions' => [],
+                ], JSON_UNESCAPED_UNICODE)]]]],
+            ])),
+        ]);
+
+        $this->provider()->converse([['role' => 'user', 'content' => 'hỏi']], $user);
+
+        Http::assertSent(fn ($request): bool => count($request->data()['tools'] ?? [])
+            === count((new AiToolRegistry)->definitions()));
+    }
+
+    public function test_the_same_tool_call_is_not_executed_twice_in_one_turn(): void
+    {
+        $user = $this->makeOwner();
+
+        $arguments = json_encode(['keyword' => 'Lan']);
+
+        // Model gọi đúng một bước hai lần trong cùng một lượt — chuyện thường
+        // gặp khi nó lưỡng lự. Chạy lại truy vấn là phí công vô ích.
+        $call = fn (string $id): array => [
+            'index' => 0,
+            'id' => $id,
+            'function' => ['name' => 'find_appointment', 'arguments' => $arguments],
+        ];
+
+        Http::fakeSequence('https://ai.example.com/v1/chat/completions')
+            ->push($this->sse([
+                ['id' => 'r1', 'choices' => [['delta' => ['tool_calls' => [$call('call_1')]]]]],
+            ]))
+            ->push($this->sse([
+                ['id' => 'r2', 'choices' => [['delta' => ['tool_calls' => [$call('call_2')]]]]],
+            ]))
+            ->push($this->sse([
+                ['id' => 'r3', 'choices' => [['delta' => ['content' => json_encode([
+                    'content' => 'Không có lịch hẹn nào.',
+                    'blocks' => [],
+                    'actions' => [],
+                ], JSON_UNESCAPED_UNICODE)]]]],
+            ]));
+
+        $labels = [];
+        $result = $this->provider()->converse(
+            [['role' => 'user', 'content' => 'chị Lan có hẹn không']],
+            $user,
+            function (AiStreamEvent $event) use (&$labels): void {
+                if ($event->type === AiStreamEvent::ToolCall) {
+                    $labels[] = $event->toolLabel;
+                }
+            },
+        );
+
+        $this->assertSame('Không có lịch hẹn nào.', $result->content);
+
+        // Chạy thật một lần duy nhất, dù model hỏi hai lần.
+        $this->assertCount(1, $result->toolsUsed);
+        $this->assertCount(1, $labels);
+    }
+
+    public function test_argument_key_order_does_not_defeat_the_duplicate_guard(): void
+    {
+        $user = $this->makeOwner();
+
+        // Cùng một lời gọi nhưng khóa đảo thứ tự. Không sắp lại khóa thì chữ ký
+        // khác nhau và bộ chặn lặp trở thành vô dụng.
+        $first = ['index' => 0, 'id' => 'c1', 'function' => [
+            'name' => 'get_invoices',
+            'arguments' => json_encode(['from' => '2026-09-01', 'to' => '2026-09-30']),
+        ]];
+        $second = ['index' => 0, 'id' => 'c2', 'function' => [
+            'name' => 'get_invoices',
+            'arguments' => json_encode(['to' => '2026-09-30', 'from' => '2026-09-01']),
+        ]];
+
+        Http::fakeSequence('https://ai.example.com/v1/chat/completions')
+            ->push($this->sse([['id' => 'r1', 'choices' => [['delta' => ['tool_calls' => [$first]]]]]]))
+            ->push($this->sse([['id' => 'r2', 'choices' => [['delta' => ['tool_calls' => [$second]]]]]]))
+            ->push($this->sse([
+                ['id' => 'r3', 'choices' => [['delta' => ['content' => json_encode([
+                    'content' => 'Xong.',
+                    'blocks' => [],
+                    'actions' => [],
+                ], JSON_UNESCAPED_UNICODE)]]]],
+            ]));
+
+        $result = $this->provider()->converse([['role' => 'user', 'content' => 'doanh thu']], $user);
+
+        $this->assertCount(1, $result->toolsUsed);
+    }
+
     public function test_usage_totals_are_carried_through_the_stream(): void
     {
         $user = $this->makeOwner();

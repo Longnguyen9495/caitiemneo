@@ -124,7 +124,7 @@ class AiAssistantController extends Controller
             };
 
             try {
-                $result = $provider->converse($messages, $user, $emit);
+                $result = $provider->converse($messages, $user, $emit, $assistant->domainsFor($question));
             } catch (Throwable $exception) {
                 report($exception);
 

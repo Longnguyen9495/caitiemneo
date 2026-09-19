@@ -21,8 +21,12 @@ trait DelegatesConverseToChat
      * @param  array<int, array<string, mixed>>  $messages
      * @param  Closure(AiStreamEvent): void|null  $onEvent
      */
-    public function converse(array $messages, User $user, ?Closure $onEvent = null): AiProviderResult
-    {
+    public function converse(
+        array $messages,
+        User $user,
+        ?Closure $onEvent = null,
+        ?array $domains = null,
+    ): AiProviderResult {
         $result = $this->chat($messages);
 
         if ($onEvent !== null) {

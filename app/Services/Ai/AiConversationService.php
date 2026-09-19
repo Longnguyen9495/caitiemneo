@@ -62,6 +62,16 @@ class AiConversationService
     }
 
     /**
+     * Miền dữ liệu đoán được từ câu hỏi, dùng để lọc bớt công cụ gửi kèm.
+     *
+     * @return array<int, string>
+     */
+    public function domainsFor(string $question): array
+    {
+        return AiContextPlan::fromQuestion($question)->domains;
+    }
+
+    /**
      * Một lượt hỏi đáp trọn vẹn.
      *
      * @param  Closure(AiStreamEvent): void|null  $onEvent
@@ -76,7 +86,7 @@ class AiConversationService
 
         $this->recordQuestion($conversation, $question);
 
-        $result = $this->provider->converse($messages, $user, $onEvent);
+        $result = $this->provider->converse($messages, $user, $onEvent, $this->domainsFor($question));
 
         return $this->storeAnswer($user, $conversation, $result);
     }
