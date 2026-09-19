@@ -8,6 +8,7 @@ use App\Models\AiMessage;
 use App\Models\User;
 use App\Services\Ai\Contracts\AiProvider;
 use App\Support\BranchContext;
+use Closure;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -29,32 +30,66 @@ class AiConversationService
         ]);
     }
 
-    public function reply(User $user, AiConversation $conversation, string $question): AiMessage
+    /**
+     * Ghi câu hỏi của người dùng trước khi gọi provider.
+     *
+     * Tách riêng để luồng phát trực tiếp lưu được câu hỏi ngay, rồi mới mở kết
+     * nối dài với provider — hỏng giữa chừng thì câu hỏi vẫn còn trong lịch sử.
+     */
+    public function recordQuestion(AiConversation $conversation, string $question): void
     {
-        $messages = $this->prompts->build($user, $conversation, $question);
-
         DB::transaction(function () use ($conversation, $question): void {
-            $conversation = AiConversation::query()->lockForUpdate()->findOrFail($conversation->id);
+            $locked = AiConversation::query()->lockForUpdate()->findOrFail($conversation->id);
 
-            $conversation->messages()->create([
+            $locked->messages()->create([
                 'role' => 'user',
                 'content' => $question,
             ]);
 
-            $conversation->forceFill([
-                'title' => $conversation->title ?: Str::limit($question, 80, ''),
+            $locked->forceFill([
+                'title' => $locked->title ?: Str::limit($question, 80, ''),
                 'branch_id' => $this->branches->currentId(),
                 'scope_branch_ids' => $this->branches->scopeIds(),
                 'last_message_at' => now(),
             ])->save();
         });
+    }
 
-        $result = $this->provider->chat($messages);
+    /** @return array<int, array<string, mixed>> */
+    public function buildMessages(User $user, AiConversation $conversation, string $question): array
+    {
+        return $this->prompts->build($user, $conversation, $question);
+    }
 
+    /**
+     * Một lượt hỏi đáp trọn vẹn.
+     *
+     * @param  Closure(AiStreamEvent): void|null  $onEvent
+     */
+    public function reply(
+        User $user,
+        AiConversation $conversation,
+        string $question,
+        ?Closure $onEvent = null,
+    ): AiMessage {
+        $messages = $this->buildMessages($user, $conversation, $question);
+
+        $this->recordQuestion($conversation, $question);
+
+        $result = $this->provider->converse($messages, $user, $onEvent);
+
+        return $this->storeAnswer($user, $conversation, $result);
+    }
+
+    /**
+     * Lưu câu trả lời cùng các đề xuất thao tác đi kèm.
+     */
+    public function storeAnswer(User $user, AiConversation $conversation, AiProviderResult $result): AiMessage
+    {
         return DB::transaction(function () use ($user, $conversation, $result): AiMessage {
-            $conversation = AiConversation::query()->lockForUpdate()->findOrFail($conversation->id);
+            $locked = AiConversation::query()->lockForUpdate()->findOrFail($conversation->id);
 
-            $assistant = $conversation->messages()->create([
+            $assistant = $locked->messages()->create([
                 'role' => 'assistant',
                 'content' => $result->content,
                 'blocks' => $result->blocks,
@@ -65,6 +100,10 @@ class AiConversationService
                 'total_tokens' => $result->totalTokens,
                 'latency_ms' => $result->latencyMs,
                 'provider_reference' => $result->providerReference,
+                'metadata' => [
+                    'tools_used' => $result->toolsUsed,
+                    'data_digest' => $this->digest($result),
+                ],
             ]);
 
             foreach ($result->actions as $action) {
@@ -88,10 +127,38 @@ class AiConversationService
                 ]);
             }
 
-            $conversation->forceFill(['last_message_at' => now()])->save();
+            $locked->forceFill(['last_message_at' => now()])->save();
 
             return $assistant->load('actionProposals');
         });
+    }
+
+    /**
+     * Tóm tắt một dòng về số liệu đã dùng, để lượt sau còn bám vào.
+     *
+     * Chỉ ghi tên bước và khoảng thời gian, không ghi số liệu thật: số liệu thay
+     * đổi theo thời gian, còn "đã xem doanh thu khoảng nào" thì vẫn đúng về sau.
+     */
+    private function digest(AiProviderResult $result): string
+    {
+        if ($result->toolsUsed === []) {
+            return '';
+        }
+
+        $parts = [];
+
+        foreach ($result->toolsUsed as $use) {
+            $tool = (string) ($use['tool'] ?? '');
+            $arguments = is_array($use['arguments'] ?? null) ? $use['arguments'] : [];
+            $from = $arguments['from'] ?? null;
+            $to = $arguments['to'] ?? null;
+
+            $parts[] = is_string($from) && is_string($to)
+                ? "{$tool} ({$from} → {$to})"
+                : $tool;
+        }
+
+        return Str::limit(implode(', ', array_unique($parts)), 300);
     }
 
     /** @param array<string, mixed> $value */

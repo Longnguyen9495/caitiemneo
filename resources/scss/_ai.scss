@@ -271,6 +271,45 @@
     font-weight: 600;
 }
 
+// Chữ hiện dần trong lúc model còn đang soạn. Giữ xuống dòng của model và
+// dành sẵn một con trỏ nhấp nháy ở cuối để thấy rõ câu trả lời đang chạy.
+.ai-stream-text {
+    white-space: pre-wrap;
+    word-break: break-word;
+
+    &::after {
+        animation: ai-stream-caret 1s steps(2) infinite;
+        background: $neo-wine;
+        content: '';
+        display: inline-block;
+        height: 1em;
+        margin-left: .15rem;
+        vertical-align: text-bottom;
+        width: .1rem;
+    }
+}
+
+@keyframes ai-stream-caret {
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0;
+    }
+}
+
+// Nút dừng nằm cạnh nút gửi và chỉ hiện khi đang chờ, nên phải cùng dáng để
+// hàng composer không nhảy chiều cao lúc đổi qua lại.
+.ai-stop {
+    align-items: center;
+    display: inline-flex;
+    flex-shrink: 0;
+    gap: .4rem;
+    justify-content: center;
+}
+
 .ai-thinking-dots {
     align-items: center;
     display: inline-flex;

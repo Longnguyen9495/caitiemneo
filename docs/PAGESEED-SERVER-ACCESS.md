@@ -7,19 +7,19 @@
 | Máy chủ | `221.121.1.68` |
 | Tài khoản | `root` |
 | Cổng SSH | `22` |
-| Private key trên máy Windows | `C:\Users\thanh\.ssh\pageseed_bizfly` |
+| Private key trên máy Windows | `%USERPROFILE%\.ssh\pageseed_bizfly` |
 | Hostname đã kiểm chứng | `Pageseed` |
 
 ## Đăng nhập từ Windows PowerShell
 
 ```powershell
-ssh -i "C:\Users\thanh\.ssh\pageseed_bizfly" root@221.121.1.68
+ssh -i "$env:USERPROFILE\.ssh\pageseed_bizfly" root@221.121.1.68
 ```
 
 Kiểm tra kết nối không mở phiên tương tác:
 
 ```powershell
-ssh -i "C:\Users\thanh\.ssh\pageseed_bizfly" -o BatchMode=yes -o ConnectTimeout=10 root@221.121.1.68 "hostname"
+ssh -i "$env:USERPROFILE\.ssh\pageseed_bizfly" -o BatchMode=yes -o ConnectTimeout=10 root@221.121.1.68 "hostname"
 ```
 
 ## Vị trí project trên VPS
@@ -57,7 +57,7 @@ Deploy giờ là `git pull` thẳng trong thư mục đang chạy.
 ### Kiểm tra read-only trước khi thao tác
 
 ```powershell
-ssh -i "C:\Users\thanh\.ssh\pageseed_bizfly" -o BatchMode=yes root@221.121.1.68 "systemctl is-active nginx php8.5-fpm pageseed; curl -sS -o /dev/null -w 'caitiemneo=%{http_code}\n' https://caitiemneo.221-121-1-68.sslip.io/; curl -sS -o /dev/null -w 'pageseed=%{http_code}\n' https://221-121-1-68.sslip.io/"
+ssh -i "$env:USERPROFILE\.ssh\pageseed_bizfly" -o BatchMode=yes root@221.121.1.68 "systemctl is-active nginx php8.5-fpm pageseed; curl -sS -o /dev/null -w 'caitiemneo=%{http_code}\n' https://caitiemneo.221-121-1-68.sslip.io/; curl -sS -o /dev/null -w 'pageseed=%{http_code}\n' https://221-121-1-68.sslip.io/"
 ```
 
 ### Giới hạn upload ảnh và video

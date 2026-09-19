@@ -8,6 +8,7 @@ use App\Models\Branch;
 use App\Models\User;
 use App\Services\Ai\AiConversationService;
 use App\Services\Ai\AiProviderResult;
+use App\Services\Ai\Concerns\DelegatesConverseToChat;
 use App\Services\Ai\Contracts\AiProvider;
 use App\Support\BranchContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -95,6 +96,8 @@ class AiConversationTest extends TestCase
     {
         $this->app->instance(AiProvider::class, new class implements AiProvider
         {
+            use DelegatesConverseToChat;
+
             public function chat(array $messages): AiProviderResult
             {
                 return new AiProviderResult(
@@ -128,6 +131,8 @@ class AiConversationTest extends TestCase
     {
         $this->app->instance(AiProvider::class, new class implements AiProvider
         {
+            use DelegatesConverseToChat;
+
             public function chat(array $messages): AiProviderResult
             {
                 return new AiProviderResult(
@@ -214,6 +219,8 @@ class AiConversationTest extends TestCase
     {
         $this->app->instance(AiProvider::class, new class implements AiProvider
         {
+            use DelegatesConverseToChat;
+
             public function chat(array $messages): AiProviderResult
             {
                 // Simulate the same exception OpenAiCompatibleProvider throws
@@ -245,6 +252,8 @@ class AiConversationTest extends TestCase
         // Bind a fast fake provider so requests reach the throttle middleware.
         $this->app->instance(AiProvider::class, new class implements AiProvider
         {
+            use DelegatesConverseToChat;
+
             public function chat(array $messages): AiProviderResult
             {
                 return new AiProviderResult(
@@ -317,6 +326,8 @@ class AiConversationTest extends TestCase
     {
         $this->app->instance(AiProvider::class, new class implements AiProvider
         {
+            use DelegatesConverseToChat;
+
             public function chat(array $messages): AiProviderResult
             {
                 return new AiProviderResult(

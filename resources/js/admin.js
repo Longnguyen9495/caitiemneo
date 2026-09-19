@@ -766,7 +766,10 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 /**
- * Trợ lý AI: đưa tin mới nhất vào tầm nhìn và khóa gửi lặp trong lúc chờ server.
+ * Trợ lý AI: gửi câu hỏi nền, vẽ câu trả lời dần và duyệt đề xuất tại chỗ.
+ *
+ * Trước đây mỗi lượt hỏi là một lần nạp lại cả trang: mất vị trí cuộn, nháy
+ * trắng màn hình và tải lại toàn bộ lịch sử chỉ để thêm một bong bóng chat.
  */
 document.addEventListener('DOMContentLoaded', () => {
     const messageList = document.querySelector('[data-ai-message-list]');
@@ -782,6 +785,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const textarea = form.querySelector('textarea');
     const submit = form.querySelector('button[type="submit"]');
+    const submitLabel = submit?.querySelector('[data-ai-submit-label]');
+    const stopButton = form.querySelector('[data-ai-stop]');
+    const streamUrl = form.dataset.aiStreamUrl;
+    const token = form.querySelector('input[name="_token"]')?.value ?? '';
+
+    let controller = null;
+
+    const scrollToEnd = () => {
+        if (messageList) {
+            messageList.scrollTop = messageList.scrollHeight;
+        }
+    };
 
     const resizeTextarea = () => {
         if (!textarea) {
@@ -813,67 +828,320 @@ document.addEventListener('DOMContentLoaded', () => {
         textarea.focus();
     });
 
-    form.addEventListener('submit', () => {
-        if (!submit || submit.disabled) {
+    const setBusy = (busy) => {
+        if (submit) {
+            submit.disabled = busy;
+            submit.setAttribute('aria-busy', busy ? 'true' : 'false');
+            submit.setAttribute('aria-label', busy ? 'Đang chờ Neo AI…' : 'Gửi câu hỏi');
+        }
+
+        if (submitLabel) {
+            submitLabel.textContent = busy ? 'Đang chờ…' : 'Gửi câu hỏi';
+        }
+
+        stopButton?.classList.toggle('d-none', !busy);
+    };
+
+    const appendUserMessage = (question) => {
+        messageList?.querySelector('.ai-welcome')?.remove();
+
+        const message = document.createElement('article');
+        message.className = 'ai-message ai-message-user';
+
+        const meta = document.createElement('div');
+        meta.className = 'ai-message-meta';
+        meta.textContent = 'Bạn · vừa gửi';
+
+        const bubble = document.createElement('div');
+        bubble.className = 'ai-message-bubble';
+
+        const content = document.createElement('p');
+        content.className = 'mb-0';
+        content.textContent = question;
+
+        bubble.append(content);
+        message.append(meta, bubble);
+        messageList?.append(message);
+
+        return message;
+    };
+
+    /**
+     * Bong bóng tạm của trợ lý: hiện bước đang chạy rồi chuyển sang vẽ chữ ngay
+     * khi model bắt đầu trả lời.
+     */
+    const appendPlaceholder = () => {
+        const placeholder = document.createElement('article');
+        placeholder.className = 'ai-message ai-message-assistant ai-message-thinking';
+        placeholder.setAttribute('role', 'status');
+        placeholder.setAttribute('aria-live', 'polite');
+        placeholder.innerHTML = `
+            <div class="ai-message-meta">Neo AI</div>
+            <div class="ai-message-bubble">
+                <span class="ai-thinking-label" data-ai-thinking-label>Đang suy nghĩ</span>
+                <span class="ai-thinking-dots" aria-hidden="true">
+                    <span></span><span></span><span></span>
+                </span>
+                <p class="ai-stream-text mb-0 d-none" data-ai-stream-text></p>
+            </div>
+        `;
+
+        messageList?.append(placeholder);
+
+        return placeholder;
+    };
+
+    const showError = (placeholder, text, question) => {
+        placeholder.classList.remove('ai-message-thinking');
+        placeholder.innerHTML = `
+            <div class="ai-message-meta">Neo AI</div>
+            <div class="ai-message-bubble">
+                <div class="alert alert-warning py-2 px-3 mb-2 small" role="alert"></div>
+                <button class="btn btn-sm btn-outline-primary" type="button" data-ai-retry>Gửi lại câu hỏi</button>
+            </div>
+        `;
+
+        // textContent chứ không innerHTML: thông báo lỗi có thể mang theo chuỗi
+        // từ máy chủ, nhét thẳng vào HTML là mở đường cho kịch bản lạ chạy.
+        placeholder.querySelector('.alert').textContent = text;
+
+        placeholder.querySelector('[data-ai-retry]')?.addEventListener('click', () => {
+            placeholder.remove();
+
+            if (textarea) {
+                textarea.value = question;
+                resizeTextarea();
+            }
+
+            form.requestSubmit();
+        });
+    };
+
+    /**
+     * Đọc dòng sự kiện SSE và gọi lại theo từng sự kiện hoàn chỉnh.
+     */
+    const readEventStream = async (response, onEvent) => {
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        for (;;) {
+            const { done, value } = await reader.read();
+
+            if (done) {
+                break;
+            }
+
+            buffer += decoder.decode(value, { stream: true });
+
+            // Sự kiện SSE kết thúc bằng một dòng trống; phần đuôi chưa trọn vẹn
+            // phải giữ lại, nếu không một sự kiện bị cắt đôi sẽ hỏng JSON.
+            let boundary = buffer.indexOf('\n\n');
+
+            while (boundary !== -1) {
+                const raw = buffer.slice(0, boundary);
+                buffer = buffer.slice(boundary + 2);
+                boundary = buffer.indexOf('\n\n');
+
+                let name = 'message';
+                const dataLines = [];
+
+                raw.split('\n').forEach((line) => {
+                    if (line.startsWith('event:')) {
+                        name = line.slice(6).trim();
+                    } else if (line.startsWith('data:')) {
+                        dataLines.push(line.slice(5).trim());
+                    }
+                });
+
+                if (dataLines.length > 0) {
+                    onEvent(name, dataLines.join('\n'));
+                }
+            }
+        }
+    };
+
+    form.addEventListener('submit', async (event) => {
+        const question = textarea?.value.trim();
+
+        // Không có fetch stream hoặc thiếu endpoint thì để biểu mẫu chạy lối cũ:
+        // chậm hơn nhưng vẫn gửi được câu hỏi.
+        if (!streamUrl || !question || !window.fetch || !messageList) {
             return;
         }
 
-        const question = textarea?.value.trim();
+        event.preventDefault();
 
-        if (question && messageList) {
-            messageList.querySelector('.ai-welcome')?.remove();
+        appendUserMessage(question);
+        const placeholder = appendPlaceholder();
+        scrollToEnd();
 
-            const message = document.createElement('article');
-            message.className = 'ai-message ai-message-user';
+        textarea.value = '';
+        textarea.style.height = 'auto';
+        setBusy(true);
 
-            const meta = document.createElement('div');
-            meta.className = 'ai-message-meta';
-            meta.textContent = 'Bạn · vừa gửi';
+        controller = new AbortController();
 
-            const bubble = document.createElement('div');
-            bubble.className = 'ai-message-bubble';
+        const body = new FormData();
+        body.append('message', question);
+        body.append('_token', token);
 
-            const content = document.createElement('p');
-            content.className = 'mb-0';
-            content.textContent = question;
+        const conversationInput = form.querySelector('input[name="conversation_id"]');
 
-            bubble.append(content);
-            message.append(meta, bubble);
-
-            const thinking = document.createElement('article');
-            thinking.className = 'ai-message ai-message-assistant ai-message-thinking';
-            thinking.setAttribute('role', 'status');
-            thinking.setAttribute('aria-live', 'polite');
-            thinking.innerHTML = `
-                <div class="ai-message-meta">Neo AI</div>
-                <div class="ai-message-bubble">
-                    <span class="ai-thinking-label">Đang suy nghĩ</span>
-                    <span class="ai-thinking-dots" aria-hidden="true">
-                        <span></span><span></span><span></span>
-                    </span>
-                </div>
-            `;
-
-            messageList.append(message, thinking);
-            messageList.scrollTop = messageList.scrollHeight;
-
-            // Đợi trình duyệt tạo payload form trước khi dọn composer; nếu xóa
-            // đồng bộ ở đây thì trường message có thể bị gửi thành chuỗi rỗng.
-            window.setTimeout(() => {
-                textarea.value = '';
-                textarea.style.height = 'auto';
-            }, 0);
+        if (conversationInput) {
+            body.append('conversation_id', conversationInput.value);
         }
 
-        submit.disabled = true;
-        submit.setAttribute('aria-busy', 'true');
-        submit.setAttribute('aria-label', 'Đang chờ Neo AI…');
+        const label = placeholder.querySelector('[data-ai-thinking-label]');
+        const streamText = placeholder.querySelector('[data-ai-stream-text]');
+        let streamed = '';
+        let finished = false;
 
-        // Chỉ đổi nhãn chữ; trên điện thoại nút chỉ còn biểu tượng nên phải giữ.
-        const submitLabel = submit.querySelector('[data-ai-submit-label]');
+        try {
+            const response = await fetch(streamUrl, {
+                method: 'POST',
+                body,
+                signal: controller.signal,
+                headers: { Accept: 'text/event-stream', 'X-Requested-With': 'XMLHttpRequest' },
+            });
 
-        if (submitLabel) {
-            submitLabel.textContent = 'Đang chờ…';
+            if (!response.ok || !response.body) {
+                throw new Error('stream-failed');
+            }
+
+            await readEventStream(response, (name, data) => {
+                let payload = {};
+
+                try {
+                    payload = JSON.parse(data);
+                } catch {
+                    return;
+                }
+
+                if (name === 'conversation' && payload.conversation_id && !conversationInput) {
+                    const input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = 'conversation_id';
+                    input.value = payload.conversation_id;
+                    form.append(input);
+                }
+
+                if (name === 'tool' && label) {
+                    label.textContent = payload.label ?? 'Đang tra dữ liệu…';
+                }
+
+                if (name === 'delta' && streamText) {
+                    streamed += payload.text ?? '';
+
+                    // Model trả về JSON; chỉ lấy phần content để người dùng đọc
+                    // được chữ thật thay vì dấu ngoặc và tên khóa.
+                    const match = streamed.match(/"content"\s*:\s*"((?:[^"\\]|\\.)*)/);
+
+                    if (match) {
+                        const text = match[1]
+                            .replace(/\\n/g, '\n')
+                            .replace(/\\"/g, '"')
+                            .replace(/\\\\/g, '\\');
+
+                        if (text.trim() !== '') {
+                            placeholder.querySelector('.ai-thinking-dots')?.classList.add('d-none');
+                            label?.classList.add('d-none');
+                            streamText.classList.remove('d-none');
+                            streamText.textContent = text;
+                            scrollToEnd();
+                        }
+                    }
+                }
+
+                if (name === 'message' && payload.html) {
+                    finished = true;
+                    placeholder.outerHTML = payload.html;
+                    scrollToEnd();
+                }
+
+                if (name === 'failed') {
+                    finished = true;
+                    showError(placeholder, payload.message ?? 'Trợ lý AI chưa phản hồi được.', question);
+                }
+            });
+
+            if (!finished) {
+                showError(placeholder, 'Kết nối tới trợ lý bị gián đoạn trước khi có câu trả lời.', question);
+            }
+        } catch (error) {
+            if (error.name === 'AbortError') {
+                placeholder.remove();
+
+                if (textarea) {
+                    textarea.value = question;
+                    resizeTextarea();
+                }
+            } else {
+                showError(placeholder, 'Không gửi được câu hỏi. Kiểm tra kết nối rồi thử lại.', question);
+            }
+        } finally {
+            controller = null;
+            setBusy(false);
+            scrollToEnd();
+        }
+    });
+
+    stopButton?.addEventListener('click', () => {
+        controller?.abort();
+    });
+
+    /**
+     * Duyệt hoặc từ chối đề xuất ngay tại chỗ.
+     *
+     * Chỉ một khối nhỏ đổi trạng thái, nên vẽ lại đúng tin nhắn đó thay vì nạp
+     * lại cả trang.
+     */
+    messageList?.addEventListener('submit', async (event) => {
+        const actionForm = event.target.closest('[data-ai-action-form]');
+
+        if (!actionForm || !window.fetch) {
+            return;
+        }
+
+        const article = actionForm.closest('[data-ai-message]');
+
+        if (!article) {
+            return;
+        }
+
+        event.preventDefault();
+
+        const buttons = actionForm.closest('.ai-action')?.querySelectorAll('button') ?? [];
+        buttons.forEach((button) => {
+            button.disabled = true;
+        });
+
+        try {
+            const response = await fetch(actionForm.action, {
+                method: 'POST',
+                body: new FormData(actionForm),
+                headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            });
+
+            // Xác nhận mật khẩu trả về chuyển hướng; phải đi theo nó chứ không
+            // thể vẽ lại tại chỗ, nếu không thao tác im lặng không xảy ra.
+            if (response.redirected) {
+                window.location.href = response.url;
+
+                return;
+            }
+
+            const payload = await response.json();
+
+            if (payload.html) {
+                article.outerHTML = payload.html;
+            }
+        } catch {
+            buttons.forEach((button) => {
+                button.disabled = false;
+            });
+
+            actionForm.submit();
         }
     });
 });

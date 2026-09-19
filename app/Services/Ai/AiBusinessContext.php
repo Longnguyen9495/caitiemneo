@@ -4,7 +4,6 @@ namespace App\Services\Ai;
 
 use App\Models\Appointment;
 use App\Models\AttendanceRecord;
-use App\Models\CashTransaction;
 use App\Models\Invoice;
 use App\Models\Payroll;
 use App\Models\Product;
@@ -14,11 +13,28 @@ use App\Support\BranchContext;
 use App\Support\ReportPeriod;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Gate;
 
+/**
+ * Ảnh chụp sơ bộ tình hình kinh doanh, gửi kèm prompt để model định hướng.
+ *
+ * Trước đây lớp này đổ tới 50 bản ghi chi tiết cho mỗi miền dữ liệu vào prompt,
+ * khiến một câu hỏi chạm hai miền đã ngốn hàng chục nghìn token. Giờ chi tiết
+ * nằm ở các công cụ model tự gọi, nên ở đây chỉ còn số tổng hợp: đủ để model
+ * biết có gì mà tra, không đủ để làm phình prompt.
+ */
 class AiBusinessContext
 {
-    private const DETAIL_LIMIT = 50;
+    /**
+     * Số bản ghi mẫu kèm theo cho mỗi miền.
+     *
+     * Vài dòng đầu giúp model biết dữ liệu trông ra sao và có tồn tại hay không;
+     * cần đầy đủ thì nó gọi công cụ.
+     */
+    private const SAMPLE_LIMIT = 5;
+
+    private const CACHE_SECONDS = 60;
 
     public function __construct(
         private BranchContext $branches,
@@ -37,6 +53,7 @@ class AiBusinessContext
 
         $context = [
             'generated_at' => now()->toIso8601String(),
+            'today' => now()->toDateString(),
             'timezone' => (string) config('app.timezone'),
             'viewer' => [
                 'role' => $user->role->value,
@@ -65,7 +82,10 @@ class AiBusinessContext
                     'from' => $period->from->toDateString(),
                     'to' => $period->to->toDateString(),
                 ],
-                'detail_limit_per_domain' => self::DETAIL_LIMIT,
+                'period_phrase' => $plan->periodPhrase,
+                'period_inferred' => $plan->periodInferred,
+                'sample_limit_per_domain' => self::SAMPLE_LIMIT,
+                'note' => 'Đây chỉ là ảnh chụp sơ bộ. Gọi công cụ để lấy số liệu đầy đủ và chính xác.',
             ],
             'data' => [],
         ];
@@ -76,33 +96,64 @@ class AiBusinessContext
             return $context;
         }
 
-        foreach ($plan->domains as $domain) {
-            $data = match ($domain) {
-                'invoices' => $this->invoiceContext($period, $branchIds),
-                'appointments' => $this->appointmentContext($period, $branchIds),
-                'customers' => $this->customerContext($period, $branchIds),
-                'services' => $this->serviceContext($period, $branchIds),
-                'cash' => $user->canViewCashPosition()
-                    ? $this->cashContext($period, $branchIds)
-                    : ['access_denied' => true],
-                'inventory' => $this->inventoryContext($branchIds),
-                'attendance' => $this->attendanceContext($period, $branchIds),
-                'payroll' => Gate::forUser($user)->allows('view-profit-reports')
-                    ? $this->payrollContext($period, $branchIds)
-                    : ['access_denied' => true],
-                default => $this->overviewContext($user, $period, $branchIds),
-            };
+        $context['data'] = $this->cachedDomains($user, $plan->domains, $period, $branchIds);
 
-            $context['data'][$domain] = $data;
-
-            // Giữ cấu trúc context tổng quan cũ để các consumer nội bộ hiện hữu
-            // vẫn hoạt động trong khi dữ liệu theo miền nằm dưới `data`.
-            if ($domain === 'overview') {
-                $context = array_merge($context, $data);
-            }
+        // Giữ cấu trúc context tổng quan cũ để các consumer nội bộ hiện hữu vẫn
+        // hoạt động trong khi dữ liệu theo miền nằm dưới `data`.
+        if (isset($context['data']['overview'])) {
+            $context = array_merge($context, $context['data']['overview']);
         }
 
         return $context;
+    }
+
+    /**
+     * Dựng dữ liệu từng miền, có nhớ tạm.
+     *
+     * Người dùng thường hỏi nối nhau vài câu quanh cùng một khoảng thời gian, và
+     * mỗi lần dựng lại là một loạt truy vấn tổng hợp y hệt lần trước. Nhớ tạm một
+     * phút cắt hẳn phần lặp đó mà vẫn đủ mới cho số liệu vận hành.
+     *
+     * @param  array<int, string>  $domains
+     * @param  array<int, int>  $branchIds
+     * @return array<string, mixed>
+     */
+    private function cachedDomains(User $user, array $domains, ReportPeriod $period, array $branchIds): array
+    {
+        sort($domains);
+        sort($branchIds);
+
+        $key = 'ai-context:'.hash('sha256', implode('|', [
+            $user->id,
+            implode(',', $domains),
+            implode(',', $branchIds),
+            $period->from->toDateString(),
+            $period->to->toDateString(),
+        ]));
+
+        return Cache::remember($key, self::CACHE_SECONDS, function () use ($user, $domains, $period, $branchIds): array {
+            $data = [];
+
+            foreach ($domains as $domain) {
+                $data[$domain] = match ($domain) {
+                    'invoices' => $this->invoiceContext($period, $branchIds),
+                    'appointments' => $this->appointmentContext($period, $branchIds),
+                    'customers' => $this->customerContext($period, $branchIds),
+                    'services' => $this->serviceContext($period, $branchIds),
+                    'cash' => $user->canViewCashPosition()
+                        ? $this->cashContext($period, $branchIds)
+                        : ['access_denied' => true],
+                    'inventory' => $this->inventoryContext($branchIds),
+                    'attendance' => $this->attendanceContext($period, $branchIds),
+                    'payroll' => Gate::forUser($user)->allows('view-profit-reports')
+                        ? $this->payrollContext($period, $branchIds)
+                        : ['access_denied' => true],
+                    default => $this->overviewContext($user, $period, $branchIds),
+                };
+            }
+
+            return $data;
+        });
     }
 
     /** @param array<int, int> $branchIds */
@@ -122,12 +173,12 @@ class AiBusinessContext
             'summary' => $summary,
             'appointments_by_status' => $this->reports->appointmentsByStatus($period, $branchIds),
             'top_services' => $this->serviceContext($period, $branchIds)['top_services'],
-            'top_employees' => $this->reports->revenueByEmployee($period, 10, $branchIds)
+            'top_employees' => $this->reports->revenueByEmployee($period, 5, $branchIds)
                 ->map(fn (object $row): array => [
                     'name' => $row->employee_name,
                     'revenue' => (string) $row->revenue_total,
                 ])->values()->all(),
-            'low_stock' => $this->lowStockByBranch($branchIds),
+            'low_stock' => $this->lowStockRows($branchIds),
         ];
     }
 
@@ -149,20 +200,15 @@ class AiBusinessContext
             'paid_revenue' => (string) (clone $paid)->sum('total'),
             'by_status' => (clone $base)->selectRaw('status, COUNT(*) as total')
                 ->groupBy('status')->pluck('total', 'status')->all(),
-            'invoices' => (clone $base)->with(['branch:id,name', 'employee:id,name'])
-                ->latest('created_at')->limit(self::DETAIL_LIMIT)->get()
+            'sample_invoices' => (clone $base)->with(['branch:id,name'])
+                ->latest('created_at')->limit(self::SAMPLE_LIMIT)->get()
                 ->map(fn (Invoice $invoice): array => [
                     'number' => $invoice->number,
                     'branch' => $invoice->branch?->name,
                     'customer' => $invoice->customer_name,
-                    'employee' => $invoice->employee?->name,
                     'status' => $invoice->status->value,
-                    'payment_method' => $invoice->payment_method?->value,
-                    'subtotal' => (string) $invoice->subtotal,
-                    'discount' => (string) $invoice->discount,
                     'total' => (string) $invoice->total,
                     'created_at' => $invoice->created_at?->toDateTimeString(),
-                    'paid_at' => $invoice->paid_at?->toDateTimeString(),
                 ])->all(),
         ];
     }
@@ -177,20 +223,18 @@ class AiBusinessContext
             'count' => (clone $base)->count(),
             'by_status' => (clone $base)->selectRaw('status, COUNT(*) as total')
                 ->groupBy('status')->pluck('total', 'status')->all(),
-            'appointments' => (clone $base)->with(['branch:id,name', 'employee:id,name', 'services.service:id,name'])
-                ->orderBy('starts_at')->limit(self::DETAIL_LIMIT)->get()
+            'sample_appointments' => (clone $base)->with(['branch:id,name', 'employee:id,name'])
+                ->orderBy('starts_at')->limit(self::SAMPLE_LIMIT)->get()
                 ->map(fn (Appointment $appointment): array => [
-                    'id' => $appointment->id,
-                    'branch_id' => $appointment->branch_id,
+                    'id' => (int) $appointment->id,
+                    'branch_id' => (int) $appointment->branch_id,
                     'branch' => $appointment->branch?->name,
-                    'customer' => $appointment->customer_name,
-                    'employee_id' => $appointment->employee_id,
+                    'customer_name' => $appointment->customer_name,
+                    'customer_phone' => $appointment->customer_phone,
                     'employee' => $appointment->employee?->name,
-                    'starts_at' => $appointment->starts_at?->toDateTimeString(),
-                    'duration_minutes' => $appointment->duration_minutes,
+                    'starts_at' => $appointment->starts_at?->toIso8601String(),
+                    'duration_minutes' => (int) $appointment->duration_minutes,
                     'status' => $appointment->status->value,
-                    'service_ids' => $appointment->services->pluck('service_id')->map(fn (mixed $id): int => (int) $id)->values()->all(),
-                    'services' => $appointment->services->map(fn ($item) => $item->service?->name)->filter()->values()->all(),
                 ])->all(),
         ];
     }
@@ -203,9 +247,13 @@ class AiBusinessContext
 
         return [
             'unique_customers' => (clone $appointments)->distinct()->count('customer_id'),
-            'customers' => (clone $appointments)->selectRaw('customer_id, customer_name, customer_phone, COUNT(*) as appointment_count')
+            'top_customers' => (clone $appointments)
+                ->selectRaw('customer_id, customer_name, customer_phone, COUNT(*) as appointment_count')
                 ->groupBy('customer_id', 'customer_name', 'customer_phone')
-                ->orderByDesc('appointment_count')->limit(self::DETAIL_LIMIT)->get()->toArray(),
+                ->orderByDesc('appointment_count')
+                ->limit(self::SAMPLE_LIMIT)
+                ->get()
+                ->toArray(),
         ];
     }
 
@@ -213,7 +261,7 @@ class AiBusinessContext
     private function serviceContext(ReportPeriod $period, array $branchIds): array
     {
         return [
-            'top_services' => $this->reports->revenueByService($period, self::DETAIL_LIMIT, $branchIds)
+            'top_services' => $this->reports->revenueByService($period, self::SAMPLE_LIMIT, $branchIds)
                 ->map(fn (object $row): array => [
                     'name' => $row->service_name,
                     'quantity' => (string) $row->quantity_total,
@@ -225,27 +273,18 @@ class AiBusinessContext
     /** @param array<int, int> $branchIds */
     private function cashContext(ReportPeriod $period, array $branchIds): array
     {
-        return [
-            'summary' => $this->reports->cashFlow($period, $branchIds),
-            'transactions' => CashTransaction::query()->active()->whereIn('branch_id', $branchIds)
-                ->whereBetween('occurred_at', [$period->from, $period->to])
-                ->with('branch:id,name')->latest('occurred_at')->limit(self::DETAIL_LIMIT)->get()
-                ->map(fn (CashTransaction $transaction): array => [
-                    'branch' => $transaction->branch?->name,
-                    'type' => $transaction->type->value,
-                    'category' => $transaction->category->value,
-                    'amount' => (string) $transaction->amount,
-                    'payment_method' => $transaction->payment_method?->value,
-                    'reference' => $transaction->reference,
-                    'occurred_at' => $transaction->occurred_at?->toDateTimeString(),
-                ])->all(),
-        ];
+        return ['summary' => $this->reports->cashFlow($period, $branchIds)];
     }
 
     /** @param array<int, int> $branchIds */
     private function inventoryContext(array $branchIds): array
     {
-        return ['low_stock' => $this->lowStockByBranch($branchIds)];
+        $rows = $this->lowStockRows($branchIds);
+
+        return [
+            'low_stock_count' => count($rows),
+            'sample_low_stock' => array_slice($rows, 0, self::SAMPLE_LIMIT),
+        ];
     }
 
     /** @param array<int, int> $branchIds */
@@ -260,19 +299,6 @@ class AiBusinessContext
             'missing_checkout_count' => (clone $base)->missingCheckOut()->count(),
             'by_status' => (clone $base)->selectRaw('status, COUNT(*) as total')
                 ->groupBy('status')->pluck('total', 'status')->all(),
-            'records' => (clone $base)->with(['branch:id,name', 'employee:id,name'])
-                ->orderByDesc('work_date')->limit(self::DETAIL_LIMIT)->get()
-                ->map(fn (AttendanceRecord $record): array => [
-                    'branch' => $record->branch?->name,
-                    'employee' => $record->employee?->name,
-                    'work_date' => $record->work_date?->toDateString(),
-                    'shift' => $record->shift_name,
-                    'status' => $record->status->value,
-                    'checked_in_at' => $record->checked_in_at?->toDateTimeString(),
-                    'checked_out_at' => $record->checked_out_at?->toDateTimeString(),
-                    'late_minutes' => (int) $record->late_minutes,
-                    'overtime_minutes' => (int) $record->overtime_minutes,
-                ])->all(),
         ];
     }
 
@@ -288,25 +314,21 @@ class AiBusinessContext
         return [
             'count' => (clone $base)->count(),
             'total' => (string) (clone $base)->sum('final_total'),
-            'payrolls' => (clone $base)->with(['employee:id,name', 'payingBranch:id,name'])
-                ->latest('period_end')->limit(self::DETAIL_LIMIT)->get()
-                ->map(fn (Payroll $payroll): array => [
-                    'employee' => $payroll->employee?->name,
-                    'paying_branch' => $payroll->payingBranch?->name,
-                    'period_start' => $payroll->period_start?->toDateString(),
-                    'period_end' => $payroll->period_end?->toDateString(),
-                    'status' => $payroll->status->value,
-                    'total' => (string) $payroll->final_total,
-                    'paid_at' => $payroll->paid_at?->toDateTimeString(),
-                ])->all(),
         ];
     }
 
     /**
+     * Hàng sắp hết theo từng chi nhánh.
+     *
+     * Vòng lặp theo chi nhánh là cố ý: các scope tồn kho nhận một branch_id để
+     * tính tồn và định mức riêng cho chi nhánh đó nên không gộp được thành một
+     * câu truy vấn. Bù lại số chi nhánh luôn nhỏ và kết quả được nhớ tạm cùng
+     * phần còn lại của ngữ cảnh.
+     *
      * @param  array<int, int>  $branchIds
-     * @return array<int, mixed>
+     * @return array<int, array<string, mixed>>
      */
-    private function lowStockByBranch(array $branchIds): array
+    private function lowStockRows(array $branchIds): array
     {
         $branchNames = $this->branches->available()->pluck('name', 'id');
         $rows = [];

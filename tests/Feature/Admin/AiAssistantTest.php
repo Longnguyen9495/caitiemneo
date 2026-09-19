@@ -14,6 +14,7 @@ use App\Models\CashTransaction;
 use App\Models\Product;
 use App\Models\User;
 use App\Services\Ai\AiProviderResult;
+use App\Services\Ai\Concerns\DelegatesConverseToChat;
 use App\Services\Ai\Contracts\AiProvider;
 use App\Services\Audit\AuditRecorder;
 use App\Support\BranchContext;
@@ -78,6 +79,8 @@ class AiAssistantTest extends TestCase
     {
         $this->app->instance(AiProvider::class, new class implements AiProvider
         {
+            use DelegatesConverseToChat;
+
             public function chat(array $messages): AiProviderResult
             {
                 return new AiProviderResult(
@@ -141,6 +144,8 @@ class AiAssistantTest extends TestCase
     {
         $this->app->instance(AiProvider::class, new class implements AiProvider
         {
+            use DelegatesConverseToChat;
+
             public function chat(array $messages): AiProviderResult
             {
                 throw new RuntimeException('Provider unavailable');

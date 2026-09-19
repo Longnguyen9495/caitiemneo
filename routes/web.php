@@ -77,6 +77,10 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
         Route::get('ai', [AiAssistantController::class, 'index'])->name('ai.index');
         Route::post('ai/messages', [AiAssistantController::class, 'store'])
             ->middleware('throttle:20,1')->name('ai.messages.store');
+        Route::post('ai/messages/stream', [AiAssistantController::class, 'stream'])
+            ->middleware('throttle:20,1')->name('ai.messages.stream');
+        Route::get('ai/messages/{message}', [AiAssistantController::class, 'message'])
+            ->name('ai.messages.show');
         Route::middleware(['password.confirm', 'throttle:10,1'])->group(function (): void {
             Route::post('ai/actions/{proposal}/confirm', [AiActionController::class, 'confirm'])
                 ->name('ai.actions.confirm');
