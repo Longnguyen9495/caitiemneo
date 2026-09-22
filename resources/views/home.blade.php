@@ -5,53 +5,19 @@
     $heroPhoto = $gallery->first();
     $heroAccent = $gallery->get(2) ?? $gallery->get(1);
     $storyPhoto = $gallery->get(6) ?? $gallery->get(1);
-    $shareImage = asset('images/social-share.jpg').'?v=20260916';
 @endphp
 <html lang="vi">
   <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Cái Tiệm Neo — tiệm nail tại 47 ngõ 131 Thái Hà, Đống Đa, Hà Nội. Xem mẫu móng, bảng giá và đặt lịch online." />
-    <meta name="theme-color" content="#51212b" />
-    <meta name="color-scheme" content="light" />
-    <meta property="og:type" content="website" />
-    <meta property="og:locale" content="vi_VN" />
-    <meta property="og:site_name" content="Cái Tiệm Neo" />
-    <meta property="og:title" content="Cái Tiệm Neo | Nail có gu ở Thái Hà" />
-    <meta property="og:description" content="Xem mẫu móng thật tại tiệm, bảng giá rõ ràng và đặt lịch online trong một phút." />
-    <meta property="og:url" content="{{ url('/') }}" />
-    <meta property="og:image" content="{{ $shareImage }}" />
-    <meta property="og:image:secure_url" content="{{ $shareImage }}" />
-    <meta property="og:image:type" content="image/jpeg" />
-    <meta property="og:image:width" content="1200" />
-    <meta property="og:image:height" content="630" />
-    <meta property="og:image:alt" content="Mẫu nail tại Cái Tiệm Neo" />
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Cái Tiệm Neo | Nail có gu ở Thái Hà" />
-    <meta name="twitter:description" content="Xem mẫu móng thật tại tiệm, bảng giá rõ ràng và đặt lịch online trong một phút." />
-    <meta name="twitter:image" content="{{ $shareImage }}" />
-    <title>Cái Tiệm Neo | Nail có gu ở Thái Hà</title>
-    <link rel="icon" type="image/png" href="{{ asset('images/logo-neo.png') }}" />
-    <link rel="apple-touch-icon" href="{{ asset('images/logo-neo.png') }}" />
-    @if ($heroPhoto)
-      <link rel="preload" as="image" href="{{ $heroPhoto->url() }}" imagesrcset="{{ $heroPhoto->srcset() }}" imagesizes="(max-width: 760px) 88vw, 30vw" />
-    @endif
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,400..600;1,400..600&display=swap" rel="stylesheet" />
-    @vite(['resources/css/app.css', 'resources/js/app.js'])
+    <x-public.head
+      title="Cái Tiệm Neo | Nail có gu ở Thái Hà"
+      description="Cái Tiệm Neo — tiệm nail tại 47 ngõ 131 Thái Hà, Đống Đa, Hà Nội. Xem mẫu móng, bảng giá và đặt lịch online."
+      share-description="Xem mẫu móng thật tại tiệm, bảng giá rõ ràng và đặt lịch online trong một phút."
+      :preload-photo="$heroPhoto"
+    />
   </head>
   <body>
     <a class="skip-link" href="#noi-dung">Đi đến nội dung chính</a>
-    <header class="site-header" data-header>
-      <div class="header-inner">
-        <a class="brand" href="#dau-trang" aria-label="Cái Tiệm Neo — về đầu trang"><span class="brand-mark" aria-hidden="true">N</span><span class="brand-name">Cái Tiệm Neo</span></a>
-        <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="menu-chinh" aria-label="Mở menu" data-menu-toggle><span class="sr-only">Mở menu</span><span class="menu-line" aria-hidden="true"></span><span class="menu-line" aria-hidden="true"></span></button>
-        <nav id="menu-chinh" class="main-nav" aria-label="Điều hướng chính" data-menu>
-          <a href="#mau-mong">Mẫu móng</a><a href="#bang-gia">Bảng giá</a><a href="#gioi-thieu">Về tiệm</a><a href="#lien-he">Ghé tiệm</a><a class="nav-cta" href="#dat-lich">Đặt lịch <span aria-hidden="true">↗</span></a>
-        </nav>
-      </div>
-    </header>
+    <x-public.header />
     <main id="noi-dung">
       <section id="dau-trang" class="hero section-shell" aria-labelledby="hero-title">
         <div class="hero-copy" data-reveal>
@@ -92,22 +58,23 @@
             <p class="eyebrow">Album của tiệm</p>
             <h2 id="gallery-title">Mẫu móng <em>làm thật</em><br />tại Cái Tiệm Neo.</h2>
             <p>Ảnh chụp ngay tại tiệm sau khi khách rời ghế.</p>
+            <a class="gallery-all-link" href="{{ route('lookbook') }}">Xem cả {{ $photoCount }} mẫu và đặt lịch <span aria-hidden="true">↗</span></a>
             <div class="gallery-controls">
               <button class="gallery-arrow" type="button" data-gallery-prev aria-label="Xem những mẫu trước"><span aria-hidden="true">←</span></button>
               <button class="gallery-arrow" type="button" data-gallery-next aria-label="Xem thêm mẫu"><span aria-hidden="true">→</span></button>
             </div>
           </div>
-          <ul class="gallery-rail" data-gallery-rail>
+          <ul class="gallery-rail" data-gallery-rail data-lightbox-group>
             @foreach ($gallery as $index => $photo)
               <li>
-                <button class="gallery-item" type="button" data-gallery-open="{{ $index }}" aria-label="Phóng to mẫu móng số {{ $index + 1 }}">
+                <button class="gallery-item" type="button" data-lightbox-open aria-label="Phóng to mẫu móng số {{ $index + 1 }}">
                   <img src="{{ $photo->url() }}" srcset="{{ $photo->srcset() }}" sizes="(max-width: 760px) 68vw, 300px" width="{{ $photo->width }}" height="{{ $photo->height }}" alt="Mẫu móng số {{ $index + 1 }} do Cái Tiệm Neo thực hiện" loading="lazy" decoding="async" />
                   <span class="gallery-item-index" aria-hidden="true">{{ str_pad((string) ($index + 1), 2, '0', STR_PAD_LEFT) }}</span>
                 </button>
               </li>
             @endforeach
           </ul>
-          <p class="gallery-hint section-shell"><span aria-hidden="true">↔</span> Vuốt ngang để xem hết {{ $gallery->count() }} mẫu, chạm vào ảnh để phóng to.</p>
+          <p class="gallery-hint section-shell"><span aria-hidden="true">↔</span> Vuốt ngang để xem {{ $gallery->count() }} mẫu mới nhất, chạm vào ảnh để phóng to.</p>
         </section>
       @endif
 
@@ -178,6 +145,90 @@
         </div>
       </section>
 
+      <section id="feedback" class="feedback-section section-shell" aria-labelledby="feedback-title">
+        <div class="feedback-heading" data-reveal>
+          <p class="eyebrow">Khách nói gì</p>
+          <h2 id="feedback-title">Feedback từ người<br /><em>đã ngồi ghế ở tiệm.</em></h2>
+          @if ($feedbackSummary['average'] !== null)
+            <p class="feedback-score">
+              <b>{{ number_format($feedbackSummary['average'], 1) }}</b>
+              <x-public.stars :rating="round($feedbackSummary['average'])" />
+              <span>{{ $feedbackSummary['total'] }} lượt đánh giá</span>
+            </p>
+          @endif
+        </div>
+
+        @if (session('feedback_success'))
+          <div class="booking-alert booking-success feedback-notice" role="status">{{ session('feedback_success') }}</div>
+        @endif
+        @if ($errors->feedback->any())
+          <div class="booking-alert feedback-notice" role="alert">
+            <p>Feedback chưa gửi được, bạn xem lại giúp tiệm:</p>
+            <ul>
+              @foreach ($errors->feedback->all() as $error)
+                <li>{{ $error }}</li>
+              @endforeach
+            </ul>
+          </div>
+        @endif
+
+        {{-- Feedback thật của khách: ảnh chụp tin nhắn và video khách review,
+             do tiệm tải lên trong khu quản trị. Đây là phần đáng tin nhất của
+             khu này nên nó đứng trước mọi lời chữ. --}}
+        @if ($feedbackPhotos->isNotEmpty() || $feedbackVideos->isNotEmpty())
+          <ul class="feedback-wall" data-reveal data-lightbox-group>
+            @foreach ($feedbackPhotos as $photo)
+              <li>
+                <button class="feedback-shot" type="button" data-lightbox-open aria-label="Xem to feedback số {{ $loop->iteration }} của khách">
+                  <img src="{{ $photo->url() }}" srcset="{{ $photo->srcset() }}" sizes="(max-width: 760px) 62vw, 230px" width="{{ $photo->width }}" height="{{ $photo->height }}" alt="Lời khen khách gửi cho Cái Tiệm Neo, ảnh số {{ $loop->iteration }}" loading="lazy" decoding="async" />
+                  <span class="feedback-shot__zoom" aria-hidden="true">Xem to</span>
+                </button>
+              </li>
+            @endforeach
+            @foreach ($feedbackVideos as $video)
+              <li>
+                {{-- Không tự phát: một trang quảng cáo tự kêu trong túi khách là
+                     mất thiện cảm ngay. --}}
+                <video class="feedback-clip" controls preload="metadata" playsinline aria-label="Video khách review số {{ $loop->iteration }}">
+                  <source src="{{ $video->url() }}" />
+                  Trình duyệt của bạn chưa phát được video này.
+                </video>
+              </li>
+            @endforeach
+          </ul>
+        @endif
+
+        @if ($feedback->isNotEmpty())
+          <ul class="feedback-rail" data-reveal data-reveal-delay>
+            @foreach ($feedback as $item)
+              <li>
+                <article class="feedback-card">
+                  <x-public.stars :rating="$item->rating" />
+                  <blockquote>{{ $item->content }}</blockquote>
+                  <footer>
+                    <span class="feedback-card__name">{{ $item->author_name }}</span>
+                    <span>{{ $item->published_at?->format('m/Y') }}</span>
+                  </footer>
+                </article>
+              </li>
+            @endforeach
+          </ul>
+        @elseif ($feedbackPhotos->isEmpty() && $feedbackVideos->isEmpty())
+          <p class="empty-note">Tiệm chưa đăng feedback nào — bạn là người đầu tiên nhé.</p>
+        @endif
+
+        {{-- <details> chứ không phải hộp bật lên: mở được khi không có
+             JavaScript, và khu này không cần dài sẵn trên điện thoại. Gửi sai
+             thì mở lại kèm những gì khách đã gõ. --}}
+        <details class="feedback-compose" @if ($errors->feedback->any()) open @endif>
+          <summary>
+            <span>Viết feedback cho tiệm</span>
+            <span class="feedback-compose__sign" aria-hidden="true">+</span>
+          </summary>
+          <x-public.feedback-form />
+        </details>
+      </section>
+
       <section id="lien-he" class="visit-section" aria-labelledby="visit-title">
         <div class="section-shell visit-layout">
           <div class="visit-copy" data-reveal>
@@ -202,97 +253,18 @@
           <p class="booking-note">Để được tư vấn nhanh hơn, bạn cũng có thể gọi <a href="tel:0826881094">0826 881 094</a>.</p>
         </div>
         <div class="booking-card" data-reveal data-reveal-delay>
-          @if (session('booking_success'))
-            <div class="booking-alert booking-success" role="status">{{ session('booking_success') }}</div>
-          @endif
-          @if ($errors->any())
-            <div class="booking-alert" role="alert">
-              <p>Vui lòng kiểm tra lại các thông tin sau:</p>
-              <ul>
-                @foreach ($errors->all() as $error)
-                  <li>{{ $error }}</li>
-                @endforeach
-              </ul>
-            </div>
-          @endif
-          <form action="{{ route('booking.store') }}" method="POST" class="booking-form" data-booking-form>
-            <p class="booking-submit-status" data-booking-submit-status role="status" aria-live="polite" hidden></p>
-            @csrf
-            @if ($branches->count() === 1)
-              <input type="hidden" name="branch_id" value="{{ $branches->first()->id }}" />
-            @else
-              <label>Chi nhánh<select name="branch_id" required><option value="">Chọn chi nhánh</option>@foreach ($branches as $branch)<option value="{{ $branch->id }}" @selected((string) old('branch_id') === (string) $branch->id)>{{ $branch->name }}</option>@endforeach</select></label>
-              @error('branch_id')<small>{{ $message }}</small>@enderror
-            @endif
-            <label>Họ và tên<input name="customer_name" value="{{ old('customer_name') }}" required autocomplete="name" /></label>
-            @error('customer_name')<small>{{ $message }}</small>@enderror
-            <label>Số điện thoại<input name="customer_phone" value="{{ old('customer_phone') }}" required inputmode="tel" autocomplete="tel" /></label>
-            @error('customer_phone')<small>{{ $message }}</small>@enderror
-            <label>Email<input type="email" name="customer_email" value="{{ old('customer_email') }}" autocomplete="email" placeholder="Để nhận thông tin lịch hẹn" /></label>
-            @error('customer_email')<small>{{ $message }}</small>@enderror
-            <label>Thời gian mong muốn<input type="datetime-local" name="starts_at" value="{{ old('starts_at') }}" min="{{ now('Asia/Ho_Chi_Minh')->addHour()->format('Y-m-d\\TH:i') }}" required /></label>
-            @error('starts_at')<small>{{ $message }}</small>@enderror
-            <label>Thời lượng dự kiến<select name="duration_minutes" required><option value="60" @selected(old('duration_minutes', 60) == 60)>60 phút</option><option value="90" @selected(old('duration_minutes') == 90)>90 phút</option><option value="120" @selected(old('duration_minutes') == 120)>120 phút</option><option value="150" @selected(old('duration_minutes') == 150)>150 phút</option></select></label>
-            @error('duration_minutes')<small>{{ $message }}</small>@enderror
-            <fieldset class="service-picker">
-              <legend>Dịch vụ bạn quan tâm <span>(có thể chọn nhiều)</span></legend>
-              <p class="service-picker-summary" data-service-summary aria-live="polite">Chưa chọn dịch vụ nào.</p>
-              @forelse ($serviceGroups as $label => $rows)
-                @php
-                    // Nhóm nào đang có dịch vụ được chọn thì phải mở sẵn, nếu không
-                    // sau một lần lỗi xác thực khách sẽ tưởng lựa chọn của mình bay mất.
-                    $pickedInGroup = $rows->filter(fn ($service): bool => in_array($service->id, old('service_ids', [])))->count();
-                @endphp
-                <details class="service-group" @if ($loop->first || $pickedInGroup > 0) open @endif>
-                  <summary>
-                    <span class="service-group-name">{{ $label }}</span>
-                    <span class="service-group-meta @if ($pickedInGroup > 0) is-picked @endif" data-service-group-meta data-service-total="{{ $rows->count() }}">{{ $pickedInGroup > 0 ? $pickedInGroup.' đã chọn' : $rows->count().' dịch vụ' }}</span>
-                  </summary>
-                  <div class="service-options">
-                    @foreach ($rows as $service)
-                      <label class="service-option"><input type="checkbox" name="service_ids[]" value="{{ $service->id }}" @checked(in_array($service->id, old('service_ids', []))) /><span>{{ $service->name }}</span><b>{{ $service->formatted_price }}</b></label>
-                    @endforeach
-                  </div>
-                </details>
-              @empty
-                <p class="empty-note">Tiệm sẽ tư vấn dịch vụ phù hợp khi xác nhận lịch.</p>
-              @endforelse
-              @error('service_ids')<small>{{ $message }}</small>@enderror
-              {{-- Lỗi của từng dịch vụ được chọn: khóa là service_ids.N nên phải
-                   duyệt qua, @error không nhận ký tự đại diện. --}}
-              @foreach ($errors->get('service_ids.*') as $serviceErrors)<small>{{ $serviceErrors[0] }}</small>@endforeach
-            </fieldset>
-            <label>Ghi chú<textarea name="note" rows="3" placeholder="Màu sắc, mẫu móng hoặc điều bạn muốn trao đổi…">{{ old('note') }}</textarea></label>
-            @error('note')<small>{{ $message }}</small>@enderror
-            <button class="button button-primary" type="submit">Gửi yêu cầu đặt lịch <span aria-hidden="true">↗</span></button>
-          </form>
+          <x-public.booking-form :branches="$branches" :service-groups="$serviceGroups" source="home" />
         </div>
       </section>
 
-      @if (session('booking_success'))
-        <dialog class="booking-success-dialog" data-booking-success-dialog aria-labelledby="booking-success-title">
-          <div class="booking-success-dialog__content">
-            <span class="booking-success-dialog__mark" aria-hidden="true">✓</span>
-            <p class="eyebrow">Đặt lịch thành công</p>
-            <h2 id="booking-success-title">Tiệm đã nhận yêu cầu của bạn.</h2>
-            <p>{{ session('booking_success') }}</p>
-            <button class="button button-primary" type="button" data-booking-success-close autofocus>
-              Đã hiểu <span aria-hidden="true">→</span>
-            </button>
-          </div>
-        </dialog>
-      @endif
+      <x-public.booking-success />
     </main>
-    <footer class="site-footer"><div class="section-shell footer-inner"><a class="brand" href="#dau-trang" aria-label="Cái Tiệm Neo — về đầu trang"><span class="brand-mark" aria-hidden="true">N</span><span class="brand-name">Cái Tiệm Neo</span></a><p>nail studio · Hà Nội</p><nav class="social-links" aria-label="Mạng xã hội"><a href="https://www.instagram.com/caitiemneo/" target="_blank" rel="noopener noreferrer">Instagram <span aria-hidden="true">↗</span></a><a href="https://www.tiktok.com/@caitiemneo_" target="_blank" rel="noopener noreferrer">TikTok <span aria-hidden="true">↗</span></a></nav></div></footer>
+    <x-public.footer />
 
-    {{-- Thanh thao tác cố định: trên điện thoại, gọi và đặt lịch luôn trong tầm ngón cái. --}}
-    <nav class="quick-actions" aria-label="Thao tác nhanh">
-      <a href="tel:0826881094"><span aria-hidden="true">☏</span> Gọi tiệm</a>
-      <a class="quick-actions-primary" href="#dat-lich"><span aria-hidden="true">✦</span> Đặt lịch</a>
-    </nav>
+    <x-public.quick-actions />
 
-    @if ($gallery->isNotEmpty())
-      <dialog class="lightbox" data-lightbox aria-label="Ảnh mẫu móng phóng to">
+    @if ($gallery->isNotEmpty() || $feedbackPhotos->isNotEmpty())
+      <dialog class="lightbox" data-lightbox aria-label="Ảnh phóng to">
         <button class="lightbox-close" type="button" data-lightbox-close aria-label="Đóng ảnh"><span aria-hidden="true">×</span></button>
         <figure class="lightbox-figure">
           <img data-lightbox-image src="" alt="" width="1440" height="1920" />

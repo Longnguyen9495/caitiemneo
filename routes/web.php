@@ -13,6 +13,7 @@ use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\EmployeeAssignmentController;
 use App\Http\Controllers\Admin\EmployeeController;
 use App\Http\Controllers\Admin\EmployeeShiftPlanController;
+use App\Http\Controllers\Admin\FeedbackController as AdminFeedbackController;
 use App\Http\Controllers\Admin\GalleryController;
 use App\Http\Controllers\Admin\InventoryMovementController;
 use App\Http\Controllers\Admin\InvoiceController;
@@ -32,8 +33,10 @@ use App\Http\Controllers\Admin\StockTransferController;
 use App\Http\Controllers\Admin\SupplierController;
 use App\Http\Controllers\Admin\WorkShiftController;
 use App\Http\Controllers\BookingController;
+use App\Http\Controllers\FeedbackController;
 use App\Http\Controllers\HealthController;
 use App\Http\Controllers\HomeController;
+use App\Http\Controllers\LookbookController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\StaffAttendanceController;
 use Illuminate\Support\Facades\Route;
@@ -47,7 +50,19 @@ use Illuminate\Support\Facades\Route;
 Route::get('/health', HealthController::class)->name('health');
 
 Route::get('/', HomeController::class)->name('home');
+// Album mẫu móng: xem hết ảnh và đặt lịch ngay từ tấm ảnh khách ưng.
+Route::get('/mau-mong', LookbookController::class)->name('lookbook');
 Route::post('/dat-lich', [BookingController::class, 'store'])->name('booking.store');
+
+/*
+ * Feedback khách gửi từ trang chủ.
+ *
+ * Throttle vì đây là ô nhập tự do mở cho người lạ: giới hạn rộng hơn nhu cầu
+ * thật của một khách, nhưng đủ chật để không ai rót hàng nghìn dòng vào hàng
+ * đợi duyệt trong một buổi chiều.
+ */
+Route::post('/feedback', [FeedbackController::class, 'store'])
+    ->middleware('throttle:5,60')->name('feedback.store');
 
 Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::get('/dashboard', DashboardController::class)
@@ -92,6 +107,11 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
 
         // Album ảnh/video trưng trên trang công khai.
         Route::resource('gallery', GalleryController::class)->only('index', 'store', 'destroy');
+
+        // Hàng đợi duyệt feedback khách gửi từ trang chủ.
+        Route::get('feedback', [AdminFeedbackController::class, 'index'])->name('feedback.index');
+        Route::patch('feedback/{feedback}', [AdminFeedbackController::class, 'update'])->name('feedback.update');
+        Route::delete('feedback/{feedback}', [AdminFeedbackController::class, 'destroy'])->name('feedback.destroy');
 
         Route::resource('appointments', AppointmentController::class)->except('show', 'destroy');
         Route::patch('appointments/{appointment}/status', [AppointmentController::class, 'updateStatus'])

@@ -111,4 +111,37 @@ class HomePageTest extends TestCase
 
         $this->get('/')->assertDontSee('Nối móng bột');
     }
+
+    /**
+     * Ảnh feedback không phải mẫu móng, nên không được đếm như mẫu.
+     *
+     * Hai khu dùng chung một bảng, và đây là chỗ lẫn lộn hiện ra rõ nhất: con
+     * số "xem cả N mẫu" mà cộng cả ảnh chụp tin nhắn thì khách bấm vào sẽ thấy
+     * album ít hơn số đã hứa.
+     */
+    public function test_feedback_photos_are_not_counted_as_nail_designs(): void
+    {
+        GalleryItem::query()->delete();
+
+        GalleryItem::factory()->create();
+        GalleryItem::factory()->feedback()->count(3)->create();
+
+        $response = $this->get('/');
+
+        $response->assertOk();
+        $response->assertSee('Xem cả 1 mẫu và đặt lịch');
+    }
+
+    /** Video khách review nằm ở khu feedback, không phải khu "video tại tiệm". */
+    public function test_a_feedback_video_stays_out_of_the_shop_reel(): void
+    {
+        GalleryItem::query()->delete();
+
+        GalleryItem::factory()->feedback()->video()->create();
+
+        $response = $this->get('/');
+
+        $response->assertOk();
+        $response->assertDontSee('reel-rail', false);
+    }
 }

@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\GalleryAlbum;
 use App\Enums\GalleryMediaType;
 use App\Models\GalleryItem;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -20,6 +21,7 @@ class GalleryItemFactory extends Factory
 
         return [
             'type' => GalleryMediaType::Photo,
+            'album' => GalleryAlbum::Showcase,
             'path' => 'storage/gallery/'.$slug.'-1440.webp',
             'sources' => [
                 480 => 'storage/gallery/'.$slug.'-480.webp',
@@ -32,6 +34,12 @@ class GalleryItemFactory extends Factory
             'byte_size' => fake()->numberBetween(20_000, 200_000),
             'uploaded_by' => null,
         ];
+    }
+
+    /** Ảnh chụp tin nhắn khách khen, hoặc video khách review. */
+    public function feedback(): static
+    {
+        return $this->state(fn (array $attributes): array => ['album' => GalleryAlbum::Feedback]);
     }
 
     public function video(): static
