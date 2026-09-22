@@ -2,6 +2,7 @@
 
 namespace App\Actions\Gallery;
 
+use App\Enums\GalleryAlbum;
 use App\Enums\GalleryMediaType;
 use App\Models\GalleryItem;
 use App\Models\User;
@@ -24,14 +25,14 @@ class StoreGalleryMediaAction
 
     public function __construct(private readonly PhotoResizer $resizer) {}
 
-    public function handle(UploadedFile $file, User $actor): ?GalleryItem
+    public function handle(UploadedFile $file, User $actor, GalleryAlbum $album): ?GalleryItem
     {
         return $this->isVideo($file)
-            ? $this->storeVideo($file, $actor)
-            : $this->storePhoto($file, $actor);
+            ? $this->storeVideo($file, $actor, $album)
+            : $this->storePhoto($file, $actor, $album);
     }
 
-    private function storePhoto(UploadedFile $file, User $actor): ?GalleryItem
+    private function storePhoto(UploadedFile $file, User $actor, GalleryAlbum $album): ?GalleryItem
     {
         $result = $this->resizer->write(
             $file->getRealPath(),
@@ -48,6 +49,7 @@ class StoreGalleryMediaAction
 
         return GalleryItem::query()->create([
             'type' => GalleryMediaType::Photo,
+            'album' => $album,
             'path' => $sources[array_key_last($sources)],
             'sources' => $sources,
             'width' => $result['width'],
@@ -58,13 +60,14 @@ class StoreGalleryMediaAction
         ]);
     }
 
-    private function storeVideo(UploadedFile $file, User $actor): GalleryItem
+    private function storeVideo(UploadedFile $file, User $actor, GalleryAlbum $album): GalleryItem
     {
         $name = $this->uniqueSlug($file).'.'.strtolower($file->getClientOriginalExtension());
         $file->storeAs(self::DIRECTORY, $name, 'public');
 
         return GalleryItem::query()->create([
             'type' => GalleryMediaType::Video,
+            'album' => $album,
             'path' => $this->publicPrefix().'/'.$name,
             'sources' => null,
             'width' => null,

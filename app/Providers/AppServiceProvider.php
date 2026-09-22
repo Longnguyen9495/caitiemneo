@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Models\User;
+use App\Services\Ai\Actions\ActionRegistry;
 use App\Services\Ai\AiPayloadPresenter;
 use App\Services\Ai\Contracts\AiProvider;
 use App\Services\Ai\OpenAiCompatibleProvider;
@@ -34,6 +35,10 @@ class AppServiceProvider extends ServiceProvider
         // Scoped để mọi đề xuất hiển thị trên cùng một trang dùng chung bộ nhớ
         // tra tên chi nhánh, vật tư, nhân viên — tra một lần thay vì mỗi thẻ.
         $this->app->scoped(AiPayloadPresenter::class);
+
+        // Bản khai thao tác AI dựng một lần cho mỗi request: một trang chat có
+        // thể vẽ hàng chục phiếu, không cần ghép lại danh sách từng lần.
+        $this->app->scoped(ActionRegistry::class);
     }
 
     /**

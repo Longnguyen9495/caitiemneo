@@ -121,7 +121,9 @@
                                                 <div class="d-flex justify-content-between align-items-start gap-2">
                                                     <div>
                                                         <div class="d-flex flex-wrap gap-2 mb-2">
-                                                            <span class="badge text-bg-light border">Đề xuất chờ duyệt</span>
+                                                            <span class="badge text-bg-light border">
+                                                                {{ $proposal->status === App\Enums\AiActionStatus::Pending ? 'Phiếu chờ bạn duyệt' : 'Đề xuất đã xử lý' }}
+                                                            </span>
                                                             <span class="badge {{ ($actionDefinition['destructive'] ?? false) ? 'text-bg-danger' : 'text-bg-secondary' }}">
                                                                 {{ $actionDefinition['label'] ?? $proposal->type }}
                                                             </span>
@@ -132,7 +134,9 @@
                                                     <x-admin.icon name="alert" size="20" class="{{ ($actionDefinition['destructive'] ?? false) ? 'text-danger' : 'text-warning' }} flex-shrink-0" />
                                                 </div>
 
-                                                <x-admin.ai-action-payload :proposal="$proposal" />
+                                                @unless ($proposal->status === App\Enums\AiActionStatus::Pending)
+                                                    <x-admin.ai-action-payload :proposal="$proposal" />
+                                                @endunless
 
                                                 @if ($proposal->failure_message)
                                                     <div class="alert alert-danger py-2 px-3 mt-3 mb-0 small">{{ $proposal->failure_message }}</div>
@@ -143,19 +147,7 @@
                                                 @endif
 
                                                 @if ($proposal->status === App\Enums\AiActionStatus::Pending)
-                                                    <p class="small text-body-secondary mt-3 mb-2">Chưa có dữ liệu nào bị thay đổi. Xác nhận sẽ yêu cầu phiên mật khẩu gần đây và được ghi audit log.</p>
-                                                    <div class="d-flex flex-wrap gap-2">
-                                                        <form method="POST" action="{{ route('admin.ai.actions.confirm', $proposal) }}">
-                                                            @csrf
-                                                            <button class="btn btn-sm {{ ($actionDefinition['destructive'] ?? false) ? 'btn-danger' : 'btn-primary' }}" type="submit">
-                                                                {{ ($actionDefinition['destructive'] ?? false) ? 'Xác nhận hủy' : 'Duyệt và thực hiện' }}
-                                                            </button>
-                                                        </form>
-                                                        <form method="POST" action="{{ route('admin.ai.actions.reject', $proposal) }}">
-                                                            @csrf
-                                                            <button class="btn btn-sm btn-outline-secondary" type="submit">Từ chối</button>
-                                                        </form>
-                                                    </div>
+                                                    <x-admin.ai-action-form :proposal="$proposal" />
                                                 @endif
                                             </section>
                                         @endforeach

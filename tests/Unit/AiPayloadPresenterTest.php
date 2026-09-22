@@ -45,13 +45,13 @@ class AiPayloadPresenterTest extends TestCase
         $labelled = $this->labelled($rows);
 
         $this->assertSame('Cái Tiệm Neo Thái Hà', $labelled['Chi nhánh']);
-        $this->assertSame('Chị Lan', $labelled['Khách hàng']);
+        $this->assertSame('Chị Lan', $labelled['Tên khách']);
         $this->assertSame('Kỹ thuật viên Mai', $labelled['Kỹ thuật viên']);
-        $this->assertSame('Đắp gel', $labelled['Dịch vụ']);
-        $this->assertSame('14:00 ngày 20/09/2026', $labelled['Bắt đầu']);
-        $this->assertSame('60 phút', $labelled['Thời lượng']);
+        $this->assertSame('Đắp gel', $labelled['Dịch vụ dự kiến']);
+        $this->assertSame('14:00 ngày 20/09/2026', $labelled['Giờ hẹn']);
+        $this->assertSame('60 phút', $labelled['Thời lượng (phút)']);
         $this->assertSame('Chờ xác nhận', $labelled['Trạng thái']);
-        $this->assertSame('—', $labelled['Email']);
+        $this->assertSame('—', $labelled['Email khách']);
 
         // Điều người dùng phàn nàn: không được để lộ tên trường hay số ID.
         $rendered = implode(' ', array_merge(array_keys($labelled), array_values($labelled)));
@@ -79,11 +79,11 @@ class AiPayloadPresenterTest extends TestCase
         $labelled = $this->labelled($rows);
 
         $this->assertSame('500.000đ', $labelled['Số tiền']);
-        $this->assertSame('Khoản chi', $labelled['Loại']);
+        $this->assertSame('Khoản chi', $labelled['Thu hay chi']);
         $this->assertSame(CashTransactionCategory::from(array_key_first(CashTransactionCategory::manualOptions()))->label(), $labelled['Hạng mục']);
         $this->assertSame(PaymentMethod::Cash->label(), $labelled['Hình thức thanh toán']);
         $this->assertSame('09:30 ngày 18/09/2026', $labelled['Thời điểm']);
-        $this->assertSame('—', $labelled['Chứng từ']);
+        $this->assertSame('—', $labelled['Số chứng từ']);
     }
 
     /**

@@ -2,10 +2,12 @@
 
 namespace App\Actions\Attendance;
 
+use App\Enums\AuditAction;
 use App\Models\Branch;
 use App\Models\ShiftAssignment;
 use App\Models\User;
 use App\Models\WorkShift;
+use App\Services\Audit\AuditRecorder;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -19,6 +21,8 @@ use Illuminate\Validation\ValidationException;
  */
 class ScheduleShiftAction
 {
+    public function __construct(private AuditRecorder $auditor) {}
+
     /** @throws ValidationException */
     public function handle(
         Branch $branch,
@@ -57,6 +61,41 @@ class ScheduleShiftAction
                     'work_shift_id' => 'Nhân viên này đã được phân đúng ca đó trong ngày.',
                 ]);
             }
+        });
+    }
+
+    /**
+     * Bỏ một ca đã phân.
+     *
+     * Xóa cứng nên bản chụp phải được ghi trước, ngay trong cùng transaction:
+     * sau khi dòng biến mất thì không còn gì để chép lại, và một ca bị gỡ khỏi
+     * lịch mà không ai biết là chuyện phải tra ngược được.
+     *
+     * @throws ValidationException
+     */
+    public function remove(ShiftAssignment $assignment, User $actor, ?string $reason = null): ShiftAssignment
+    {
+        // Ca đã có công là bằng chứng: bỏ lịch sẽ để lại dòng chấm công mồ côi.
+        if ($assignment->attendanceRecord()->exists()) {
+            throw ValidationException::withMessages([
+                'work_shift_id' => 'Ca này đã có dữ liệu chấm công nên không thể bỏ phân ca. Hãy sửa bản ghi chấm công thay vì xóa lịch.',
+            ]);
+        }
+
+        return DB::transaction(function () use ($assignment, $actor, $reason): ShiftAssignment {
+            $this->auditor->record(
+                subject: $assignment,
+                actor: $actor,
+                action: AuditAction::Deleted,
+                before: $assignment->attributesToArray(),
+                reason: $reason,
+                branchId: $assignment->branch_id,
+                label: $assignment->shift_name,
+            );
+
+            $assignment->delete();
+
+            return $assignment;
         });
     }
 

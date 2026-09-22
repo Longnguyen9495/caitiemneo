@@ -182,6 +182,68 @@ class AiActionTest extends TestCase
         $this->assertSame(AiActionStatus::Pending, $proposal->fresh()->status);
     }
 
+    public function test_a_cash_draft_is_completed_from_the_form(): void
+    {
+        [$owner, $proposal] = $this->cashProposal();
+        $proposal->forceFill(['payload' => ['branch_id' => $proposal->branch_id]])->save();
+
+        $this->actingAs($owner)
+            ->withSession(['admin.current_branch_id' => $proposal->branch_id])
+            ->withConfirmedPassword()
+            ->post(route('admin.ai.actions.confirm', $proposal), [
+                'proposal_id' => $proposal->id,
+                'payload' => [
+                    'branch_id' => $proposal->branch_id,
+                    'type' => 'expense',
+                    'category' => 'marketing',
+                    'amount' => '350000',
+                    'payment_method' => '',
+                    'occurred_at' => now()->format('Y-m-d\TH:i'),
+                    'reference' => '',
+                    'note' => 'Chi in tờ rơi',
+                ],
+            ])
+            ->assertSessionHas('success');
+
+        $transaction = CashTransaction::query()->firstOrFail();
+        $this->assertSame('Chi in tờ rơi', $transaction->note);
+        $this->assertNull($transaction->payment_method);
+        $this->assertSame(AiActionStatus::Executed, $proposal->fresh()->status);
+    }
+
+    public function test_a_stock_draft_is_completed_from_the_form(): void
+    {
+        [$owner, $proposal] = $this->stockProposal();
+        $productId = $proposal->payload['product_id'];
+        $proposal->forceFill(['payload' => ['branch_id' => $proposal->branch_id]])->save();
+
+        $this->actingAs($owner)
+            ->withSession(['admin.current_branch_id' => $proposal->branch_id])
+            ->withConfirmedPassword()
+            ->post(route('admin.ai.actions.confirm', $proposal), [
+                'proposal_id' => $proposal->id,
+                'payload' => [
+                    'branch_id' => $proposal->branch_id,
+                    'product_id' => $productId,
+                    'type' => InventoryMovementType::Adjustment->value,
+                    'adjustment_mode' => 'absolute',
+                    'quantity' => '12',
+                    'unit_cost' => '',
+                    'occurred_at' => now()->format('Y-m-d\TH:i'),
+                    'reference' => '',
+                    'note' => 'Kiểm kê cuối ca',
+                ],
+            ])
+            ->assertSessionHas('success');
+
+        $this->assertDatabaseHas('inventory_movements', [
+            'branch_id' => $proposal->branch_id,
+            'product_id' => $productId,
+            'note' => 'Kiểm kê cuối ca',
+        ]);
+        $this->assertSame(AiActionStatus::Executed, $proposal->fresh()->status);
+    }
+
     /** @return array{User, AiActionProposal} */
     private function cashProposal(): array
     {

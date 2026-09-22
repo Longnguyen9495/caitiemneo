@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Admin;
 
+use App\Enums\GalleryAlbum;
 use App\Enums\GalleryMediaType;
 use App\Models\Branch;
 use App\Models\GalleryItem;
@@ -52,10 +53,11 @@ class GalleryUploadTest extends TestCase
     public function test_a_manager_uploads_a_photo_and_it_is_compressed_into_several_widths(): void
     {
         $response = $this->actingAs($this->manager)->post(route('admin.gallery.store'), [
+            'album' => 'showcase',
             'media' => [UploadedFile::fake()->image('mau-moi.jpg', 1600, 2000)],
         ]);
 
-        $response->assertRedirect(route('admin.gallery.index'));
+        $response->assertRedirect(route('admin.gallery.index', ['album' => 'showcase']));
 
         $item = GalleryItem::query()->sole();
 
@@ -72,6 +74,7 @@ class GalleryUploadTest extends TestCase
     public function test_an_uploaded_video_is_kept_as_a_video(): void
     {
         $this->actingAs($this->manager)->post(route('admin.gallery.store'), [
+            'album' => 'showcase',
             'media' => [UploadedFile::fake()->create('quay-tai-tiem.mp4', 2048, 'video/mp4')],
         ]);
 
@@ -86,6 +89,7 @@ class GalleryUploadTest extends TestCase
     public function test_an_unsupported_file_type_is_rejected(): void
     {
         $response = $this->actingAs($this->manager)->post(route('admin.gallery.store'), [
+            'album' => 'showcase',
             'media' => [UploadedFile::fake()->create('anh.heic', 500, 'image/heic')],
         ]);
 
@@ -96,6 +100,7 @@ class GalleryUploadTest extends TestCase
     public function test_a_file_larger_than_nine_megabytes_is_rejected(): void
     {
         $response = $this->actingAs($this->manager)->post(route('admin.gallery.store'), [
+            'album' => 'showcase',
             'media' => [UploadedFile::fake()->create('video-dai.mp4', 9217, 'video/mp4')],
         ]);
 
@@ -108,7 +113,7 @@ class GalleryUploadTest extends TestCase
         $employee = User::factory()->employee()->atBranch(Branch::factory()->create())->create();
 
         $this->actingAs($employee)
-            ->post(route('admin.gallery.store'), ['media' => [UploadedFile::fake()->image('a.jpg', 800, 800)]])
+            ->post(route('admin.gallery.store'), ['album' => 'showcase', 'media' => [UploadedFile::fake()->image('a.jpg', 800, 800)]])
             ->assertForbidden();
 
         $this->assertSame(0, GalleryItem::query()->count());
@@ -117,6 +122,7 @@ class GalleryUploadTest extends TestCase
     public function test_removing_an_item_deletes_the_files_it_owns(): void
     {
         $this->actingAs($this->manager)->post(route('admin.gallery.store'), [
+            'album' => 'showcase',
             'media' => [UploadedFile::fake()->image('go-di.jpg', 900, 1200)],
         ]);
 
@@ -125,7 +131,7 @@ class GalleryUploadTest extends TestCase
 
         $this->actingAs($this->manager)
             ->delete(route('admin.gallery.destroy', $item))
-            ->assertRedirect(route('admin.gallery.index'));
+            ->assertRedirect(route('admin.gallery.index', ['album' => 'showcase']));
 
         $this->assertSame(0, GalleryItem::query()->count());
 
@@ -149,5 +155,62 @@ class GalleryUploadTest extends TestCase
 
         $this->assertSame(0, GalleryItem::query()->whereKey($imported->getKey())->count());
         $this->assertFileExists(public_path('images/products/web/manifest.json'));
+    }
+
+    /**
+     * Ảnh feedback đi vào khu feedback, không lẫn vào lưới mẫu móng.
+     *
+     * Đây là điểm dễ vỡ nhất của hai khu dùng chung một bảng: một ảnh chụp tin
+     * nhắn nằm giữa lưới mẫu là mời khách đặt lịch làm "mẫu" đó.
+     */
+    public function test_a_photo_uploaded_to_the_feedback_album_stays_there(): void
+    {
+        $this->actingAs($this->manager)->post(route('admin.gallery.store'), [
+            'album' => 'feedback',
+            'media' => [UploadedFile::fake()->image('tin-nhan-khach.jpg', 1080, 1600)],
+        ])->assertRedirect(route('admin.gallery.index', ['album' => 'feedback']));
+
+        $item = GalleryItem::query()->sole();
+
+        $this->assertSame(GalleryAlbum::Feedback, $item->album);
+        $this->assertSame(GalleryMediaType::Photo, $item->type);
+
+        // Trang album mẫu móng không được trưng nó ra.
+        $this->get(route('lookbook'))->assertDontSee($item->url(), false);
+    }
+
+    /** Mỗi thẻ trong khu quản trị chỉ liệt kê tệp của chính khu đó. */
+    public function test_each_album_tab_lists_only_its_own_files(): void
+    {
+        $showcase = GalleryItem::factory()->create(['original_name' => 'mau-mong.jpg']);
+        $feedback = GalleryItem::factory()->feedback()->create(['original_name' => 'tin-nhan.jpg']);
+
+        $this->actingAs($this->manager)
+            ->get(route('admin.gallery.index', ['album' => 'showcase']))
+            ->assertSee('mau-mong.jpg')
+            ->assertDontSee('tin-nhan.jpg');
+
+        $this->actingAs($this->manager)
+            ->get(route('admin.gallery.index', ['album' => 'feedback']))
+            ->assertSee('tin-nhan.jpg')
+            ->assertDontSee('mau-mong.jpg');
+
+        $this->assertSame(GalleryAlbum::Showcase, $showcase->album);
+        $this->assertSame(GalleryAlbum::Feedback, $feedback->album);
+    }
+
+    /**
+     * Thiếu khu thì từ chối, không đoán.
+     *
+     * Mặc định ngầm là "mẫu móng" nghĩa là một hôm nào đó biểu mẫu gửi thiếu
+     * khóa này, ảnh tin nhắn khách sẽ lặng lẽ hiện ra giữa lưới mẫu.
+     */
+    public function test_an_upload_without_an_album_is_refused(): void
+    {
+        $this->actingAs($this->manager)->post(route('admin.gallery.store'), [
+            'media' => [UploadedFile::fake()->image('khong-ro-khu.jpg', 900, 1200)],
+        ])->assertSessionHasErrors('album');
+
+        $this->assertSame(0, GalleryItem::query()->count());
     }
 }

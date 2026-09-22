@@ -30,7 +30,7 @@ class AppointmentController extends Controller
         $selectedDate = Carbon::parse($request->string('date')->toString() ?: now()->toDateString())->startOfDay();
 
         $appointments = Appointment::query()
-            ->with(['employee', 'services.service', 'invoice'])
+            ->with(['employee', 'services.service', 'invoice', 'galleryItem'])
             ->whereIn('branch_id', $this->branchContext->scopeIds() ?: [0])
             ->whereBetween('starts_at', [$selectedDate, $selectedDate->copy()->endOfDay()])
             ->when(

@@ -147,7 +147,7 @@ class AiAppointmentActionTest extends TestCase
         $this->assertSame('Khách yêu cầu hủy lịch', $event->reason);
     }
 
-    public function test_the_proposal_card_describes_the_payload_without_technical_field_names(): void
+    public function test_a_decided_proposal_describes_the_payload_without_technical_field_names(): void
     {
         $branch = Branch::factory()->create(['name' => 'Cái Tiệm Neo Thái Hà']);
         $owner = User::factory()->owner()->atBranch($branch)->create();
@@ -163,13 +163,15 @@ class AiAppointmentActionTest extends TestCase
             'service_ids' => [],
             'note' => 'Khách quen',
         ]);
+        $proposal->forceFill(['status' => AiActionStatus::Rejected])->save();
 
         $response = $this->actingAs($owner)
             ->withSession(['admin.current_branch_id' => $branch->id])
             ->get(route('admin.ai.index', ['conversation' => $proposal->message->conversation_id]));
 
         $response->assertOk()
-            ->assertSee('Khách hàng')
+            // Nhãn giống hệt phiếu nhập, vì cả hai giờ đọc từ một bản khai.
+            ->assertSee('Tên khách')
             ->assertSee('Chị Lan')
             ->assertSee('Thời lượng')
             ->assertSee('Chờ xác nhận')
@@ -180,12 +182,174 @@ class AiAppointmentActionTest extends TestCase
         }
     }
 
-    private function confirm(User $owner, Branch $branch, AiActionProposal $proposal): TestResponse
+    /**
+     * Phiếu chờ duyệt là chỗ người dùng sửa dữ liệu, nên ô nhập buộc phải mang
+     * tên trường thật. Ràng buộc "không lộ tên kỹ thuật" vì thế chỉ áp cho phần
+     * chữ người đọc: nhãn, gợi ý và câu dẫn.
+     */
+    public function test_a_pending_proposal_opens_an_editable_form_with_vietnamese_labels(): void
+    {
+        $branch = Branch::factory()->create(['name' => 'Cái Tiệm Neo Thái Hà']);
+        $owner = User::factory()->owner()->atBranch($branch)->create();
+        $proposal = $this->proposal($owner, $branch, 'create_appointment', [
+            'branch_id' => $branch->id,
+            'customer_name' => 'Chị Lan',
+        ]);
+
+        $response = $this->actingAs($owner)
+            ->withSession(['admin.current_branch_id' => $branch->id])
+            ->get(route('admin.ai.index', ['conversation' => $proposal->message->conversation_id]));
+
+        $response->assertOk()
+            ->assertSee('Tên khách')
+            ->assertSee('Giờ hẹn')
+            ->assertSee('Thời lượng (phút)')
+            ->assertSee('Duyệt và thực hiện')
+            ->assertSee('Cái Tiệm Neo Thái Hà')
+            ->assertSee('value="Chị Lan"', escape: false)
+            ->assertSee('name="payload[customer_phone]"', escape: false);
+
+        foreach (['Starts At', 'Customer Name', 'Branch Id', 'Duration Minutes'] as $humanisedToken) {
+            $response->assertDontSee($humanisedToken);
+        }
+    }
+
+    public function test_an_incomplete_draft_is_completed_from_the_form_and_then_executes(): void
+    {
+        $branch = Branch::factory()->create();
+        $owner = User::factory()->owner()->atBranch($branch)->create();
+        $startsAt = now()->addDay()->startOfHour();
+
+        // Trợ lý chỉ nghe được mỗi "tạo lịch hẹn test": phiếu mở ra gần như trống.
+        $proposal = $this->proposal($owner, $branch, 'create_appointment', [
+            'branch_id' => $branch->id,
+        ]);
+
+        $this->confirm($owner, $branch, $proposal, [
+            'branch_id' => $branch->id,
+            'customer_name' => 'Chị Test',
+            'customer_phone' => '0909999999',
+            'customer_email' => '',
+            'employee_id' => '',
+            'starts_at' => $startsAt->format('Y-m-d\TH:i'),
+            'duration_minutes' => '30',
+            'status' => AppointmentStatus::Pending->value,
+            'note' => '',
+        ])->assertSessionHas('success');
+
+        $appointment = Appointment::query()->firstOrFail();
+        $this->assertSame('Chị Test', $appointment->customer_name);
+        $this->assertSame('0909999999', $appointment->customer_phone);
+        $this->assertSame(30, $appointment->duration_minutes);
+        $this->assertNull($appointment->employee_id);
+
+        $fresh = $proposal->fresh();
+        $this->assertSame(AiActionStatus::Executed, $fresh->status);
+        $this->assertSame('Chị Test', $fresh->payload['customer_name']);
+        $this->assertDatabaseHas('audit_events', [
+            'auditable_type' => AiActionProposal::class,
+            'auditable_id' => $proposal->id,
+            'action' => 'updated',
+            'actor_id' => $owner->id,
+        ]);
+    }
+
+    public function test_the_approver_can_correct_what_the_assistant_got_wrong(): void
+    {
+        $branch = Branch::factory()->create();
+        $owner = User::factory()->owner()->atBranch($branch)->create();
+        $startsAt = now()->addDay()->startOfHour();
+        $proposal = $this->proposal($owner, $branch, 'create_appointment', [
+            'branch_id' => $branch->id,
+            'customer_name' => 'Nghe nhầm tên',
+            'customer_phone' => '0901234567',
+            'starts_at' => $startsAt->toIso8601String(),
+            'duration_minutes' => 60,
+            'status' => AppointmentStatus::Pending->value,
+        ]);
+
+        $this->confirm($owner, $branch, $proposal, [
+            'branch_id' => $branch->id,
+            'customer_name' => 'Chị Lan',
+            'customer_phone' => '0901234567',
+            'starts_at' => $startsAt->format('Y-m-d\TH:i'),
+            'duration_minutes' => '60',
+            'status' => AppointmentStatus::Confirmed->value,
+        ])->assertSessionHas('success');
+
+        $appointment = Appointment::query()->firstOrFail();
+        $this->assertSame('Chị Lan', $appointment->customer_name);
+        $this->assertSame(AppointmentStatus::Confirmed, $appointment->status);
+
+        $edit = AuditEvent::query()
+            ->where('auditable_type', AiActionProposal::class)
+            ->where('auditable_id', $proposal->id)
+            ->firstOrFail();
+        $this->assertSame('Nghe nhầm tên', $edit->before['customer_name']);
+        $this->assertSame('Chị Lan', $edit->after['customer_name']);
+    }
+
+    public function test_a_form_still_missing_a_required_field_changes_nothing(): void
+    {
+        $branch = Branch::factory()->create();
+        $owner = User::factory()->owner()->atBranch($branch)->create();
+        $proposal = $this->proposal($owner, $branch, 'create_appointment', [
+            'branch_id' => $branch->id,
+        ]);
+
+        $this->confirm($owner, $branch, $proposal, [
+            'branch_id' => $branch->id,
+            'customer_name' => 'Chị Test',
+            'customer_phone' => '',
+            'starts_at' => '',
+            'duration_minutes' => '30',
+            'status' => AppointmentStatus::Pending->value,
+        ])
+            ->assertSessionHasErrors(['payload.customer_phone', 'payload.starts_at'])
+            ->assertSessionHas('error');
+
+        $this->assertDatabaseCount('appointments', 0);
+        $this->assertSame(AiActionStatus::Pending, $proposal->fresh()->status);
+    }
+
+    public function test_the_form_cannot_smuggle_in_a_field_the_approver_never_saw(): void
+    {
+        $branch = Branch::factory()->create();
+        $other = Branch::factory()->create();
+        $owner = User::factory()->owner()->atBranch($branch)->create();
+        $startsAt = now()->addDay()->startOfHour();
+        $proposal = $this->proposal($owner, $branch, 'cancel_appointment', [
+            'branch_id' => $branch->id,
+        ]);
+        $appointment = Appointment::factory()->at($startsAt)->create([
+            'branch_id' => $branch->id,
+            'status' => AppointmentStatus::Confirmed,
+        ]);
+
+        $this->confirm($owner, $branch, $proposal, [
+            'branch_id' => $branch->id,
+            'appointment_id' => $appointment->id,
+            'reason' => 'Khách báo bận',
+            // Không có ô nào tên như vậy trên phiếu hủy lịch.
+            'customer_name' => 'Đổi trộm tên',
+            'status' => AppointmentStatus::Completed->value,
+        ])->assertSessionHas('success');
+
+        $this->assertSame(AppointmentStatus::Cancelled, $appointment->fresh()->status);
+        $this->assertArrayNotHasKey('customer_name', $proposal->fresh()->payload);
+        $this->assertArrayNotHasKey('status', $proposal->fresh()->payload);
+    }
+
+    /** @param array<string, mixed>|null $payload */
+    private function confirm(User $owner, Branch $branch, AiActionProposal $proposal, ?array $payload = null): TestResponse
     {
         return $this->actingAs($owner)
             ->withSession(['admin.current_branch_id' => $branch->id])
             ->withConfirmedPassword()
-            ->post(route('admin.ai.actions.confirm', $proposal));
+            ->post(
+                route('admin.ai.actions.confirm', $proposal),
+                $payload === null ? [] : ['payload' => $payload, 'proposal_id' => $proposal->id],
+            );
     }
 
     /** @param array<string, mixed> $payload */

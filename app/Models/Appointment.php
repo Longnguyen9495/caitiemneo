@@ -15,6 +15,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
     'branch_id',
     'customer_id',
     'employee_id',
+    'gallery_item_id',
     'customer_name',
     'customer_phone',
     'customer_email',
@@ -53,6 +54,17 @@ class Appointment extends Model
         return $this->belongsTo(User::class, 'employee_id');
     }
 
+    /**
+     * Mẫu móng khách chọn trong album lúc đặt lịch online.
+     *
+     * Rỗng với lịch hẹn tạo tay trong khu quản trị và với lịch khách đặt mà
+     * không trỏ vào mẫu nào.
+     */
+    public function galleryItem(): BelongsTo
+    {
+        return $this->belongsTo(GalleryItem::class);
+    }
+
     public function services(): HasMany
     {
         return $this->hasMany(AppointmentService::class);
@@ -87,6 +99,7 @@ class Appointment extends Model
             'branch_id' => $this->branch_id,
             'customer_id' => $this->customer_id,
             'employee_id' => $this->employee_id,
+            'gallery_item_id' => $this->gallery_item_id,
             'customer_name' => $this->customer_name,
             'customer_phone' => $this->customer_phone,
             'customer_email' => $this->customer_email,

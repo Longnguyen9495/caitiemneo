@@ -22,7 +22,7 @@ class SaveAppointmentAction
     /**
      * Create or update an appointment together with its customer and service lines.
      *
-     * @param  array{branch_id: int|string, customer_name: string, customer_phone: string, customer_email?: string|null, employee_id?: int|string|null, starts_at: string, duration_minutes: int|string, status: string, note?: string|null, service_ids?: array<int, int|string>}  $data
+     * @param  array{branch_id: int|string, customer_name: string, customer_phone: string, customer_email?: string|null, employee_id?: int|string|null, gallery_item_id?: int|string|null, starts_at: string, duration_minutes: int|string, status: string, note?: string|null, service_ids?: array<int, int|string>}  $data
      *
      * @throws ValidationException when the branch, the posting or the slot does not hold up
      */
@@ -64,6 +64,13 @@ class SaveAppointmentAction
                 'status' => $data['status'],
                 'note' => $data['note'] ?? null,
             ];
+
+            // Chỉ đụng tới mẫu khách chọn khi biểu mẫu có gửi khóa này. Màn
+            // hình quản trị không có ô chọn mẫu, nên vắng khóa nghĩa là giữ
+            // nguyên chứ không phải gỡ mẫu khách đã trỏ vào lúc đặt lịch.
+            if (array_key_exists('gallery_item_id', $data)) {
+                $attributes['gallery_item_id'] = ((int) $data['gallery_item_id']) ?: null;
+            }
 
             if ($appointment === null) {
                 $appointment = Appointment::query()->create($attributes);

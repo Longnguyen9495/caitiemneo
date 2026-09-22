@@ -3,6 +3,7 @@
 namespace App\Services\Ai;
 
 use App\Enums\AiActionStatus;
+use App\Models\AiActionProposal;
 use App\Models\AiConversation;
 use App\Models\AiMessage;
 use App\Models\User;
@@ -69,12 +70,18 @@ class AiConversationService
 
             foreach ($result->actions as $action) {
                 $payload = $action['payload'];
-                $branchId = is_numeric($payload['branch_id'] ?? null) ? (int) $payload['branch_id'] : null;
-                $fingerprint = hash('sha256', json_encode([
-                    'type' => $action['type'],
-                    'payload' => $this->sortRecursively($payload),
-                    'user_id' => $user->id,
-                ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+
+                // Trợ lý thường bỏ trống chi nhánh vì câu hỏi không nhắc tới;
+                // phiếu vẫn phải mở được nên lấy chi nhánh đang làm việc.
+                $branchId = is_numeric($payload['branch_id'] ?? null)
+                    ? (int) $payload['branch_id']
+                    : $this->branches->requireWritableBranchId();
+
+                if ($branchId !== null) {
+                    $payload['branch_id'] = $branchId;
+                }
+
+                $fingerprint = AiActionProposal::fingerprintFor($action['type'], $payload, $user->id);
 
                 $assistant->actionProposals()->create([
                     'proposed_by' => $user->id,
@@ -92,19 +99,5 @@ class AiConversationService
 
             return $assistant->load('actionProposals');
         });
-    }
-
-    /** @param array<string, mixed> $value */
-    private function sortRecursively(array $value): array
-    {
-        ksort($value);
-
-        foreach ($value as $key => $item) {
-            if (is_array($item)) {
-                $value[$key] = $this->sortRecursively($item);
-            }
-        }
-
-        return $value;
     }
 }

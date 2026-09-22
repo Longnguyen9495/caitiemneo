@@ -3,22 +3,39 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Actions\Gallery\StoreGalleryMediaAction;
+use App\Enums\GalleryAlbum;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\GalleryUploadRequest;
 use App\Models\GalleryItem;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
 
 class GalleryController extends Controller
 {
-    public function index(): View
+    public function index(Request $request): View
     {
         $this->authorize('viewAny', GalleryItem::class);
 
+        // Mỗi khu là một danh sách riêng: trộn chúng vào một trang thì người
+        // đăng không còn thấy rõ tệp mình vừa tải lên sẽ hiện ở đâu.
+        $album = $request->enum('album', GalleryAlbum::class) ?? GalleryAlbum::Showcase;
+
         return view('admin.gallery.index', [
-            'items' => GalleryItem::query()->with('uploader')->newestFirst()->paginate(24),
+            'items' => GalleryItem::query()
+                ->with('uploader')
+                ->inAlbum($album)
+                ->newestFirst()
+                ->paginate(24)
+                ->withQueryString(),
+            'album' => $album,
+            'albums' => GalleryAlbum::cases(),
+            'counts' => GalleryItem::query()
+                ->selectRaw('album, count(*) as total')
+                ->groupBy('album')
+                ->pluck('total', 'album'),
             'maxFiles' => GalleryUploadRequest::MAX_FILES,
             'maxMegabytes' => (int) round(GalleryUploadRequest::MAX_KILOBYTES / 1024),
         ]);
@@ -26,11 +43,12 @@ class GalleryController extends Controller
 
     public function store(GalleryUploadRequest $request, StoreGalleryMediaAction $action): RedirectResponse
     {
+        $album = $request->album();
         $stored = 0;
         $failed = [];
 
         foreach ($request->file('media') as $file) {
-            if ($action->handle($file, $request->user()) === null) {
+            if ($action->handle($file, $request->user(), $album) === null) {
                 $failed[] = $file->getClientOriginalName();
 
                 continue;
@@ -39,7 +57,7 @@ class GalleryController extends Controller
             $stored++;
         }
 
-        $redirect = redirect()->route('admin.gallery.index');
+        $redirect = redirect()->route('admin.gallery.index', ['album' => $album->value]);
 
         if ($failed !== []) {
             return $redirect->with('error', 'Không đọc được '.count($failed).' tệp: '.implode(', ', $failed));
@@ -55,7 +73,8 @@ class GalleryController extends Controller
         $this->deleteUploadedFiles($gallery);
         $gallery->delete();
 
-        return redirect()->route('admin.gallery.index')->with('success', 'Đã gỡ khỏi album.');
+        return redirect()->route('admin.gallery.index', ['album' => $gallery->album->value])
+            ->with('success', 'Đã gỡ khỏi album.');
     }
 
     /**

@@ -22,6 +22,17 @@ class OpenAiCompatibleProviderTest extends TestCase
         Config::set('ai.max_output_tokens', 3000);
         Config::set('ai.connect_timeout', 10);
         Config::set('ai.timeout', 60);
+        Config::set('ai.format_attempts', 2);
+    }
+
+    /** @return array<string, mixed> */
+    private function completion(string $content, string $id = 'resp'): array
+    {
+        return [
+            'id' => $id,
+            'choices' => [['message' => ['role' => 'assistant', 'content' => $content]]],
+            'usage' => [],
+        ];
     }
 
     public function test_valid_json_with_text_table_chart_and_actions(): void
@@ -136,25 +147,101 @@ class OpenAiCompatibleProviderTest extends TestCase
         $provider->chat([['role' => 'user', 'content' => 'Hỏi']]);
     }
 
-    public function test_malformed_json_throws_exception(): void
+    public function test_plain_text_reply_is_retried_then_kept_as_content(): void
+    {
+        Http::fakeSequence('https://ai.example.com/v1/chat/completions')
+            ->push($this->completion('Doanh thu hôm nay là 1.200.000đ.', 'resp-4a'))
+            ->push($this->completion('Doanh thu hôm nay là 1.200.000đ.', 'resp-4b'));
+
+        $provider = new OpenAiCompatibleProvider;
+        $result = $provider->chat([['role' => 'user', 'content' => 'Hỏi']]);
+
+        $this->assertSame('Doanh thu hôm nay là 1.200.000đ.', $result->content);
+        $this->assertSame([['type' => 'text', 'content' => 'Doanh thu hôm nay là 1.200.000đ.']], $result->blocks);
+        $this->assertSame([], $result->actions);
+        $this->assertSame('resp-4b', $result->providerReference);
+        Http::assertSentCount(2);
+    }
+
+    public function test_second_attempt_recovers_json_and_keeps_actions(): void
+    {
+        Http::fakeSequence('https://ai.example.com/v1/chat/completions')
+            ->push($this->completion('Xin lỗi, mình trả lời bằng văn xuôi.', 'resp-4c'))
+            ->push($this->completion(json_encode([
+                'content' => 'Mình đã chuẩn bị lịch hẹn cho chị Lan.',
+                'blocks' => [],
+                'actions' => [[
+                    'type' => 'create_appointment',
+                    'summary' => 'Tạo lịch hẹn cho chị Lan lúc 14:00 ngày 20/09',
+                    'payload' => ['branch_id' => 1, 'customer_name' => 'Lan'],
+                ]],
+            ]), 'resp-4d'));
+
+        $provider = new OpenAiCompatibleProvider;
+        $result = $provider->chat([['role' => 'user', 'content' => 'Tạo lịch hẹn']]);
+
+        $this->assertSame('Mình đã chuẩn bị lịch hẹn cho chị Lan.', $result->content);
+        $this->assertCount(1, $result->actions);
+        $this->assertSame('create_appointment', $result->actions[0]['type']);
+        Http::assertSentCount(2);
+
+        $retry = Http::recorded()[1][0]->data()['messages'];
+        $this->assertSame('system', end($retry)['role']);
+        $this->assertStringContainsString('JSON object hợp lệ', end($retry)['content']);
+    }
+
+    public function test_empty_content_is_retried_with_the_original_prompt(): void
+    {
+        Http::fakeSequence('https://ai.example.com/v1/chat/completions')
+            ->push($this->completion('', 'resp-4g'))
+            ->push($this->completion(json_encode([
+                'content' => 'Doanh thu hôm nay là 1.200.000đ.',
+                'blocks' => [],
+                'actions' => [],
+            ]), 'resp-4h'));
+
+        $provider = new OpenAiCompatibleProvider;
+        $result = $provider->chat([['role' => 'user', 'content' => 'Hỏi']]);
+
+        $this->assertSame('Doanh thu hôm nay là 1.200.000đ.', $result->content);
+        Http::assertSentCount(2);
+        $this->assertSame(
+            Http::recorded()[0][0]->data()['messages'],
+            Http::recorded()[1][0]->data()['messages'],
+        );
+    }
+
+    public function test_json_embedded_in_prose_is_extracted(): void
     {
         Http::fake([
-            'https://ai.example.com/v1/chat/completions' => Http::response([
-                'id' => 'resp-4',
-                'choices' => [[
-                    'message' => [
-                        'role' => 'assistant',
-                        'content' => 'this is not json {',
-                    ],
-                ]],
-                'usage' => [],
-            ]),
+            'https://ai.example.com/v1/chat/completions' => Http::response($this->completion(
+                'Đây là kết quả: {"content": "Tồn kho còn 3 mặt hàng cần nhập.", "blocks": [], "actions": []} Hy vọng giúp được bạn.',
+                'resp-4e',
+            )),
+        ]);
+
+        $provider = new OpenAiCompatibleProvider;
+        $result = $provider->chat([['role' => 'user', 'content' => 'Hỏi']]);
+
+        $this->assertSame('Tồn kho còn 3 mặt hàng cần nhập.', $result->content);
+        Http::assertSentCount(1);
+    }
+
+    public function test_blank_content_still_throws_after_retry(): void
+    {
+        Http::fake([
+            'https://ai.example.com/v1/chat/completions' => Http::response($this->completion('', 'resp-4f')),
         ]);
 
         $this->expectException(RuntimeException::class);
 
         $provider = new OpenAiCompatibleProvider;
-        $provider->chat([['role' => 'user', 'content' => 'Hỏi']]);
+
+        try {
+            $provider->chat([['role' => 'user', 'content' => 'Hỏi']]);
+        } finally {
+            Http::assertSentCount(2);
+        }
     }
 
     public function test_missing_content_field_throws_exception(): void

@@ -12,6 +12,7 @@ use App\Models\Branch;
 use App\Models\Product;
 use App\Models\Service;
 use App\Models\User;
+use App\Services\Ai\Actions\ActionRegistry;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
 
@@ -31,9 +32,10 @@ final class AiPayloadPresenter
     public function rows(AiActionProposal $proposal): array
     {
         $rows = [];
+        $fieldLabels = $this->fieldLabels($proposal->type);
 
         foreach ($proposal->payload ?? [] as $key => $value) {
-            $label = $this->label($key);
+            $label = $fieldLabels[$key] ?? $this->label($key);
 
             if ($label === null) {
                 continue;
@@ -49,6 +51,31 @@ final class AiPayloadPresenter
     }
 
     /**
+     * Nhãn lấy thẳng từ bản khai của thao tác, nên một đối tượng mới không cần
+     * chép lại tên trường vào đây nữa.
+     *
+     * @return array<string, string>
+     */
+    private function fieldLabels(string $type): array
+    {
+        $action = app(ActionRegistry::class)->find($type);
+
+        if ($action === null) {
+            return [];
+        }
+
+        $labels = [];
+
+        foreach ($action->fields(null) as $field) {
+            $labels[$field->key] = $field->label;
+        }
+
+        return $labels;
+    }
+
+    /**
+     * Bảng dự phòng cho khóa không có ô nhập, ví dụ chi nhánh.
+     *
      * Trả về null cho các khóa chỉ có ý nghĩa nội bộ: chúng đã nằm trong phần
      * tóm tắt dưới dạng tên thật, in thêm ID chỉ làm người duyệt phân tâm.
      */

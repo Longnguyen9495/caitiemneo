@@ -436,3 +436,242 @@ html.js [data-reveal].is-visible { opacity: 1; transform: translateY(0); }
 
 @media (max-width: 760px) { .account-container { width: min(100% - 36px, 1120px); }.account-nav-inner { min-height: auto; align-items: flex-start; flex-direction: column; padding: .9rem 0; }.account-nav-links { justify-content: flex-start; }.account-user { display: none; }.account-settings-grid { grid-template-columns: 1fr; }.account-card-danger { grid-column: auto; }.profile-avatar-field { align-items: flex-start; }.profile-avatar { width: 60px; height: 60px; } }
 
+
+/* ─── Trang album mẫu móng ──────────────────────────────────────────────────
+   Khác dải ảnh ở trang giới thiệu: ở đây khách xem kỹ từng mẫu nên ảnh xếp
+   thành lưới nhiều cột, giữ nguyên tỉ lệ gốc thay vì cắt vuông, và mỗi tấm là
+   một nút mở thẳng ô đặt lịch. */
+.lookbook-intro { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 1.5rem 2.5rem; padding-block: clamp(3.4rem, 8vw, 6.5rem) clamp(1.8rem, 4vw, 3rem); }
+.lookbook-intro h1 { max-width: 16ch; margin: .5rem 0 0; font-size: clamp(2.6rem, 6vw, 4.6rem); }
+.lookbook-intro > div > p:not(.eyebrow) { max-width: 38rem; margin: 1.1rem 0 0; color: var(--ink-muted); font-size: .9rem; text-wrap: pretty; }
+.lookbook-count { margin: 0; padding: .7rem 1.1rem; border: 1px solid var(--line-strong); border-radius: var(--radius-sm) 26px var(--radius-sm) var(--radius-sm); color: var(--wine-deep); font-size: .72rem; font-weight: 700; letter-spacing: .04em; white-space: nowrap; }
+.lookbook-count b { margin-right: .35rem; font-family: var(--display); font-size: 1.5rem; font-style: italic; }
+
+.lookbook-grid-section { padding-bottom: clamp(3.5rem, 8vw, 7rem); }
+/* Lưới thật, không phải cột CSS.
+   Cột CSS xếp ảnh chạy dọc từng cột, nên trên điện thoại hai cột cạnh nhau là
+   mẫu số 01 và mẫu số 16 — người xem đọc theo hàng nên thấy album nhảy số.
+   Lưới xếp theo hàng, và mọi ô cùng một tỉ lệ để không còn hàng nào lởm chởm. */
+/* `margin: 0 auto` chứ không phải `margin: 0`: thẻ này cũng mang .section-shell,
+   và một `margin: 0` ở đây xóa luôn `margin-inline: auto` của lớp đó — lưới ảnh
+   dán vào lề trái và thừa ra một khoảng bằng đúng lề phải. */
+.lookbook-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: clamp(.7rem, 1.4vw, 1.15rem); margin: 0 auto; padding: 0; list-style: none; }
+.lookbook-card { position: relative; display: block; width: 100%; padding: 0; border: 0; background: transparent; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.lookbook-card img { display: block; width: 100%; height: auto; aspect-ratio: 3 / 4; object-fit: cover; border: 1px solid var(--line); border-radius: var(--radius-sm) 30px var(--radius-sm) var(--radius-sm); background: var(--canvas-muted); transition: transform 300ms var(--ease), box-shadow 300ms var(--ease); }
+.lookbook-grid > li:nth-child(3n + 2) .lookbook-card img { border-radius: 30px var(--radius-sm) var(--radius-sm) var(--radius-sm); }
+.lookbook-grid > li:nth-child(3n) .lookbook-card img { border-radius: var(--radius-sm) var(--radius-sm) 30px var(--radius-sm); }
+.lookbook-card:hover img { transform: translateY(-5px); box-shadow: 0 18px 34px rgba(92, 41, 65, .2); }
+/* Trên điện thoại không có hover để báo là ảnh bấm được, nên cú chạm phải tự
+   trả lời: ô lún xuống một nhịp ngay dưới ngón tay. */
+.lookbook-card:active img { transform: scale(.975); }
+.lookbook-card:focus-visible { outline: 2px solid var(--wine); outline-offset: 4px; }
+.lookbook-card__index { position: absolute; top: .6rem; left: .8rem; color: rgba(255, 249, 252, .94); font-family: var(--display); font-size: .82rem; font-style: italic; text-shadow: 0 1px 7px rgba(40, 10, 25, .6); }
+.lookbook-card__cta { position: absolute; right: .55rem; bottom: .55rem; left: .55rem; display: flex; align-items: center; justify-content: center; gap: .4rem; min-height: 38px; color: var(--canvas); background: rgba(123, 47, 80, .92); font-size: .68rem; font-weight: 700; letter-spacing: .05em; opacity: 0; transform: translateY(6px); transition: opacity 200ms var(--ease), transform 200ms var(--ease); }
+.lookbook-card:hover .lookbook-card__cta, .lookbook-card:focus-visible .lookbook-card__cta { opacity: 1; transform: translateY(0); }
+/* Máy không có con trỏ thì không có hover để lộ ra lời mời đặt lịch, nên nó
+   hiện sẵn — nhưng thu thành một nhãn nhỏ ở góc. Một dải chạy hết bề ngang ăn
+   mất một phần tư tấm ảnh, mà tấm ảnh mới là thứ khách vào đây để xem. */
+@media (hover: none) {
+  .lookbook-card__cta { right: .4rem; bottom: .4rem; left: auto; min-height: 30px; padding: 0 .6rem; border-radius: 999px; font-size: .6rem; opacity: 1; transform: none; }
+}
+
+.lookbook-pager { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-top: clamp(1.8rem, 4vw, 3rem); }
+.lookbook-pager p { margin: 0; color: var(--ink-muted); font-size: .72rem; font-weight: 700; letter-spacing: .06em; font-variant-numeric: tabular-nums; }
+.lookbook-pager__spacer { width: 9rem; }
+.lookbook-empty { padding-block: clamp(3rem, 8vw, 6rem); }
+.lookbook-empty a { color: var(--wine); font-weight: 700; }
+
+/* Nút "Đặt lịch" ở thanh menu là <button> khi trang có sẵn hộp đặt lịch, nên
+   phải tự nhận lại những gì trình duyệt chỉ cho thẻ <a>. */
+.main-nav .nav-cta { min-height: 44px; display: inline-flex; align-items: center; font: inherit; font-size: .72rem; font-weight: 700; letter-spacing: .045em; cursor: pointer; }
+.gallery-all-link { grid-column: 1; align-self: start; width: max-content; margin-top: 1.1rem; color: var(--gold); font-size: .72rem; font-weight: 700; letter-spacing: .04em; text-decoration: none; border-bottom: 1px solid currentColor; padding-bottom: .2rem; }
+.gallery-all-link:hover { color: var(--canvas); }
+
+/* Hộp đặt lịch bật lên từ một tấm ảnh: ảnh khách chọn nằm cạnh biểu mẫu để
+   họ thấy rõ mình đang đặt mẫu nào trong lúc điền. */
+/* `overscroll-behavior: contain`: cuộn hết biểu mẫu rồi vuốt thêm thì trang
+   phía sau không chạy theo — trên điện thoại đó là cách khách mất chỗ đang đọc. */
+.booking-dialog { width: min(58rem, calc(100% - 1.6rem)); max-height: 92dvh; margin: auto; padding: 0; overflow: auto; overscroll-behavior: contain; border: 1px solid var(--line); border-radius: 12px 38px 12px 12px; color: var(--ink); background: var(--paper); box-shadow: 0 1.5rem 4rem rgba(81, 33, 43, .3); }
+.booking-dialog::backdrop { background: rgba(52, 24, 35, .62); backdrop-filter: blur(3px); }
+.booking-dialog__inner { position: relative; display: grid; grid-template-columns: 15rem minmax(0, 1fr); gap: clamp(1.2rem, 3vw, 2rem); padding: clamp(1.3rem, 3.5vw, 2.2rem); }
+.booking-dialog__close { position: absolute; z-index: 2; top: .6rem; right: .6rem; width: 42px; height: 42px; display: grid; place-items: center; border: 1px solid var(--line-strong); border-radius: 50%; color: var(--wine-deep); background: var(--paper); font-size: 1.4rem; line-height: 1; cursor: pointer; transition: color 180ms var(--ease), background 180ms var(--ease); }
+.booking-dialog__close:hover { color: var(--canvas); background: var(--wine); }
+.booking-dialog__photo { position: sticky; top: 0; margin: 0; align-self: start; }
+.booking-dialog__photo img { display: block; width: 100%; height: auto; max-height: 22rem; object-fit: cover; border-radius: var(--radius-sm) 28px var(--radius-sm) var(--radius-sm); background: var(--canvas-muted); }
+.booking-dialog__photo figcaption { margin-top: .6rem; color: var(--wine); font-size: .7rem; font-weight: 700; letter-spacing: .05em; }
+.booking-dialog__form h2 { margin: .35rem 0 .7rem; font-size: clamp(1.7rem, 3.4vw, 2.3rem); }
+.booking-dialog__note { margin: 0 0 1.3rem; color: var(--ink-muted); font-size: .8rem; }
+.booking-dialog__note a { color: var(--wine); font-weight: 700; }
+
+@media (max-width: 860px) {
+  .lookbook-intro { grid-template-columns: 1fr; align-items: start; }
+  .booking-dialog__inner { grid-template-columns: 1fr; }
+  .booking-dialog__photo { position: static; width: min(12rem, 45%); }
+  .booking-dialog__photo img { max-height: 13rem; }
+}
+
+@media (max-width: 760px) {
+  .lookbook-intro { gap: 1rem; padding-block: 2.2rem 1.3rem; }
+  .lookbook-intro h1 { max-width: none; font-size: clamp(2.1rem, 9vw, 2.9rem); }
+  .lookbook-intro > div > p:not(.eyebrow) { margin-top: .8rem; font-size: .84rem; }
+  .lookbook-count { width: max-content; padding: .45rem .8rem; border-radius: 10px 20px 10px 10px; font-size: .66rem; }
+  .lookbook-count b { font-size: 1.15rem; }
+
+  /* Hai cột cố định: ba cột thì mỗi mẫu bé hơn một đốt ngón tay, một cột thì
+     phải vuốt quá nhiều mới xem hết album. */
+  .lookbook-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .55rem; }
+  .lookbook-card__index { top: .45rem; left: .6rem; font-size: .74rem; }
+  .lookbook-pager__spacer { width: 0; }
+  .lookbook-pager .button { flex: 1 1 auto; }
+  /* Link chữ trong khu album ở trang chủ: nới thành vùng chạm cao 44px. */
+  .gallery-all-link { min-height: 44px; display: inline-flex; align-items: center; }
+
+  /* Hộp đặt lịch chiếm hẳn màn hình điện thoại.
+     Biểu mẫu này dài hơn một màn hình, nên mọi cách chừa mép đều cho ra một
+     vạch hở lộ trang phía sau — trông như hộp bị tụt, mà cũng chẳng đọc được gì
+     qua vạch đó. Chiếm cả màn hình thì đằng nào cũng phải cuộn, và không còn
+     mép nào để lệch.
+
+     Bốn mép bằng `inset: 0` chứ không bằng `width/height: 100%`: phần trăm ở đây
+     tính theo khung nhìn đã trừ thanh cuộn của trang, nên cho ra hộp hụt đúng
+     một vạch bằng bề rộng thanh cuộn.
+
+     `scrollbar-width: none`: thanh cuộn cổ điển của chính hộp lấn 15px ở mép
+     phải, làm nội dung lệch sang trái và đẩy nút đóng vào trong. Điện thoại
+     thật không vẽ thanh này, ẩn đi để hai nơi trông như nhau. */
+  /* `width`/`height: auto` là bắt buộc, không phải cho gọn: bảng mẫu của trình
+     duyệt đặt `width: fit-content; height: fit-content` cho thẻ <dialog>, nên
+     nếu không ghi đè thì hộp cao bằng cả biểu mẫu (1700px) và tràn khỏi màn
+     hình — phần dưới không cuộn tới được. Để `auto` thì bốn mép `inset: 0` mới
+     là thứ quyết định kích thước, và hộp trở thành khung cuộn. */
+  .booking-dialog { inset: 0; width: auto; height: auto; max-width: none; max-height: none; margin: 0; border: 0; border-radius: 0; scrollbar-width: none; }
+  .booking-dialog::-webkit-scrollbar { display: none; }
+  /* Lớp do app.js gắn trong lúc hộp mở. Xem `holdPageStill`. */
+  html.has-sheet, html.has-sheet body { overflow: hidden; }
+  .booking-dialog[open] { animation: booking-sheet-in 200ms var(--ease); }
+  .booking-dialog__inner { grid-template-columns: 1fr; gap: .9rem; padding: calc(1.4rem + env(safe-area-inset-top)) 1.1rem calc(1.2rem + env(safe-area-inset-bottom)); }
+  /* Nút đóng neo theo khung nhìn: hộp phủ kín màn hình nên cuộn xuống giữa
+     biểu mẫu vẫn phải thấy đường ra. */
+  .booking-dialog__close { position: fixed; top: calc(.55rem + env(safe-area-inset-top)); right: .55rem; }
+  /* Ảnh khách chọn co lại thành một hàng nhỏ. Đủ để họ thấy mình đang đặt đúng
+     mẫu nào, mà không đẩy ô nhập tên xuống dưới mép màn hình. */
+  /* Chừa chỗ cho nút đóng ở góc phải, nếu không mép phải của viên thuốc chui
+     xuống dưới nút và chữ "số 12" nằm khuất sau dấu ×. */
+  .booking-dialog__photo { display: flex; align-items: center; gap: .7rem; width: auto; max-width: calc(100% - 3.2rem); padding: .4rem .9rem .4rem .4rem; border: 1px solid var(--line); border-radius: 999px; background: var(--canvas); }
+  .booking-dialog__photo img { flex: 0 0 auto; width: 52px; height: 52px; max-height: none; border-radius: 50%; }
+  .booking-dialog__photo figcaption { margin: 0; }
+  .booking-dialog__form h2 { font-size: 1.65rem; }
+  .booking-dialog__note { margin-bottom: 1rem; font-size: .77rem; }
+  .quick-actions button { min-height: 46px; display: inline-flex; align-items: center; justify-content: center; gap: .45rem; border: 1px solid var(--wine); color: var(--canvas); background: var(--wine); font: inherit; font-size: .74rem; font-weight: 700; letter-spacing: .03em; cursor: pointer; }
+  .quick-actions button:active { transform: translateY(1px); }
+}
+
+@keyframes booking-sheet-in { from { opacity: 0; } to { opacity: 1; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .lookbook-card img, .lookbook-card__cta { transition: none; }
+  .lookbook-card:hover img, .lookbook-card:active img { transform: none; }
+  .lookbook-card__cta { transform: none; }
+  .booking-dialog[open] { animation: none; }
+}
+
+/* Mở hộp từ thanh menu thì không có ảnh nào đi kèm; cột ảnh biến mất nhưng
+   lưới vẫn giữ chỗ, nên biểu mẫu phải chiếm cả hai cột thay vì co vào 15rem. */
+.booking-dialog__photo[hidden] + .booking-dialog__form { grid-column: 1 / -1; }
+
+/* ─── Feedback khách ────────────────────────────────────────────────────────
+   Nằm ngay trước khu "ghé tiệm" và khu đặt lịch: khách vừa đọc người khác nói
+   gì về tiệm thì hai lời mời phía dưới mới có sức. */
+.feedback-section { padding-block: clamp(4rem, 9vw, 8rem); border-top: 1px solid var(--line); }
+.feedback-heading { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 1.1rem 2.5rem; }
+.feedback-heading .eyebrow { grid-column: 1 / -1; margin-bottom: .2rem; }
+.feedback-heading h2 { margin: 0; }
+.feedback-score { display: flex; align-items: center; gap: .55rem; margin: 0; color: var(--wine-deep); font-size: .7rem; font-weight: 700; letter-spacing: .04em; white-space: nowrap; }
+.feedback-score b { font-family: var(--display); font-size: 2.3rem; font-style: italic; line-height: 1; }
+.stars { display: inline-flex; gap: .08rem; color: rgba(123, 47, 80, .22); font-size: .95rem; line-height: 1; }
+.stars .is-on { color: var(--wine); }
+.feedback-notice { margin-top: 1.4rem; }
+
+.feedback-rail { display: grid; grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr)); gap: clamp(.8rem, 1.6vw, 1.2rem); margin: clamp(2rem, 4vw, 3rem) 0 0; padding: 0; list-style: none; }
+.feedback-card { height: 100%; display: flex; flex-direction: column; gap: .7rem; padding: clamp(1.1rem, 2.4vw, 1.6rem); border: 1px solid var(--line); border-radius: 12px 30px 12px 12px; background: var(--paper); box-shadow: 0 12px 30px rgba(92, 41, 65, .06); }
+.feedback-card blockquote { margin: 0; color: var(--ink); font-size: .87rem; line-height: 1.62; text-wrap: pretty; }
+.feedback-card blockquote::before { display: block; margin-bottom: -.7rem; color: var(--clay); font-family: var(--display); font-size: 2.3rem; line-height: 1; content: "\201C"; }
+.feedback-card footer { display: flex; align-items: baseline; justify-content: space-between; gap: .6rem; margin-top: auto; padding-top: .6rem; border-top: 1px dotted var(--line-strong); color: var(--ink-muted); font-size: .67rem; font-weight: 600; letter-spacing: .03em; font-variant-numeric: tabular-nums; }
+.feedback-card__name { color: var(--wine-deep); font-size: .78rem; font-weight: 700; letter-spacing: 0; }
+
+/* Ô gửi feedback gập lại bằng <details>: mở được khi không có JavaScript. */
+.feedback-compose { margin-top: clamp(1.6rem, 3vw, 2.4rem); border: 1px solid var(--line-strong); border-radius: 12px 30px 12px 12px; background: var(--paper); }
+.feedback-compose > summary { display: flex; align-items: center; justify-content: space-between; gap: 1rem; min-height: 56px; padding: 1rem clamp(1.1rem, 2.4vw, 1.6rem); color: var(--wine-deep); font-size: .79rem; font-weight: 700; letter-spacing: .04em; list-style: none; cursor: pointer; }
+.feedback-compose > summary::-webkit-details-marker { display: none; }
+.feedback-compose > summary:hover { color: var(--wine); }
+.feedback-compose__sign { flex: 0 0 auto; width: 26px; height: 26px; display: grid; place-items: center; border: 1px solid var(--line-strong); border-radius: 50%; color: var(--wine); font-size: 1rem; line-height: 1; transition: transform 180ms var(--ease); }
+.feedback-compose[open] > summary { border-bottom: 1px solid var(--line); }
+.feedback-compose[open] .feedback-compose__sign { transform: rotate(45deg); }
+
+.feedback-form { display: grid; gap: 1rem; padding: clamp(1.1rem, 2.4vw, 1.6rem); }
+.feedback-form label { display: grid; gap: .42rem; color: var(--ink); font-size: .72rem; font-weight: 700; letter-spacing: .035em; }
+.feedback-form input, .feedback-form textarea { width: 100%; padding: .78rem .84rem; border: 1px solid var(--line-strong); border-radius: 4px; color: var(--ink); background: var(--canvas); font: inherit; font-size: .84rem; outline: none; transition: border-color 160ms var(--ease), box-shadow 160ms var(--ease); }
+.feedback-form textarea { resize: vertical; }
+.feedback-form input:focus, .feedback-form textarea:focus { border-color: var(--wine); box-shadow: 0 0 0 3px rgba(189, 78, 120, .12); }
+.feedback-form small { margin-top: -.6rem; color: #b83c68; font-size: .7rem; }
+.feedback-form__note { margin: -.25rem 0 0; color: var(--ink-muted); font-size: .72rem; }
+
+/* Năm sao bấm được, không cần JavaScript.
+   Các ô chọn nằm ngược trong DOM (5 → 1) và được đảo lại bằng row-reverse, nhờ
+   vậy `:checked ~ label` với tới được những sao nằm bên trái sao đang chọn —
+   CSS không có cách nào chọn phần tử đứng trước. */
+.rating-picker { margin: 0; padding: 0; border: 0; }
+.rating-picker legend { padding: 0; color: var(--ink); font-size: .72rem; font-weight: 700; letter-spacing: .035em; }
+.rating-stars { display: flex; flex-direction: row-reverse; justify-content: flex-end; margin-top: .1rem; }
+.rating-stars input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.rating-stars label { min-width: 44px; min-height: 44px; display: grid; place-items: center; border-radius: 8px; color: rgba(123, 47, 80, .22); font-size: 1.75rem; line-height: 1; cursor: pointer; transition: color 140ms var(--ease), transform 140ms var(--ease); }
+.rating-stars input:checked ~ label, .rating-stars label:hover, .rating-stars label:hover ~ label { color: var(--wine); }
+.rating-stars input:checked + label { transform: scale(1.08); }
+.rating-stars input:focus-visible + label { outline: 2px solid var(--wine); outline-offset: 2px; }
+
+@media (max-width: 760px) {
+  .feedback-section { padding-block: 3.4rem; }
+  .feedback-heading { grid-template-columns: 1fr; align-items: start; }
+  .feedback-score b { font-size: 1.9rem; }
+  /* Dải cuộn ngang thay vì cột dọc: ba thẻ chữ xếp dọc là gần ba màn hình phải
+     vuốt qua trước khi tới khu đặt lịch. */
+  .feedback-rail { display: flex; gap: .7rem; margin-top: 1.8rem; padding-bottom: 1rem; overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x mandatory; scrollbar-width: none; }
+  .feedback-rail::-webkit-scrollbar { display: none; }
+  .feedback-rail > li { flex: 0 0 82%; scroll-snap-align: start; }
+  .feedback-card { height: auto; }
+  /* 16px để iOS không tự phóng to trang lúc khách bắt đầu gõ. */
+  .feedback-form input, .feedback-form textarea { font-size: 16px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rating-stars label, .feedback-compose__sign { transition: none; }
+  .rating-stars input:checked + label { transform: none; }
+}
+
+/* Feedback thật: ảnh chụp tin nhắn khách khen và video khách review, tiệm tự
+   tải lên. Ảnh tin nhắn cao thấp không đều nhau nên để nguyên tỉ lệ gốc — cắt
+   vuông là cắt mất chữ, mà chữ mới là thứ đáng đọc ở đây. */
+.feedback-wall { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); align-items: start; gap: clamp(.7rem, 1.4vw, 1.1rem); margin: clamp(1.8rem, 4vw, 2.8rem) auto 0; padding: 0; list-style: none; }
+.feedback-shot { position: relative; display: block; width: 100%; padding: 0; border: 0; background: transparent; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.feedback-shot img { display: block; width: 100%; height: auto; max-height: 26rem; object-fit: cover; object-position: top; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--paper); transition: transform 260ms var(--ease), box-shadow 260ms var(--ease); }
+.feedback-shot:hover img { transform: translateY(-4px); box-shadow: 0 16px 32px rgba(92, 41, 65, .18); }
+.feedback-shot:active img { transform: scale(.985); }
+.feedback-shot:focus-visible { outline: 2px solid var(--wine); outline-offset: 4px; }
+.feedback-shot__zoom { position: absolute; right: .5rem; bottom: .5rem; min-height: 30px; display: inline-flex; align-items: center; padding: 0 .6rem; border-radius: 999px; color: var(--canvas); background: rgba(123, 47, 80, .92); font-size: .6rem; font-weight: 700; letter-spacing: .05em; opacity: 0; transition: opacity 200ms var(--ease); }
+.feedback-shot:hover .feedback-shot__zoom, .feedback-shot:focus-visible .feedback-shot__zoom { opacity: 1; }
+@media (hover: none) { .feedback-shot__zoom { opacity: 1; } }
+.feedback-clip { display: block; width: 100%; aspect-ratio: 9 / 16; object-fit: cover; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--canvas-muted); }
+
+@media (max-width: 760px) {
+  /* Dải cuộn ngang: ảnh tin nhắn xếp dọc thì khách phải vuốt qua cả khu mới
+     tới được ô đặt lịch. */
+  .feedback-wall { display: flex; gap: .6rem; margin-top: 1.6rem; padding-bottom: 1rem; overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x mandatory; scrollbar-width: none; }
+  .feedback-wall::-webkit-scrollbar { display: none; }
+  .feedback-wall > li { flex: 0 0 62%; scroll-snap-align: start; }
+  .feedback-shot img { max-height: 15rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .feedback-shot img, .feedback-shot__zoom { transition: none; }
+  .feedback-shot:hover img, .feedback-shot:active img { transform: none; }
+}

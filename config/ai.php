@@ -32,5 +32,12 @@ return [
 
     'max_output_tokens' => (int) env('AI_MAX_OUTPUT_TOKENS', 3000),
 
+    /*
+     * Số lần gọi provider cho một câu hỏi khi phản hồi không dùng được. Một số
+     * gateway tương thích OpenAI bỏ qua response_format và trả về văn xuôi,
+     * hoặc thỉnh thoảng trả nội dung rỗng; gọi lại thường là lấy được.
+     */
+    'format_attempts' => (int) env('AI_FORMAT_ATTEMPTS', 3),
+
     'temperature' => (float) env('AI_TEMPERATURE', 0.2),
 ];

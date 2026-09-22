@@ -4,8 +4,10 @@ namespace App\Services\Ai;
 
 use App\Services\Ai\Contracts\AiProvider;
 use Illuminate\Http\Client\PendingRequest;
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use RuntimeException;
 use Throwable;
 
@@ -19,23 +21,22 @@ class OpenAiCompatibleProvider implements AiProvider
         $this->guardConfigured();
         $startedAt = hrtime(true);
 
-        $response = $this->client()
-            ->post(config('ai.base_url').'/chat/completions', [
-                'model' => config('ai.model'),
-                'messages' => $messages,
-                'max_tokens' => config('ai.max_output_tokens'),
-                'response_format' => ['type' => 'json_object'],
-            ])
-            ->throw();
+        $attempts = max(1, (int) config('ai.format_attempts'));
+        $response = null;
+        $rawContent = '';
+        $document = null;
 
-        $latencyMs = (int) round((hrtime(true) - $startedAt) / 1_000_000);
-        $rawContent = $response->json('choices.0.message.content');
-
-        if (! is_string($rawContent) || trim($rawContent) === '') {
-            throw new RuntimeException('Nhà cung cấp AI không trả về nội dung hợp lệ.');
+        for ($attempt = 1; $attempt <= $attempts && $document === null; $attempt++) {
+            // Lượt đầu và lượt gọi lại sau khi provider trả rỗng dùng nguyên
+            // prompt cũ; chỉ khi provider trả văn xuôi mới cần nhắc lại định dạng.
+            $response = $this->send($attempt === 1 || $rawContent === '' ? $messages : $this->reinforced($messages));
+            $rawContent = trim((string) $response->json('choices.0.message.content'));
+            $document = $rawContent === '' ? null : $this->decodeDocument($rawContent);
         }
 
-        $document = $this->decodeDocument($rawContent);
+        $document ??= $this->fallbackDocument($rawContent, $response?->json('id'));
+
+        $latencyMs = (int) round((hrtime(true) - $startedAt) / 1_000_000);
         $content = $this->plainContent($document);
         $blocks = $this->sanitizeBlocks(Arr::get($document, 'blocks', []));
         $actions = $this->sanitizeActions(Arr::get($document, 'actions', []));
@@ -50,12 +51,69 @@ class OpenAiCompatibleProvider implements AiProvider
             actions: $actions,
             provider: (string) config('ai.provider'),
             model: (string) config('ai.model'),
-            promptTokens: $this->nullableInt($response->json('usage.prompt_tokens')),
-            completionTokens: $this->nullableInt($response->json('usage.completion_tokens')),
-            totalTokens: $this->nullableInt($response->json('usage.total_tokens')),
+            promptTokens: $this->nullableInt($response?->json('usage.prompt_tokens')),
+            completionTokens: $this->nullableInt($response?->json('usage.completion_tokens')),
+            totalTokens: $this->nullableInt($response?->json('usage.total_tokens')),
             latencyMs: $latencyMs,
-            providerReference: $this->nullableString($response->json('id')),
+            providerReference: $this->nullableString($response?->json('id')),
         );
+    }
+
+    /** @param array<int, array<string, string>> $messages */
+    private function send(array $messages): Response
+    {
+        return $this->client()
+            ->post(config('ai.base_url').'/chat/completions', [
+                'model' => config('ai.model'),
+                'messages' => $messages,
+                'max_tokens' => config('ai.max_output_tokens'),
+                'response_format' => ['type' => 'json_object'],
+            ])
+            ->throw();
+    }
+
+    /**
+     * Một số gateway tương thích OpenAI bỏ qua response_format và trả về văn
+     * xuôi. Lần gọi lại kèm lời nhắc cứng rắn hơn thường đủ để lấy lại JSON.
+     *
+     * @param  array<int, array<string, string>>  $messages
+     * @return array<int, array<string, string>>
+     */
+    private function reinforced(array $messages): array
+    {
+        $messages[] = [
+            'role' => 'system',
+            'content' => 'Phản hồi vừa rồi sai định dạng. Chỉ trả về duy nhất một JSON object hợp lệ theo ĐỊNH DẠNG PHẢN HỒI, bắt đầu bằng { và kết thúc bằng }, không kèm lời dẫn, không markdown fence.',
+        ];
+
+        return $messages;
+    }
+
+    /**
+     * Khi mọi lần gọi đều không ra JSON: nếu còn văn bản thì dùng nguyên văn
+     * làm câu trả lời (mất phần action, nhưng chủ tiệm vẫn đọc được nội dung)
+     * thay vì ném lỗi trắng màn hình.
+     *
+     * @return array<string, mixed>
+     */
+    private function fallbackDocument(string $rawContent, mixed $reference): array
+    {
+        if ($rawContent === '') {
+            throw new RuntimeException('Nhà cung cấp AI không trả về nội dung hợp lệ.');
+        }
+
+        if (is_array(json_decode($this->stripFence($rawContent), true))) {
+            throw new RuntimeException('Phản hồi AI thiếu phần nội dung giải thích.');
+        }
+
+        Log::warning('Provider AI trả lời không đúng định dạng JSON, đã dùng nguyên văn.', [
+            'provider' => (string) config('ai.provider'),
+            'model' => (string) config('ai.model'),
+            'length' => mb_strlen($rawContent),
+            'provider_reference' => $this->nullableString($reference),
+        ]);
+
+        return ['content' => $rawContent];
     }
 
     private function client(): PendingRequest
@@ -82,18 +140,47 @@ class OpenAiCompatibleProvider implements AiProvider
         }
     }
 
-    /** @return array<string, mixed> */
-    private function decodeDocument(string $content): array
+    /**
+     * Trả về null khi không rút được tài liệu hợp lệ để lớp gọi tự quyết định
+     * gọi lại hay hạ cấp, thay vì ném lỗi ngay từ lần đầu.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function decodeDocument(string $content): ?array
     {
-        $content = trim($content);
-        $content = preg_replace('/^```(?:json)?\s*|\s*```$/i', '', $content) ?? $content;
-        $decoded = json_decode($content, true);
+        $decoded = json_decode($this->stripFence($content), true);
 
         if (! is_array($decoded)) {
-            throw new RuntimeException('Phản hồi AI không đúng định dạng JSON yêu cầu.');
+            $decoded = json_decode($this->embeddedObject($content) ?? '', true);
         }
 
-        return $decoded;
+        if (! is_array($decoded)) {
+            return null;
+        }
+
+        $explanation = $decoded['content'] ?? null;
+
+        return is_string($explanation) && trim($explanation) !== '' ? $decoded : null;
+    }
+
+    private function stripFence(string $content): string
+    {
+        $content = trim($content);
+
+        return trim(preg_replace('/^```(?:json)?\s*|\s*```$/i', '', $content) ?? $content);
+    }
+
+    /**
+     * Vớt JSON object nằm lẫn trong lời dẫn, ví dụ "Đây là kết quả: {...}".
+     */
+    private function embeddedObject(string $content): ?string
+    {
+        $start = strpos($content, '{');
+        $end = strrpos($content, '}');
+
+        return $start === false || $end === false || $end <= $start
+            ? null
+            : substr($content, $start, $end - $start + 1);
     }
 
     /** @param array<string, mixed> $document */
@@ -197,15 +284,16 @@ class OpenAiCompatibleProvider implements AiProvider
         foreach (array_slice($actions, 0, 3) as $action) {
             if (! is_array($action)
                 || ! in_array($action['type'] ?? null, $allowed, true)
-                || ! is_string($action['summary'] ?? null)
-                || ! is_array($action['payload'] ?? null)) {
+                || ! is_string($action['summary'] ?? null)) {
                 continue;
             }
 
+            // Payload rỗng vẫn hợp lệ: phiếu xác nhận sẽ mở với các ô để trống
+            // cho người duyệt điền, thay vì bắt trợ lý hỏi vặn trong chat.
             $safe[] = [
                 'type' => $action['type'],
                 'summary' => mb_substr(trim($action['summary']), 0, 500),
-                'payload' => $action['payload'],
+                'payload' => is_array($action['payload'] ?? null) ? $action['payload'] : [],
             ];
         }
 

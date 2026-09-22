@@ -35,6 +35,39 @@ class AiActionProposal extends Model
         ];
     }
 
+    /**
+     * Dấu vân tay của một đề xuất: cùng người, cùng thao tác, cùng dữ liệu thì
+     * ra cùng một chuỗi. Người duyệt sửa lại phiếu trước khi duyệt thì dấu này
+     * phải tính lại, nếu không hai đề xuất khác nhau lại mang chung một vân tay.
+     *
+     * @param  array<string, mixed>  $payload
+     */
+    public static function fingerprintFor(string $type, array $payload, int $userId): string
+    {
+        return hash('sha256', json_encode([
+            'type' => $type,
+            'payload' => self::sortRecursively($payload),
+            'user_id' => $userId,
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+    }
+
+    /**
+     * @param  array<string, mixed>  $value
+     * @return array<string, mixed>
+     */
+    private static function sortRecursively(array $value): array
+    {
+        ksort($value);
+
+        foreach ($value as $key => $item) {
+            if (is_array($item)) {
+                $value[$key] = self::sortRecursively($item);
+            }
+        }
+
+        return $value;
+    }
+
     public function message(): BelongsTo
     {
         return $this->belongsTo(AiMessage::class, 'message_id');

@@ -2,59 +2,54 @@
 
 namespace App\Services\Ai;
 
+use App\Services\Ai\Actions\ActionRegistry;
+
+/**
+ * Cửa vào danh sách thao tác cho phần còn lại của ứng dụng.
+ *
+ * Giữ nguyên chữ ký cũ để các lớp gọi không phải đổi, nhưng nội dung giờ đọc
+ * từ ActionRegistry thay vì một mảng viết tay.
+ */
 final class AiActionCatalog
 {
+    public function __construct(private ?ActionRegistry $registry = null)
+    {
+        $this->registry ??= app(ActionRegistry::class);
+    }
+
     /** @return array<int, string> */
     public function allowedTypes(): array
     {
-        return array_keys($this->definitions());
+        return $this->registry->keys();
     }
 
     public function supports(string $type): bool
     {
-        return array_key_exists($type, $this->definitions());
+        return $this->registry->find($type) !== null;
     }
 
     /** @return array{label: string, operation: string, resource: string, destructive: bool}|null */
     public function definition(string $type): ?array
     {
-        return $this->definitions()[$type] ?? null;
+        $action = $this->registry->find($type);
+
+        return $action === null ? null : [
+            'label' => $action->label,
+            'operation' => $action->operation,
+            'resource' => $action->resource,
+            'destructive' => $action->destructive,
+        ];
     }
 
     /** @return array<string, array{label: string, operation: string, resource: string, destructive: bool}> */
     public function definitions(): array
     {
-        return [
-            'create_cash_entry' => [
-                'label' => 'Tạo khoản thu/chi',
-                'operation' => 'create',
-                'resource' => 'cash_transaction',
-                'destructive' => false,
-            ],
-            'adjust_stock' => [
-                'label' => 'Điều chỉnh tồn kho',
-                'operation' => 'update',
-                'resource' => 'inventory',
-                'destructive' => false,
-            ],
-            'create_appointment' => [
-                'label' => 'Tạo lịch hẹn',
-                'operation' => 'create',
-                'resource' => 'appointment',
-                'destructive' => false,
-            ],
-            'update_appointment' => [
-                'label' => 'Sửa lịch hẹn',
-                'operation' => 'update',
-                'resource' => 'appointment',
-                'destructive' => false,
-            ],
-            'cancel_appointment' => [
-                'label' => 'Hủy lịch hẹn',
-                'operation' => 'delete',
-                'resource' => 'appointment',
-                'destructive' => true,
-            ],
-        ];
+        $definitions = [];
+
+        foreach ($this->registry->keys() as $key) {
+            $definitions[$key] = $this->definition($key);
+        }
+
+        return $definitions;
     }
 }

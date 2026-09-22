@@ -347,6 +347,38 @@
     }
 }
 
+// Phiếu xác nhận nằm lọt trong bong bóng chat, bề ngang chỉ bằng màn hình điện
+// thoại, nên nhãn và ô nhập phải gọn hơn form quản trị bình thường.
+.ai-action-form {
+    background: rgba($white, .7);
+    border: 1px solid rgba($neo-wine, .1);
+    border-radius: calc(#{$neo-radius-control} - .2rem);
+    padding: .75rem;
+
+    .form-label,
+    legend.form-label {
+        font-size: .75rem;
+        font-weight: 600;
+        margin-bottom: .2rem;
+    }
+
+    .form-text {
+        font-size: .7rem;
+        margin-top: .15rem;
+    }
+
+    .form-check {
+        display: flex;
+        align-items: center;
+        gap: .4rem;
+        margin-bottom: .15rem;
+    }
+
+    .form-check-label {
+        font-size: .8125rem;
+    }
+}
+
 .ai-composer {
     background: $neo-paper;
     border-top: 1px solid rgba($neo-wine, .1);

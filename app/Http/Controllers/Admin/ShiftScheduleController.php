@@ -14,6 +14,7 @@ use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 /**
@@ -74,19 +75,18 @@ class ShiftScheduleController extends Controller
         return back()->with('success', 'Đã phân ca.');
     }
 
-    public function destroy(ShiftAssignment $shiftAssignment): RedirectResponse
+    public function destroy(Request $request, ShiftAssignment $shiftAssignment, ScheduleShiftAction $schedule): RedirectResponse
     {
         $this->authorize('delete', $shiftAssignment);
 
-        // A worked shift is evidence; unrostering it would orphan the
-        // attendance row it produced.
-        if ($shiftAssignment->attendanceRecord()->exists()) {
-            return back()->withErrors([
-                'work_shift_id' => 'Ca này đã có dữ liệu chấm công nên không thể bỏ phân ca. Hãy sửa bản ghi chấm công thay vì xóa lịch.',
-            ]);
+        // Việc chặn ca đã có công và việc ghi lại bản chụp trước khi xóa đều
+        // nằm trong action, để đường qua trợ lý AI và đường qua màn hình này
+        // không thể lệch nhau.
+        try {
+            $schedule->remove($shiftAssignment, $request->user());
+        } catch (ValidationException $exception) {
+            return back()->withErrors($exception->errors());
         }
-
-        $shiftAssignment->delete();
 
         return back()->with('success', 'Đã bỏ phân ca.');
     }
