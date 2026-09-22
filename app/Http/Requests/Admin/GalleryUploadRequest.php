@@ -2,8 +2,10 @@
 
 namespace App\Http\Requests\Admin;
 
+use App\Enums\GalleryAlbum;
 use App\Models\GalleryItem;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class GalleryUploadRequest extends FormRequest
 {
@@ -25,6 +27,10 @@ class GalleryUploadRequest extends FormRequest
     public function rules(): array
     {
         return [
+            // Bắt buộc, không mặc định: nhận thiếu khóa này mà lặng lẽ coi là
+            // "mẫu móng" thì một hôm nào đó ảnh chụp tin nhắn khách sẽ nằm giữa
+            // lưới mẫu để khách khác chọn làm.
+            'album' => ['required', Rule::enum(GalleryAlbum::class)],
             'media' => ['required', 'array', 'min:1', 'max:'.self::MAX_FILES],
             'media.*' => [
                 'file',
@@ -37,10 +43,17 @@ class GalleryUploadRequest extends FormRequest
         ];
     }
 
+    /** Khu của trang công khai mà những tệp này sẽ hiện ra. */
+    public function album(): GalleryAlbum
+    {
+        return $this->enum('album', GalleryAlbum::class) ?? GalleryAlbum::Showcase;
+    }
+
     /** @return array<string, string> */
     public function attributes(): array
     {
         return [
+            'album' => 'khu hiển thị',
             'media' => 'tệp tải lên',
             'media.*' => 'tệp tải lên',
         ];

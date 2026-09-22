@@ -2,12 +2,14 @@
 
 namespace App\Support;
 
+use App\Enums\FeedbackStatus;
 use App\Enums\ShiftRequestStatus;
 use App\Enums\ShiftRequestType;
 use App\Models\Appointment;
 use App\Models\AttendanceRecord;
 use App\Models\Branch;
 use App\Models\CashTransaction;
+use App\Models\Feedback;
 use App\Models\GalleryItem;
 use App\Models\Invoice;
 use App\Models\Payroll;
@@ -124,6 +126,14 @@ final class AdminNavigation
                 'group' => 'ops',
             ],
             [
+                'label' => 'Feedback khách viết', 'short' => 'Feedback',
+                'route' => 'admin.feedback.index', 'pattern' => 'admin.feedback.*',
+                'icon' => 'send', 'primary' => false,
+                'visible' => $user->can('viewAny', Feedback::class),
+                'badge' => self::pendingFeedbackBadge($user),
+                'group' => 'ops',
+            ],
+            [
                 'label' => 'Chi nhánh', 'short' => 'Chi nhánh',
                 'route' => 'admin.branches.index', 'pattern' => 'admin.branches.*',
                 'icon' => 'branch', 'primary' => false,
@@ -197,6 +207,21 @@ final class AdminNavigation
                 ];
             })
             ->values();
+    }
+
+    /**
+     * Số feedback đang chờ duyệt.
+     *
+     * Chỉ hiện cho người có quyền duyệt: với nhân viên, con số đó là việc của
+     * người khác nên chỉ làm menu nhấp nháy vô ích.
+     */
+    private static function pendingFeedbackBadge(User $user): int
+    {
+        if (! $user->isOwner() && ! $user->isManager()) {
+            return 0;
+        }
+
+        return Feedback::query()->where('status', FeedbackStatus::Pending)->count();
     }
 
     private static function shiftRequestBadge(User $user): int

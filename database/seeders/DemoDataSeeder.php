@@ -43,6 +43,7 @@ class DemoDataSeeder extends Seeder
             DemoSalesSeeder::class,
             DemoCashSeeder::class,
             DemoPayrollSeeder::class,
+            DemoFeedbackSeeder::class,
         ]);
 
         // Hàng đợi cảnh báo là kết quả của dữ liệu ở trên chứ không phải một

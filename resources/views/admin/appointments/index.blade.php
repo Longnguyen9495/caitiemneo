@@ -80,6 +80,17 @@
                                     <span class="small text-body-secondary">Chưa chọn dịch vụ</span>
                                 @endforelse
                             </p>
+
+                            {{-- Mẫu khách bấm vào trong album lúc đặt lịch: thợ cần nhìn thấy
+                                 nó trước khi khách ngồi xuống ghế, không phải hỏi lại. --}}
+                            @if ($appointment->galleryItem)
+                                <a href="{{ $appointment->galleryItem->url() }}" target="_blank" rel="noopener noreferrer"
+                                   class="d-inline-flex align-items-center gap-2 mt-2 small text-decoration-none">
+                                    <img src="{{ $appointment->galleryItem->thumbnailUrl() }}" alt="Mẫu móng khách chọn"
+                                         class="rounded border" style="width:44px;height:44px;object-fit:cover">
+                                    <span class="text-body-secondary">Mẫu khách chọn trong album</span>
+                                </a>
+                            @endif
                         </div>
                     </div>
 

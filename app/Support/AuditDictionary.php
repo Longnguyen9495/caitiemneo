@@ -66,6 +66,9 @@ class AuditDictionary
         'line_total' => 'Thành tiền',
         'work_context' => 'Bối cảnh làm việc',
 
+        // Lịch hẹn
+        'gallery_item_id' => 'Mẫu khách chọn',
+
         // Chấm công
         'work_date' => 'Ngày làm',
         'shift_name' => 'Tên ca',

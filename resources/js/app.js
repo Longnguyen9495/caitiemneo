@@ -42,7 +42,7 @@ menuToggle?.addEventListener('click', () => {
     menu.classList.toggle('is-open', !isOpen);
 });
 
-menu?.querySelectorAll('a').forEach((link) => link.addEventListener('click', closeMenu));
+menu?.querySelectorAll('a, button').forEach((item) => item.addEventListener('click', closeMenu));
 
 const bookingForm = document.querySelector('[data-booking-form]');
 const bookingSubmitStatus = document.querySelector('[data-booking-submit-status]');
@@ -120,15 +120,24 @@ document.querySelector('[data-gallery-next]')?.addEventListener('click', () => s
 const lightbox = document.querySelector('[data-lightbox]');
 const lightboxImage = document.querySelector('[data-lightbox-image]');
 const lightboxCounter = document.querySelector('[data-lightbox-counter]');
-const galleryTriggers = Array.from(document.querySelectorAll('[data-gallery-open]'));
+const lightboxGroups = Array.from(document.querySelectorAll('[data-lightbox-group]'))
+    .map((group) => Array.from(group.querySelectorAll('[data-lightbox-open]')))
+    .filter((triggers) => triggers.length > 0);
 
-if (lightbox instanceof HTMLDialogElement && lightboxImage && galleryTriggers.length > 0) {
+if (lightbox instanceof HTMLDialogElement && lightboxImage && lightboxGroups.length > 0) {
+    // Mỗi dải ảnh là một chuỗi riêng. Mở từ album mẫu móng thì hai mũi tên chỉ
+    // đi trong album đó, không lạc sang ảnh feedback của khách và ngược lại.
+    let sequence = lightboxGroups[0];
     let currentPhoto = 0;
 
     const showPhoto = (index) => {
-        currentPhoto = (index + galleryTriggers.length) % galleryTriggers.length;
+        if (sequence.length === 0) {
+            return;
+        }
 
-        const thumbnail = galleryTriggers[currentPhoto].querySelector('img');
+        currentPhoto = (index + sequence.length) % sequence.length;
+
+        const thumbnail = sequence[currentPhoto].querySelector('img');
 
         if (!thumbnail) {
             return;
@@ -144,14 +153,17 @@ if (lightbox instanceof HTMLDialogElement && lightboxImage && galleryTriggers.le
         lightboxImage.alt = thumbnail.alt;
 
         if (lightboxCounter) {
-            lightboxCounter.textContent = `${currentPhoto + 1} / ${galleryTriggers.length}`;
+            lightboxCounter.textContent = `${currentPhoto + 1} / ${sequence.length}`;
         }
     };
 
-    galleryTriggers.forEach((trigger, index) => {
-        trigger.addEventListener('click', () => {
-            showPhoto(index);
-            lightbox.showModal();
+    lightboxGroups.forEach((triggers) => {
+        triggers.forEach((trigger, index) => {
+            trigger.addEventListener('click', () => {
+                sequence = triggers;
+                showPhoto(index);
+                lightbox.showModal();
+            });
         });
     });
 
@@ -226,4 +238,107 @@ if (servicePicker) {
 
     servicePicker.addEventListener('change', refreshServiceCounts);
     refreshServiceCounts();
+}
+
+// Trang album: chạm vào một mẫu là mở thẳng ô đặt lịch, mang theo đúng tấm ảnh
+// khách vừa bấm. Cả trang chỉ có một biểu mẫu — mỗi thẻ ảnh chỉ đổi phần xem
+// trước và ô ẩn mang mã mẫu, nên album dài bao nhiêu trang cũng không nặng thêm.
+const bookingDialog = document.querySelector('[data-booking-dialog]');
+
+if (bookingDialog instanceof HTMLDialogElement) {
+    const sheetViewport = window.matchMedia('(max-width: 760px)');
+
+    // Khóa trang phía sau trong lúc tấm trượt mở, và chỉ ở khổ điện thoại.
+    //
+    // Hai thứ được giải quyết cùng lúc: vuốt hết biểu mẫu thì trang phía sau
+    // không chạy theo, và thanh cuộn của trang biến mất nên tấm trượt bám được
+    // đúng hai mép màn hình thay vì hụt một vạch bằng bề rộng thanh cuộn.
+    //
+    // Trên máy tính thì không khóa: ở đó hộp nằm giữa màn hình, còn việc thanh
+    // cuộn mất đi làm cả trang phía sau nhảy ngang ngay lúc hộp mở ra.
+    const holdPageStill = (held) => {
+        document.documentElement.classList.toggle('has-sheet', held && sheetViewport.matches);
+    };
+
+    const photoFigure = bookingDialog.querySelector('[data-booking-photo]');
+    const photoImage = bookingDialog.querySelector('[data-booking-photo-image]');
+    const photoLabel = bookingDialog.querySelector('[data-booking-photo-label]');
+    const photoInput = bookingDialog.querySelector('[data-booking-photo-input]');
+
+    // Không kèm mẫu nào thì phải xóa hẳn dấu vết của lần mở trước, nếu không
+    // khách bấm "Đặt lịch" trên thanh menu lại gửi đi tấm ảnh họ vừa đóng lại.
+    const showPickedPhoto = (trigger) => {
+        const thumbnail = trigger?.querySelector('img');
+
+        if (photoInput) {
+            photoInput.value = thumbnail ? (trigger.dataset.photoId ?? '') : '';
+        }
+
+        if (!photoFigure || !photoImage) {
+            return;
+        }
+
+        if (!thumbnail) {
+            photoFigure.hidden = true;
+            photoImage.removeAttribute('src');
+            photoImage.removeAttribute('srcset');
+
+            if (photoLabel) {
+                photoLabel.textContent = '';
+            }
+
+            return;
+        }
+
+        photoImage.srcset = thumbnail.srcset;
+        photoImage.src = thumbnail.src;
+        // Lấy từ thuộc tính chứ không phải `.width`: thuộc tính giữ kích thước
+        // thật của ảnh, còn `.width` trả về bề ngang thẻ ảnh trong lưới.
+        photoImage.setAttribute('width', thumbnail.getAttribute('width') ?? '');
+        photoImage.setAttribute('height', thumbnail.getAttribute('height') ?? '');
+        photoImage.alt = thumbnail.alt;
+        photoFigure.hidden = false;
+
+        if (photoLabel) {
+            photoLabel.textContent = ` · số ${trigger.dataset.photoNumber ?? ''}`;
+        }
+    };
+
+    const openBookingDialog = (trigger) => {
+        showPickedPhoto(trigger);
+
+        if (!bookingDialog.open) {
+            bookingDialog.showModal();
+        }
+
+        holdPageStill(true);
+    };
+
+    // Bắt ở sự kiện `close` để bắt luôn mọi đường đóng: nút đóng, bấm ra ngoài,
+    // phím Esc, và cả lúc biểu mẫu được gửi đi.
+    bookingDialog.addEventListener('close', () => holdPageStill(false));
+
+    document.querySelectorAll('[data-lookbook-open]').forEach((trigger) => {
+        trigger.addEventListener('click', () => openBookingDialog(trigger));
+    });
+
+    document.querySelectorAll('[data-booking-open]').forEach((trigger) => {
+        trigger.addEventListener('click', () => openBookingDialog(null));
+    });
+
+    bookingDialog.querySelector('[data-booking-dialog-close]')
+        ?.addEventListener('click', () => bookingDialog.close());
+
+    bookingDialog.addEventListener('click', (event) => {
+        if (event.target === bookingDialog) {
+            bookingDialog.close();
+        }
+    });
+
+    // Biểu mẫu bị trả về vì thiếu thông tin: mở lại ngay với những gì khách đã
+    // điền, thay vì để họ nhìn một trang ảnh và tự đoán chuyện gì vừa xảy ra.
+    if (bookingDialog.hasAttribute('data-booking-reopen')) {
+        bookingDialog.showModal();
+        holdPageStill(true);
+    }
 }

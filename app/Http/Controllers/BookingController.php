@@ -4,8 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Actions\Appointments\SaveAppointmentAction;
 use App\Enums\AppointmentStatus;
+use App\Enums\GalleryAlbum;
+use App\Enums\GalleryMediaType;
 use App\Enums\UserRole;
 use App\Models\Branch;
+use App\Models\GalleryItem;
 use App\Models\User;
 use App\Notifications\NewOnlineBookingNotification;
 use App\Notifications\OnlineBookingReceivedNotification;
@@ -24,6 +27,7 @@ class BookingController extends Controller
     {
         // Chi nhánh được đọc trước để các rule sau soi đúng bảng giá của nó.
         $branchId = $request->integer('branch_id') ?: null;
+        $returnUrl = $this->returnUrl($request);
 
         try {
             $validated = $request->validate([
@@ -48,6 +52,15 @@ class BookingController extends Controller
                 // Dịch vụ phải nằm trong bảng giá của **đúng chi nhánh khách chọn**.
                 // Đây là bề mặt công khai nên mọi giá trị đều do người lạ gửi lên.
                 'service_ids.*' => ['integer', new InBranchCatalogue($branchId)],
+                // Mẫu khách bấm vào trong album. Chỉ nhận ảnh thuộc khu mẫu
+                // móng: một video, hay một ảnh chụp tin nhắn khách khen, không
+                // phải là mẫu để làm theo.
+                'gallery_item_id' => [
+                    'nullable',
+                    Rule::exists(GalleryItem::class, 'id')
+                        ->where('type', GalleryMediaType::Photo->value)
+                        ->where('album', GalleryAlbum::Showcase->value),
+                ],
                 'note' => ['nullable', 'string', 'max:2000'],
             ], [
                 'starts_at.date_format' => 'Thời gian đặt lịch không hợp lệ.',
@@ -60,10 +73,11 @@ class BookingController extends Controller
                 'duration_minutes' => 'thời lượng',
                 'service_ids' => 'dịch vụ',
                 'service_ids.*' => 'dịch vụ',
+                'gallery_item_id' => 'mẫu móng',
                 'note' => 'ghi chú',
             ]);
         } catch (ValidationException $exception) {
-            $exception->redirectTo(route('home').'#dat-lich');
+            $exception->redirectTo($returnUrl);
 
             throw $exception;
         }
@@ -88,7 +102,7 @@ class BookingController extends Controller
         try {
             $appointment = $saveAppointment->handle($validated);
         } catch (ValidationException $exception) {
-            $exception->redirectTo(route('home').'#dat-lich');
+            $exception->redirectTo($returnUrl);
 
             throw $exception;
         }
@@ -107,7 +121,21 @@ class BookingController extends Controller
             ])->notify(new OnlineBookingReceivedNotification($appointment));
         }
 
-        return redirect()->to(route('home').'#dat-lich')
+        return redirect()->to($returnUrl)
             ->with('booking_success', 'Tiệm đã nhận lịch hẹn của bạn và sẽ sớm xác nhận.');
+    }
+
+    /**
+     * Trang trả khách về sau khi gửi biểu mẫu.
+     *
+     * Biểu mẫu chỉ gửi lên tên của trang chứ không gửi địa chỉ: một ô ẩn chứa
+     * URL tự do là lời mời đá khách sang trang của người khác ngay sau khi họ
+     * vừa điền số điện thoại. Giá trị lạ thì về trang giới thiệu.
+     */
+    private function returnUrl(Request $request): string
+    {
+        return $request->string('source')->toString() === 'lookbook'
+            ? route('lookbook')
+            : route('home').'#dat-lich';
     }
 }

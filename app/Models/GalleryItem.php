@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\GalleryAlbum;
 use App\Enums\GalleryMediaType;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
@@ -17,6 +18,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 #[Fillable([
     'type',
+    'album',
     'path',
     'sources',
     'width',
@@ -33,6 +35,7 @@ class GalleryItem extends Model
     {
         return [
             'type' => GalleryMediaType::class,
+            'album' => GalleryAlbum::class,
             'sources' => 'array',
             'width' => 'integer',
             'height' => 'integer',
@@ -59,6 +62,17 @@ class GalleryItem extends Model
     public function scopeOfType(Builder $query, GalleryMediaType $type): Builder
     {
         return $query->where('type', $type);
+    }
+
+    /**
+     * Tệp thuộc một khu của trang công khai.
+     *
+     * Mọi truy vấn cho trang công khai phải đi qua đây: thiếu nó thì ảnh chụp
+     * tin nhắn khách khen sẽ nằm lẫn trong lưới mẫu móng.
+     */
+    public function scopeInAlbum(Builder $query, GalleryAlbum $album): Builder
+    {
+        return $query->where('album', $album);
     }
 
     public function isPhoto(): bool
