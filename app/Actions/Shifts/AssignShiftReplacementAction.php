@@ -3,6 +3,7 @@
 namespace App\Actions\Shifts;
 
 use App\Actions\Attendance\ScheduleShiftAction;
+use App\Actions\Shifts\Concerns\AssertsBranchLeadership;
 use App\Enums\AuditAction;
 use App\Enums\ShiftRequestStatus;
 use App\Enums\ShiftRequestType;
@@ -19,6 +20,8 @@ use Illuminate\Validation\ValidationException;
 
 class AssignShiftReplacementAction
 {
+    use AssertsBranchLeadership;
+
     public function __construct(
         private ScheduleShiftAction $schedule,
         private PayrollLockGuard $payrollLock,
@@ -46,11 +49,7 @@ class AssignShiftReplacementAction
                 ->whereDate('work_date', $request->work_date))
             ->orderBy('name')
             ->get()
-            ->filter(fn (User $employee): bool => ! ShiftAssignment::query()
-                ->where('employee_id', $employee->getKey())
-                ->where('planned_start_at', '<', $assignment->planned_end_at)
-                ->where('planned_end_at', '>', $assignment->planned_start_at)
-                ->exists())
+            ->reject(fn (User $employee): bool => $this->isBusyDuring($employee, $assignment))
             ->values();
     }
 
@@ -75,13 +74,7 @@ class AssignShiftReplacementAction
                 throw ValidationException::withMessages(['replacement_employee_id' => 'Nhân viên thay không thuộc chi nhánh vào ngày làm.']);
             }
 
-            $hasConflict = ShiftAssignment::query()
-                ->where('employee_id', $replacement->getKey())
-                ->where('planned_start_at', '<', $original->planned_end_at)
-                ->where('planned_end_at', '>', $original->planned_start_at)
-                ->exists();
-
-            if ($hasConflict) {
+            if ($this->isBusyDuring($replacement, $original)) {
                 throw ValidationException::withMessages(['replacement_employee_id' => 'Nhân viên thay đã có ca trùng giờ.']);
             }
 
@@ -112,8 +105,21 @@ class AssignShiftReplacementAction
 
     private function assertManagerScope(User $actor, ShiftRequest $request): void
     {
-        if ((! $actor->isOwner() && ! $actor->isManager()) || ! $actor->canAccessBranch($request->branch_id, $request->work_date)) {
-            throw ValidationException::withMessages(['request' => 'Bạn không có quyền phân người thay tại chi nhánh này.']);
-        }
+        $this->assertLeadsBranchOn(
+            $actor,
+            $request->branch_id,
+            $request->work_date,
+            'request',
+            'Bạn không có quyền phân người thay tại chi nhánh này.',
+        );
+    }
+
+    /** Whether somebody is already rostered across the same window. */
+    private function isBusyDuring(User $employee, ShiftAssignment $assignment): bool
+    {
+        return ShiftAssignment::query()
+            ->forEmployee($employee)
+            ->overlappingAssignment($assignment)
+            ->exists();
     }
 }

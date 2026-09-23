@@ -4,48 +4,64 @@ namespace App\Http\Controllers\Admin;
 
 use App\Actions\Shifts\ConfigureEmployeeFixedShiftAction;
 use App\Actions\Shifts\GenerateMonthlyFixedShiftScheduleAction;
+use App\Http\Controllers\Concerns\ReadsPeriodFromRequest;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\ConfigureEmployeeFixedShiftRequest;
+use App\Http\Requests\Admin\EndEmployeeFixedShiftRequest;
 use App\Http\Requests\Admin\GenerateMonthlyFixedShiftScheduleRequest;
 use App\Models\Branch;
 use App\Models\EmployeeFixedShift;
 use App\Models\User;
 use App\Models\WorkShift;
+use App\Services\Shifts\ShiftPlanningOptions;
 use App\Support\BranchContext;
-use Carbon\CarbonImmutable;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
 class EmployeeShiftPlanController extends Controller
 {
-    public function __construct(private BranchContext $branchContext) {}
+    use ReadsPeriodFromRequest;
+
+    public function __construct(
+        private BranchContext $branchContext,
+        private ShiftPlanningOptions $options,
+    ) {}
 
     public function index(Request $request): View
     {
         $this->authorize('viewAny', EmployeeFixedShift::class);
 
-        $month = $this->month($request);
+        $month = $this->requestedMonthStart($request);
         $branch = $this->branchContext->current();
-        $managesPlans = $request->user()->can('create', EmployeeFixedShift::class)
-            && $branch !== null;
+        $managesPlans = $branch !== null && $request->user()->can('create', EmployeeFixedShift::class);
 
-        $fixedShifts = $branch === null ? collect() : EmployeeFixedShift::query()
-            ->with(['employee:id,name', 'workShift:id,name,starts_at,ends_at'])
-            ->where('branch_id', $branch->getKey())
-            ->whereDate('effective_from', '<=', $month->endOfMonth())
-            ->where(fn ($query) => $query->whereNull('effective_to')->orWhereDate('effective_to', '>=', $month))
-            ->orderBy('employee_id')
-            ->orderBy('effective_from')
-            ->get();
+        if ($branch === null) {
+            return view('admin.employee-shift-plans.index', [
+                'branch' => null,
+                'month' => $month,
+                'managesPlans' => false,
+                'employees' => collect(),
+                'shifts' => collect(),
+                'fixedShifts' => collect(),
+            ]);
+        }
 
         return view('admin.employee-shift-plans.index', [
             'branch' => $branch,
             'month' => $month,
             'managesPlans' => $managesPlans,
-            'employees' => $managesPlans ? $this->employeesFor($branch, $month) : collect(),
-            'shifts' => $managesPlans ? $this->shiftsFor($branch) : collect(),
-            'fixedShifts' => $fixedShifts,
+            'employees' => $managesPlans
+                ? $this->options->staff([$branch->getKey()], $month->toDateString(), $month->endOfMonth()->toDateString())
+                : collect(),
+            'shifts' => $managesPlans ? $this->options->shifts([$branch->getKey()]) : collect(),
+            'fixedShifts' => EmployeeFixedShift::query()
+                ->with(['employee:id,name', 'workShift:id,name,starts_at,ends_at'])
+                ->where('branch_id', $branch->getKey())
+                ->effectiveBetween($month->toDateString(), $month->endOfMonth()->toDateString())
+                ->orderBy('employee_id')
+                ->orderBy('effective_from')
+                ->get(),
         ]);
     }
 
@@ -65,6 +81,27 @@ class EmployeeShiftPlanController extends Controller
         return back()->with('success', 'Đã cấu hình ca cố định cho nhân viên.');
     }
 
+    /**
+     * Đóng một ca cố định lại từ một ngày nhất định.
+     *
+     * Không xóa, vì chính nó giải thích tại sao lịch tháng trước trông như vậy.
+     */
+    public function endFixedShift(EndEmployeeFixedShiftRequest $request, EmployeeFixedShift $fixedShift, ConfigureEmployeeFixedShiftAction $configure): RedirectResponse
+    {
+        $configure->end($request->user(), $fixedShift, $request->validated('effective_to'));
+
+        return back()->with('success', 'Đã kết thúc ca cố định.');
+    }
+
+    /** Chỉ ca cố định chưa tới ngày hiệu lực mới xóa hẳn được. */
+    public function destroyFixedShift(Request $request, EmployeeFixedShift $fixedShift, ConfigureEmployeeFixedShiftAction $configure): RedirectResponse
+    {
+        $this->authorize('delete', $fixedShift);
+        $configure->remove($request->user(), $fixedShift);
+
+        return back()->with('success', 'Đã xóa ca cố định chưa hiệu lực.');
+    }
+
     public function generate(GenerateMonthlyFixedShiftScheduleRequest $request, GenerateMonthlyFixedShiftScheduleAction $generate): RedirectResponse
     {
         $data = $request->validated();
@@ -74,40 +111,14 @@ class EmployeeShiftPlanController extends Controller
             $data['month'],
         );
 
-        return back()->with('success', "Đã tạo {$result['created']} ca từ lịch cố định; bỏ qua {$result['skipped']} ca đã có hoặc không còn hiệu lực.");
-    }
+        $message = "Đã tạo {$result['created']} ca từ lịch cố định; bỏ qua {$result['skipped']} ca đã có hoặc không còn hiệu lực.";
 
-    private function month(Request $request): CarbonImmutable
-    {
-        $raw = $request->string('month')->toString();
-
-        return $raw === '' ? now()->toImmutable()->startOfMonth() : CarbonImmutable::parse($raw)->startOfMonth();
-    }
-
-    private function employeesFor(?Branch $branch, CarbonImmutable $month)
-    {
-        if ($branch === null) {
-            return collect();
+        // Một ca cố định hỏng không được phép nuốt mất kết quả của những ca
+        // còn lại: báo cả số đã tạo lẫn lý do của phần không tạo được.
+        if ($result['failed'] > 0) {
+            return back()->with('error', $message." Còn {$result['failed']} ca không tạo được: ".implode(' ', $result['reasons']));
         }
 
-        return User::query()
-            ->active()
-            ->staff()
-            ->postedTo([$branch->getKey()], $month->toDateString(), $month->endOfMonth()->toDateString())
-            ->orderBy('name')
-            ->get(['id', 'name']);
-    }
-
-    private function shiftsFor(?Branch $branch)
-    {
-        if ($branch === null) {
-            return collect();
-        }
-
-        return WorkShift::query()
-            ->active()
-            ->usableAt($branch->getKey())
-            ->orderBy('starts_at')
-            ->get(['id', 'name', 'starts_at', 'ends_at']);
+        return back()->with('success', $message);
     }
 }

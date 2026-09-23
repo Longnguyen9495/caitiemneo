@@ -23,23 +23,17 @@
             <form method="POST" action="{{ route('admin.shift-schedule.store') }}" class="row g-2 align-items-end">
                 @csrf
 
-                <x-admin.field name="employee_id" label="Nhân viên" col="col-12 col-lg-3" required>
-                    <select class="form-select @error('employee_id') is-invalid @enderror" id="employee_id" name="employee_id" required>
-                        <option value="">Chọn nhân viên</option>
-                        @foreach ($employees as $employee)
-                            <option value="{{ $employee->id }}" @selected((string) old('employee_id') === (string) $employee->id)>{{ $employee->name }}</option>
-                        @endforeach
-                    </select>
-                </x-admin.field>
+                <x-admin.select-field name="employee_id" label="Nhân viên" col="col-12 col-lg-3" placeholder="Chọn nhân viên" required>
+                    @foreach ($employees as $employee)
+                        <option value="{{ $employee->id }}" @selected((string) old('employee_id') === (string) $employee->id)>{{ $employee->name }}</option>
+                    @endforeach
+                </x-admin.select-field>
 
-                <x-admin.field name="work_shift_id" label="Ca làm" col="col-12 col-lg-3" required>
-                    <select class="form-select @error('work_shift_id') is-invalid @enderror" id="work_shift_id" name="work_shift_id" required>
-                        <option value="">Chọn ca</option>
-                        @foreach ($shifts as $shift)
-                            <option value="{{ $shift->id }}" @selected((string) old('work_shift_id') === (string) $shift->id)>{{ $shift->label() }}</option>
-                        @endforeach
-                    </select>
-                </x-admin.field>
+                <x-admin.select-field name="work_shift_id" label="Ca làm" col="col-12 col-lg-3" placeholder="Chọn ca" required>
+                    @foreach ($shifts as $shift)
+                        <option value="{{ $shift->id }}" @selected((string) old('work_shift_id') === (string) $shift->id)>{{ $shift->label() }}</option>
+                    @endforeach
+                </x-admin.select-field>
 
                 <x-admin.field name="work_date" label="Ngày làm" col="col-6 col-lg-2" required>
                     <input class="form-control neo-num @error('work_date') is-invalid @enderror" id="work_date" name="work_date"
@@ -65,7 +59,7 @@
     @endif
 
     <section class="card overflow-hidden">
-        <table class="table neo-table align-middle mb-0">
+        <table class="table neo-table neo-table--roster align-middle mb-0">
             <caption class="visually-hidden">Lịch phân ca</caption>
             <thead>
                 <tr>
@@ -84,7 +78,7 @@
                         <td class="fw-semibold">{{ $row['employee']?->name }}</td>
                         @foreach ($days as $day)
                             @php $cell = $row['days'][$day->toDateString()] ?? null; @endphp
-                            <td data-label="{{ $day->translatedFormat('D d/m') }}" class="text-lg-center">
+                            <td data-label="{{ $day->translatedFormat('D d/m') }}" @class(['text-lg-center', 'is-empty' => blank($cell)])>
                                 @forelse ($cell ?? [] as $assignment)
                                     <div class="d-inline-flex flex-wrap align-items-center gap-1 mb-1">
                                         <span class="badge rounded-pill text-bg-light border neo-num">

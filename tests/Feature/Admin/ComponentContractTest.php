@@ -122,6 +122,50 @@ class ComponentContractTest extends TestCase
         $this->assertStringNotContainsString('alert-danger', $html);
     }
 
+    /** A one-click action posts, and carries the token that makes it valid. */
+    public function test_a_post_button_submits_its_own_form_with_a_token(): void
+    {
+        $html = $this->render('<x-admin.post-button action="/approve" label="Duyệt" :fields="[\'approved\' => 1]" variant="primary" />');
+
+        $this->assertStringContainsString('method="POST"', $html);
+        $this->assertStringContainsString('action="/approve"', $html);
+        $this->assertStringContainsString('name="_token"', $html);
+        $this->assertStringContainsString('name="approved" value="1"', $html);
+        // Nút trong bảng phải là submit, nếu không hàng đó bấm vào không làm gì.
+        $this->assertStringContainsString('type="submit"', $html);
+    }
+
+    /** A select wires its label, its control and its error to one id. */
+    public function test_a_select_field_ties_label_and_error_to_the_control(): void
+    {
+        $html = $this->renderWithErrors(
+            '<x-admin.select-field name="work_shift_id" label="Ca làm" placeholder="Chọn ca" required />',
+            ['work_shift_id' => 'Hãy chọn ca.'],
+        );
+
+        $this->assertStringContainsString('for="work_shift_id"', $html);
+        $this->assertStringContainsString('id="work_shift_id"', $html);
+        $this->assertStringContainsString('is-invalid', $html);
+        $this->assertStringContainsString('id="work_shift_id-error"', $html);
+        $this->assertStringContainsString('<option value="">Chọn ca</option>', $html);
+    }
+
+    /**
+     * Hai biểu mẫu trên một trang có thể gửi cùng một tên ô — ca xin nghỉ và ca
+     * cần đổi đều là `shift_assignment_id`. Khi đó nhãn phải đi theo id riêng
+     * của từng ô, nếu không bấm vào nhãn thứ hai lại nhảy lên biểu mẫu thứ nhất.
+     */
+    public function test_a_field_can_carry_its_own_id_when_a_name_repeats(): void
+    {
+        $html = $this->render(
+            '<x-admin.select-field name="shift_assignment_id" id="swap_shift_assignment_id" label="Ca của bạn" />'
+        );
+
+        $this->assertStringContainsString('for="swap_shift_assignment_id"', $html);
+        $this->assertStringContainsString('id="swap_shift_assignment_id"', $html);
+        $this->assertStringContainsString('name="shift_assignment_id"', $html);
+    }
+
     /** @param array<string, mixed> $data */
     private function render(string $template, array $data = []): string
     {

@@ -28,6 +28,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Số ngày nghỉ hưởng lương mỗi tháng
+    |--------------------------------------------------------------------------
+    |
+    | Đơn nghỉ được duyệt sẽ tự tính là có lương cho tới khi nhân viên dùng hết
+    | số ngày này trong tháng của ca nghỉ; từ ngày thứ kế tiếp trở đi là nghỉ
+    | không lương. Hai ca trong cùng một ngày chỉ tiêu tốn một ngày.
+    |
+    */
+
+    'paid_leave_days_per_month' => (int) env('ATTENDANCE_PAID_LEAVE_DAYS_PER_MONTH', 2),
+
+    /*
+    |--------------------------------------------------------------------------
     | Giá trị GPS mặc định cho chi nhánh mới
     |--------------------------------------------------------------------------
     */

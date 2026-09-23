@@ -16,7 +16,7 @@ class ShiftAssignmentPolicy
 {
     public function viewAny(User $user): bool
     {
-        return $user->isOwner() || $user->isManager() || $user->isEmployee();
+        return $user->isLeadership() || $user->isEmployee();
     }
 
     public function view(User $user, ShiftAssignment $assignment): bool
@@ -45,6 +45,6 @@ class ShiftAssignmentPolicy
 
     private function manages(User $user): bool
     {
-        return $user->isOwner() || $user->isManager();
+        return $user->isLeadership();
     }
 }

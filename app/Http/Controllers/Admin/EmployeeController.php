@@ -3,11 +3,11 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Actions\Employees\AssignEmployeeToBranchAction;
+use App\Actions\Employees\RecordCompensationChangeAction;
 use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\EmployeeRequest;
 use App\Models\Branch;
-use App\Models\EmployeeCompensationProfile;
 use App\Models\User;
 use App\Services\Auth\SessionRevoker;
 use App\Support\BranchContext;
@@ -24,13 +24,28 @@ class EmployeeController extends Controller
         private SessionRevoker $sessionRevoker,
         private BranchContext $branchContext,
         private AssignEmployeeToBranchAction $assignToBranch,
+        private RecordCompensationChangeAction $recordCompensation,
     ) {}
 
     public function index(Request $request): View
     {
         $this->authorize('viewAny', User::class);
 
+        $viewer = $request->user();
+
         $employees = User::query()
+            /*
+             * Mỗi dòng của bảng này in ra lương cứng, đơn giá ca và hoa hồng.
+             * Chủ tiệm điều hành cả hệ thống nên nhìn hết; quản lý chỉ được
+             * thấy người từng được phân về chi nhánh mình chạy — đúng phạm vi
+             * mà {@see \App\Policies\UserPolicy::view()} đã quy định cho từng
+             * bản ghi. Danh sách rỗng an toàn hơn danh sách đầy đủ, nên một tài
+             * khoản không còn chi nhánh nào sẽ không thấy ai.
+             */
+            ->unless($viewer->isOwner(), fn (Builder $query) => $query->postedTo($viewer->accessibleBranchIds() ?: [0]))
+            // Lọc thêm theo một chi nhánh cụ thể, luôn nằm trong phạm vi người
+            // xem đã được phép thấy ở dòng trên.
+            ->when($request->filled('branch'), fn (Builder $query) => $query->postedTo([$request->integer('branch')]))
             ->when($request->filled('search'), function (Builder $query) use ($request): void {
                 $term = '%'.$request->string('search')->toString().'%';
 
@@ -49,6 +64,11 @@ class EmployeeController extends Controller
         return view('admin.employees.index', [
             'employees' => $employees,
             'roles' => UserRole::options(),
+            'branches' => Branch::query()
+                ->active()
+                ->whereIn('id', $viewer->accessibleBranchIds())
+                ->orderBy('code')
+                ->get(['id', 'code', 'name']),
         ]);
     }
 
@@ -78,7 +98,7 @@ class EmployeeController extends Controller
         DB::transaction(function () use ($data, $branchId, $request): void {
             $employee = User::query()->create(Arr::except($data, ['branch_id']) + ['email_verified_at' => now()]);
 
-            $this->syncCurrentCompensationProfile($employee, $data, $request->user()->getKey());
+            $this->recordCompensation->handle($employee, $data, $request->user());
 
             $this->assignToBranch->handle(
                 employee: $employee,
@@ -123,7 +143,7 @@ class EmployeeController extends Controller
 
         DB::transaction(function () use ($employee, $data, $request): void {
             $employee->update($data);
-            $this->syncCurrentCompensationProfile($employee, $data, $request->user()->getKey());
+            $this->recordCompensation->handle($employee, $data, $request->user());
         });
 
         // Vô hiệu hóa, đổi role hay đặt lại mật khẩu đều là lời khẳng định rằng
@@ -135,50 +155,6 @@ class EmployeeController extends Controller
         }
 
         return redirect()->route('admin.employees.index')->with('success', 'Đã cập nhật tài khoản nhân sự.');
-    }
-
-    /**
-     * Các trường lương cũ trên users chỉ phục vụ form tương thích; hóa đơn và
-     * bảng lương luôn lấy snapshot từ hồ sơ có hiệu lực theo ngày. Khi người
-     * quản trị đổi mức hiện tại, đóng hồ sơ toàn hệ thống cũ và mở bản ghi mới
-     * từ hôm nay để số liệu đã chốt trong quá khứ không bị viết lại.
-     *
-     * @param  array<string, mixed>  $data
-     */
-    private function syncCurrentCompensationProfile(User $employee, array $data, int $actorId): void
-    {
-        $today = now()->toDateString();
-        $current = EmployeeCompensationProfile::query()
-            ->where('user_id', $employee->getKey())
-            ->whereNull('branch_id')
-            ->effectiveOn($today)
-            ->orderByDesc('effective_from')
-            ->orderByDesc('id')
-            ->first();
-
-        $rates = [
-            'base_salary' => $data['base_salary'],
-            'shift_rate' => $data['shift_rate'],
-            'regular_commission_rate' => $data['commission_rate'],
-            'overtime_commission_rate' => $data['commission_rate'],
-        ];
-
-        if ($current?->effective_from?->isSameDay($today)) {
-            $current->update($rates);
-
-            return;
-        }
-
-        if ($current !== null) {
-            $current->update(['effective_to' => now()->subDay()->toDateString()]);
-        }
-
-        $employee->compensationProfiles()->create($rates + [
-            'branch_id' => null,
-            'effective_from' => $today,
-            'effective_to' => null,
-            'created_by' => $actorId,
-        ]);
     }
 
     /**

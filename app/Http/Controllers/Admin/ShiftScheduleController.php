@@ -3,14 +3,18 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Actions\Attendance\ScheduleShiftAction;
+use App\Http\Controllers\Concerns\ReadsPeriodFromRequest;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\ShiftAssignmentRequest;
 use App\Models\Branch;
 use App\Models\ShiftAssignment;
 use App\Models\User;
 use App\Models\WorkShift;
+use App\Services\Payroll\PayrollLockGuard;
+use App\Services\Shifts\ShiftPlanningOptions;
 use App\Support\BranchContext;
 use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -25,14 +29,20 @@ use Illuminate\View\View;
  */
 class ShiftScheduleController extends Controller
 {
-    public function __construct(private BranchContext $branchContext) {}
+    use ReadsPeriodFromRequest;
+
+    public function __construct(
+        private BranchContext $branchContext,
+        private PayrollLockGuard $payrollLock,
+        private ShiftPlanningOptions $options,
+    ) {}
 
     public function index(Request $request): View
     {
         $this->authorize('viewAny', ShiftAssignment::class);
 
         $user = $request->user();
-        $weekStart = $this->weekStart($request);
+        $weekStart = $this->requestedWeekStart($request);
         $weekEnd = $weekStart->copy()->endOfWeek(Carbon::SUNDAY);
         $branchIds = $this->branchContext->scopeIds() ?: [0];
         $managesRoster = $user->can('create', ShiftAssignment::class);
@@ -41,7 +51,7 @@ class ShiftScheduleController extends Controller
             ->with(['employee:id,name', 'branch:id,code,name', 'workShift:id,name', 'attendanceRecord:id,shift_assignment_id,status'])
             ->whereIn('branch_id', $branchIds)
             ->betweenDates($weekStart->toDateString(), $weekEnd->toDateString())
-            ->unless($managesRoster, fn ($query) => $query->where('employee_id', $user->getKey()))
+            ->unless($managesRoster, fn ($query) => $query->forEmployee($user))
             ->orderBy('planned_start_at')
             ->get();
 
@@ -52,8 +62,12 @@ class ShiftScheduleController extends Controller
             'rows' => $this->groupByEmployee($assignments),
             'assignments' => $assignments,
             'managesRoster' => $managesRoster,
-            'employees' => $managesRoster ? $this->employees($weekStart) : new \Illuminate\Database\Eloquent\Collection,
-            'shifts' => $managesRoster ? $this->usableShifts() : new \Illuminate\Database\Eloquent\Collection,
+            'employees' => $managesRoster
+                ? $this->options->staff($this->branchContext->scopeIds(), $weekStart->toDateString(), $weekEnd->toDateString())
+                : new EloquentCollection,
+            'shifts' => $managesRoster
+                ? $this->options->shifts($this->branchContext->scopeIds())
+                : new EloquentCollection,
             'defaultDate' => $this->defaultDate($weekStart, $weekEnd)->toDateString(),
         ]);
     }
@@ -86,17 +100,18 @@ class ShiftScheduleController extends Controller
             ]);
         }
 
+        // Bỏ một ca khỏi tháng lương đã chốt là sửa lại con số nhân viên đã
+        // được báo. Đơn nghỉ và phân người thay đều hỏi khóa này trước; chỗ
+        // xóa trực tiếp không được phép là ngoại lệ.
+        $this->payrollLock->assertUnlocked(
+            (int) $shiftAssignment->employee_id,
+            $shiftAssignment->work_date,
+            'work_shift_id',
+        );
+
         $shiftAssignment->delete();
 
         return back()->with('success', 'Đã bỏ phân ca.');
-    }
-
-    /** Weeks run Monday to Sunday, which is how the shop talks about them. */
-    private function weekStart(Request $request): Carbon
-    {
-        $raw = $request->string('week')->toString();
-
-        return ($raw !== '' ? Carbon::parse($raw) : now())->startOfWeek(Carbon::MONDAY);
     }
 
     /** @return array<int, Carbon> */
@@ -121,28 +136,6 @@ class ShiftScheduleController extends Controller
             ])
             ->sortBy(fn (array $row): string => $row['employee']?->name ?? '')
             ->values();
-    }
-
-    /** Staff posted to the active branch at some point during the week. */
-    private function employees(Carbon $weekStart)
-    {
-        $weekEnd = $weekStart->copy()->endOfWeek(Carbon::SUNDAY);
-
-        return User::query()
-            ->active()
-            ->staff()
-            ->postedTo($this->branchContext->scopeIds(), $weekStart->toDateString(), $weekEnd->toDateString())
-            ->orderBy('name')
-            ->get(['id', 'name']);
-    }
-
-    private function usableShifts()
-    {
-        return WorkShift::query()
-            ->active()
-            ->usableAt($this->branchContext->scopeIds())
-            ->orderBy('starts_at')
-            ->get();
     }
 
     /** Default the quick-add form to today when today is in view. */

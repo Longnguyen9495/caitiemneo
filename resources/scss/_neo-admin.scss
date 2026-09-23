@@ -436,6 +436,19 @@ body.neo {
 // Danh sách chi nhánh ưu tiên thứ tự đọc theo vận hành: nhận diện, liên hệ,
 // chỉ số rồi mới đến thao tác. Trên desktop vẫn giữ nguyên dạng bảng; dưới lg
 // từng dòng trở thành một thẻ có các khối thông tin rõ ràng.
+// Lịch tuần trên điện thoại: mỗi nhân viên là một thẻ, và một tuần luôn có
+// đủ bảy dòng kể cả ngày không có ca. Người làm ba ca thì bốn dòng còn lại chỉ
+// in một dấu gạch — chiếm phần lớn chiều cao màn hình để nói rằng không có gì.
+// Ẩn hẳn ngày trống đi; bảng desktop vẫn giữ đủ bảy cột để so hàng theo ngày.
+//
+// Hàng nào cũng có ít nhất một ca, vì hàng chỉ sinh ra từ ca đã phân, nên
+// không có thẻ nào bị rút xuống còn mỗi cái tên.
+.neo-table--roster {
+    @include media-breakpoint-down(lg) {
+        td.is-empty { display: none; }
+    }
+}
+
 .neo-table--branches {
     .branch-list__name {
         font-weight: 600;

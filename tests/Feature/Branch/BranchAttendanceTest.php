@@ -120,4 +120,55 @@ class BranchAttendanceTest extends TestCase
             ])
             ->assertForbidden();
     }
+
+    /**
+     * Phân công chính thức bắt đầu muộn hơn thì không thể bị đóng lùi.
+     *
+     * Đóng nó bằng "ngày trước ngày bắt đầu của phân công mới" sẽ ghi `ends_on`
+     * nằm trước chính `starts_on` của nó — một khoảng ngày ngược, không phủ
+     * ngày nào, khiến nhân viên bỗng không thuộc chi nhánh nào trong quãng đã
+     * được sắp sẵn.
+     */
+    public function test_a_later_primary_posting_blocks_a_backdated_one_instead_of_being_inverted(): void
+    {
+        $owner = User::factory()->owner()->create();
+        $employee = User::factory()->employee()->withoutBranch()
+            ->atBranch($this->branchA, true, '2026-10-01')
+            ->create();
+
+        $this->actingAs($owner)
+            ->from(route('admin.employees.edit', $employee))
+            ->post(route('admin.employees.assignments.store', $employee), [
+                'branch_id' => $this->branchB->id,
+                'starts_on' => '2026-09-25',
+                'is_primary' => '1',
+            ])
+            ->assertSessionHasErrors('starts_on');
+
+        $future = $employee->branchAssignments()->where('branch_id', $this->branchA->id)->sole();
+
+        $this->assertNull($future->ends_on);
+        $this->assertSame(1, $employee->branchAssignments()->count());
+    }
+
+    /** Phân công cũ đã bắt đầu trước đó thì vẫn được đóng lại như thường. */
+    public function test_an_earlier_primary_posting_is_still_closed_the_day_before(): void
+    {
+        $owner = User::factory()->owner()->create();
+        $employee = User::factory()->employee()->withoutBranch()
+            ->atBranch($this->branchA, true, '2026-01-01')
+            ->create();
+
+        $this->actingAs($owner)
+            ->post(route('admin.employees.assignments.store', $employee), [
+                'branch_id' => $this->branchB->id,
+                'starts_on' => '2026-09-25',
+                'is_primary' => '1',
+            ])
+            ->assertRedirect();
+
+        $previous = $employee->branchAssignments()->where('branch_id', $this->branchA->id)->sole();
+
+        $this->assertSame('2026-09-24', $previous->ends_on->toDateString());
+    }
 }

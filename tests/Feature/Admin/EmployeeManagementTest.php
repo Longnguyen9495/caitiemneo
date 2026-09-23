@@ -287,4 +287,64 @@ class EmployeeManagementTest extends TestCase
 
         $this->assertSame(1, AttendanceRecord::query()->count());
     }
+
+    /**
+     * Bảng nhân sự in cả lương cứng, đơn giá ca và hoa hồng của từng dòng.
+     *
+     * Quản lý chỉ được nhìn người mình phụ trách: trước đây danh sách không lọc
+     * chi nhánh nào cả, nên một quản lý mở trang là đọc được mức lương của toàn
+     * bộ hệ thống, kể cả của chủ tiệm.
+     */
+    public function test_a_manager_only_sees_staff_from_the_branches_they_run(): void
+    {
+        $branchA = Branch::factory()->create();
+        $branchB = Branch::factory()->create();
+
+        $manager = User::factory()->manager()->withoutBranch()->atBranch($branchA)->create();
+        $colleague = User::factory()->employee()->withoutBranch()->atBranch($branchA)->create([
+            'name' => 'Người cùng chi nhánh',
+        ]);
+        $outsider = User::factory()->employee()->withoutBranch()->atBranch($branchB)->create([
+            'name' => 'Người chi nhánh khác',
+            'base_salary' => 12345678,
+        ]);
+
+        $this->actingAs($manager)->withConfirmedPassword()
+            ->get(route('admin.employees.index'))
+            ->assertOk()
+            ->assertSee($colleague->name)
+            ->assertDontSee($outsider->name)
+            ->assertDontSee('12.345.678');
+    }
+
+    /** Chủ tiệm nhìn toàn hệ thống nên cần lọc lại về một cơ sở cụ thể. */
+    public function test_the_directory_can_be_narrowed_to_one_branch(): void
+    {
+        $owner = User::factory()->owner()->create();
+        $branchA = Branch::factory()->create();
+        $branchB = Branch::factory()->create();
+
+        $atA = User::factory()->employee()->withoutBranch()->atBranch($branchA)->create(['name' => 'Người cơ sở A']);
+        $atB = User::factory()->employee()->withoutBranch()->atBranch($branchB)->create(['name' => 'Người cơ sở B']);
+
+        $this->actingAs($owner)->withConfirmedPassword()
+            ->get(route('admin.employees.index', ['branch' => $branchA->id]))
+            ->assertOk()
+            ->assertSee($atA->name)
+            ->assertDontSee($atB->name);
+    }
+
+    public function test_the_owner_still_sees_every_account(): void
+    {
+        $owner = User::factory()->owner()->create();
+        $branch = Branch::factory()->create();
+        $employee = User::factory()->employee()->withoutBranch()->atBranch($branch)->create([
+            'name' => 'Người ở xa',
+        ]);
+
+        $this->actingAs($owner)->withConfirmedPassword()
+            ->get(route('admin.employees.index'))
+            ->assertOk()
+            ->assertSee($employee->name);
+    }
 }

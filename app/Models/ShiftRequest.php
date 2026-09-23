@@ -82,6 +82,41 @@ class ShiftRequest extends Model
         return $this->hasOne(ShiftReplacement::class);
     }
 
+    public function isLeave(): bool
+    {
+        return $this->type === ShiftRequestType::Leave;
+    }
+
+    /**
+     * An approved absence that still leaves the shift uncovered.
+     *
+     * The board asks this to decide both whether to warn about the gap and
+     * whether to offer the stand-in picker, so the two can never disagree.
+     */
+    public function awaitingReplacement(): bool
+    {
+        return $this->isLeave()
+            && $this->status === ShiftRequestStatus::Approved
+            && $this->replacement === null;
+    }
+
+    /**
+     * Đơn đang chờ chính người quản lý làm một việc gì đó.
+     *
+     * Huy hiệu trên menu và bộ lọc trên trang dùng chung đúng định nghĩa này.
+     * Tách ra hai nơi thì huy hiệu báo ba việc còn bộ lọc mở ra bốn dòng, và
+     * không ai biết bên nào đúng.
+     */
+    public function scopeNeedingAction(Builder $query): Builder
+    {
+        return $query->where(fn (Builder $inner) => $inner
+            ->whereIn('status', [ShiftRequestStatus::PendingApproval, ShiftRequestStatus::RecipientConfirmed])
+            ->orWhere(fn (Builder $uncovered) => $uncovered
+                ->where('type', ShiftRequestType::Leave)
+                ->where('status', ShiftRequestStatus::Approved)
+                ->whereDoesntHave('replacement')));
+    }
+
     public function scopeOpen(Builder $query): Builder
     {
         return $query->whereIn('status', array_map(

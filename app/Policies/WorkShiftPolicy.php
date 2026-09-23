@@ -15,7 +15,7 @@ class WorkShiftPolicy
 {
     public function viewAny(User $user): bool
     {
-        return $user->isOwner() || $user->isManager();
+        return $user->isLeadership();
     }
 
     public function view(User $user, WorkShift $shift): bool

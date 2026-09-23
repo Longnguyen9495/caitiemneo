@@ -57,6 +57,6 @@ class ShiftRequestPolicy
 
     private function manages(User $user): bool
     {
-        return ($user->isOwner() || $user->isManager()) && $user->is_active;
+        return $user->isLeadership() && $user->is_active;
     }
 }

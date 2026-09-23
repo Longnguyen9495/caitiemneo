@@ -13,10 +13,21 @@
 
     <section class="card overflow-hidden">
         <x-admin.filter-bar :action="route('admin.employees.index')">
-            <div class="col-12 col-lg-4">
+            <div class="col-12 col-lg-3">
                 <label class="form-label" for="search">Tìm kiếm</label>
                 <input class="form-control" id="search" type="search" name="search" value="{{ request('search') }}" placeholder="Tên, email hoặc SĐT">
             </div>
+            @if ($branches->count() > 1)
+                <div class="col-12 col-lg-3">
+                    <label class="form-label" for="branch">Chi nhánh</label>
+                    <select class="form-select" id="branch" name="branch">
+                        <option value="">Tất cả chi nhánh</option>
+                        @foreach ($branches as $branch)
+                            <option value="{{ $branch->id }}" @selected((string) request('branch') === (string) $branch->id)>{{ $branch->name }}</option>
+                        @endforeach
+                    </select>
+                </div>
+            @endif
             <div class="col-6 col-lg-3">
                 <label class="form-label" for="role">Vai trò</label>
                 <select class="form-select" id="role" name="role">

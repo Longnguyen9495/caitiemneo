@@ -95,7 +95,7 @@
 
     <nav class="neo-tabbar" aria-label="Điều hướng nhanh">
         @foreach ($primaryNav as $item)
-            <a href="{{ route($item['route']) }}"
+            <a href="{{ route($item['route'], $item['params'] ?? []) }}"
                @class(['neo-tabbar__item', 'position-relative', 'is-active' => request()->routeIs($item['pattern'])])
                @if (request()->routeIs($item['pattern'])) aria-current="page" @endif>
                 <x-admin.icon :name="$item['icon']" />

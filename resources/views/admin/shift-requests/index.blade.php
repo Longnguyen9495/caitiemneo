@@ -14,14 +14,11 @@
             <h2 class="fs-6 fw-semibold">Gửi đơn xin nghỉ</h2>
             <form method="POST" action="{{ route('admin.shift-requests.leave.store') }}" class="row g-2 align-items-end">
                 @csrf
-                <x-admin.field name="shift_assignment_id" label="Ca làm" col="col-12 col-md-5" required>
-                    <select class="form-select @error('shift_assignment_id') is-invalid @enderror" name="shift_assignment_id" id="shift_assignment_id" required>
-                        <option value="">Chọn ca của bạn</option>
-                        @foreach ($ownAssignments as $assignment)
-                            <option value="{{ $assignment->id }}">{{ $assignment->work_date->format('d/m/Y') }} · {{ $assignment->shift_name }} ({{ $assignment->timeRangeLabel() }})</option>
-                        @endforeach
-                    </select>
-                </x-admin.field>
+                <x-admin.select-field name="shift_assignment_id" label="Ca làm" col="col-12 col-md-5" placeholder="Chọn ca của bạn" required>
+                    @foreach ($ownAssignments as $assignment)
+                        <option value="{{ $assignment->id }}">{{ $assignment->scheduleLabel() }}</option>
+                    @endforeach
+                </x-admin.select-field>
                 <x-admin.field name="reason" label="Lý do" col="col-12 col-md-5">
                     <input class="form-control @error('reason') is-invalid @enderror" name="reason" id="reason" value="{{ old('reason') }}">
                 </x-admin.field>
@@ -35,31 +32,22 @@
             @if ($swapAssignments->isNotEmpty())
                 <form method="POST" action="{{ route('admin.shift-requests.swap.store') }}" class="row g-2 align-items-end">
                     @csrf
-                    <x-admin.field name="shift_assignment_id" label="Ca của bạn" col="col-12 col-lg-3" required>
-                        <select class="form-select @error('shift_assignment_id') is-invalid @enderror" name="shift_assignment_id" id="swap_shift_assignment_id" required>
-                            <option value="">Chọn ca cần đổi</option>
-                            @foreach ($ownAssignments as $assignment)
-                                <option value="{{ $assignment->id }}" @selected(old('shift_assignment_id') == $assignment->id)>{{ $assignment->work_date->format('d/m/Y') }} · {{ $assignment->shift_name }} ({{ $assignment->timeRangeLabel() }})</option>
-                            @endforeach
-                        </select>
-                    </x-admin.field>
-                    <x-admin.field name="recipient_id" label="Người đổi ca" col="col-12 col-lg-3" required>
-                        <select class="form-select @error('recipient_id') is-invalid @enderror" name="recipient_id" id="recipient_id" required>
-                            <option value="">Chọn nhân viên</option>
-                            @foreach ($swapAssignments->pluck('employee')->unique('id')->sortBy('name') as $employee)
-                                <option value="{{ $employee->id }}" @selected(old('recipient_id') == $employee->id)>{{ $employee->name }}</option>
-                            @endforeach
-                        </select>
-                    </x-admin.field>
-                    <x-admin.field name="counter_shift_assignment_id" label="Ca đối ứng" col="col-12 col-lg-4" required>
-                        <select class="form-select @error('counter_shift_assignment_id') is-invalid @enderror" name="counter_shift_assignment_id" id="counter_shift_assignment_id" required>
-                            <option value="">Chọn ca của người đổi</option>
-                            @foreach ($swapAssignments as $assignment)
-                                <option value="{{ $assignment->id }}" @selected(old('counter_shift_assignment_id') == $assignment->id)>{{ $assignment->employee->name }} · {{ $assignment->work_date->format('d/m/Y') }} · {{ $assignment->shift_name }} ({{ $assignment->timeRangeLabel() }})</option>
-                            @endforeach
-                        </select>
-                    </x-admin.field>
-                    <x-admin.field name="reason" label="Lý do" col="col-12 col-lg-2">
+                    <x-admin.select-field name="shift_assignment_id" id="swap_shift_assignment_id" label="Ca của bạn" col="col-12 col-lg-3" placeholder="Chọn ca cần đổi" required>
+                        @foreach ($ownAssignments as $assignment)
+                            <option value="{{ $assignment->id }}" @selected(old('shift_assignment_id') == $assignment->id)>{{ $assignment->scheduleLabel() }}</option>
+                        @endforeach
+                    </x-admin.select-field>
+                    <x-admin.select-field name="recipient_id" label="Người đổi ca" col="col-12 col-lg-3" placeholder="Chọn nhân viên" required>
+                        @foreach ($swapAssignments->pluck('employee')->unique('id')->sortBy('name') as $employee)
+                            <option value="{{ $employee->id }}" @selected(old('recipient_id') == $employee->id)>{{ $employee->name }}</option>
+                        @endforeach
+                    </x-admin.select-field>
+                    <x-admin.select-field name="counter_shift_assignment_id" label="Ca đối ứng" col="col-12 col-lg-4" placeholder="Chọn ca của người đổi" required>
+                        @foreach ($swapAssignments as $assignment)
+                            <option value="{{ $assignment->id }}" @selected(old('counter_shift_assignment_id') == $assignment->id)>{{ $assignment->employee->name }} · {{ $assignment->scheduleLabel() }}</option>
+                        @endforeach
+                    </x-admin.select-field>
+                    <x-admin.field name="reason" label="Lý do" col="col-12 col-lg-2" id="swap_reason">
                         <input class="form-control @error('reason') is-invalid @enderror" name="reason" id="swap_reason" value="{{ old('reason') }}">
                     </x-admin.field>
                     <div class="col-12"><x-admin.submit-button label="Gửi đề nghị đổi ca" /></div>
@@ -72,8 +60,33 @@
     @endif
 
     <section class="card overflow-hidden">
+        {{-- Huy hiệu trên menu dẫn thẳng vào "Cần xử lý", nên bộ lọc phải có
+             đúng lựa chọn đó chứ không chỉ là danh sách theo ngày gửi. --}}
+        <x-admin.filter-bar :action="route('admin.shift-requests.index')">
+            <div class="col-12 col-lg-4">
+                <label class="form-label" for="loc">Trạng thái</label>
+                <select class="form-select" id="loc" name="loc">
+                    <option value="">Tất cả</option>
+                    @foreach ($filters as $value => $label)
+                        <option value="{{ $value }}" @selected($activeFilter === $value)>{{ $label }}</option>
+                    @endforeach
+                </select>
+            </div>
+        </x-admin.filter-bar>
+
         <table class="table neo-table align-middle mb-0">
-            <thead><tr><th>Loại</th><th>Nhân viên</th><th>Ngày / ca</th><th>Trạng thái</th><th>Quyền lợi</th><th>Người thay</th><th>Thao tác</th></tr></thead>
+            <caption class="visually-hidden">Đơn nghỉ và đổi ca</caption>
+            <thead>
+                <tr>
+                    <th scope="col">Loại</th>
+                    <th scope="col">Nhân viên</th>
+                    <th scope="col">Ngày / ca</th>
+                    <th scope="col">Trạng thái</th>
+                    <th scope="col">Quyền lợi</th>
+                    <th scope="col">Người thay</th>
+                    <th scope="col"><span class="visually-hidden">Thao tác</span></th>
+                </tr>
+            </thead>
             <tbody>
                 @forelse ($requests as $shiftRequest)
                     <tr>
@@ -87,7 +100,7 @@
                         <td data-label="Người thay">
                             @if ($shiftRequest->replacement)
                                 {{ $shiftRequest->replacement->replacementEmployee?->name }}
-                            @elseif ($shiftRequest->status === \App\Enums\ShiftRequestStatus::Approved && $shiftRequest->type->value === 'leave')
+                            @elseif ($shiftRequest->awaitingReplacement())
                                 <span class="text-warning-emphasis">Chưa phân</span>
                             @else
                                 —
@@ -95,34 +108,39 @@
                         </td>
                         <td class="neo-actions">
                             @can('cancel', $shiftRequest)
-                                <form method="POST" action="{{ route('admin.shift-requests.cancel', $shiftRequest) }}">@csrf<button class="btn btn-sm btn-outline-secondary">Hủy</button></form>
+                                <x-admin.post-button :action="route('admin.shift-requests.cancel', $shiftRequest)" label="Hủy" />
                             @endcan
                             @can('respond', $shiftRequest)
-                                <form method="POST" action="{{ route('admin.shift-requests.respond', $shiftRequest) }}">@csrf<input type="hidden" name="accepted" value="1"><button class="btn btn-sm btn-outline-primary">Xác nhận</button></form>
-                                <form method="POST" action="{{ route('admin.shift-requests.respond', $shiftRequest) }}">@csrf<input type="hidden" name="accepted" value="0"><button class="btn btn-sm btn-outline-danger">Từ chối</button></form>
+                                <x-admin.post-button :action="route('admin.shift-requests.respond', $shiftRequest)" :fields="['accepted' => 1]" label="Xác nhận" variant="outline-primary" />
+                                <x-admin.post-button :action="route('admin.shift-requests.respond', $shiftRequest)" :fields="['accepted' => 0]" label="Từ chối" variant="outline-danger" />
                             @endcan
                             @can('decide', $shiftRequest)
-                                <form method="POST" action="{{ route('admin.shift-requests.decide', $shiftRequest) }}">@csrf<input type="hidden" name="approved" value="1"><button class="btn btn-sm btn-primary">Duyệt</button></form>
-                                <form method="POST" action="{{ route('admin.shift-requests.decide', $shiftRequest) }}">@csrf<input type="hidden" name="approved" value="0"><button class="btn btn-sm btn-outline-danger">Từ chối</button></form>
+                                {{-- Duyệt đơn nghỉ ghi một ngày hưởng lương và không có đường
+                                     hoàn tác; từ chối cũng là trạng thái cuối. Hai nút này
+                                     hỏi lại, còn những nút nhẹ hơn thì không — hỏi tất cả
+                                     thì chẳng ai đọc nữa. --}}
+                                <x-admin.confirm-form
+                                    :action="route('admin.shift-requests.decide', $shiftRequest)"
+                                    label="Duyệt"
+                                    variant="primary"
+                                    :message="'Duyệt đơn '.mb_strtolower($shiftRequest->type->label()).' của '.$shiftRequest->requester->name.' ngày '.$shiftRequest->work_date->format('d/m/Y').'? Thao tác này không hoàn tác được.'"
+                                >
+                                    <input type="hidden" name="approved" value="1">
+                                </x-admin.confirm-form>
+                                <x-admin.confirm-form
+                                    :action="route('admin.shift-requests.decide', $shiftRequest)"
+                                    label="Từ chối"
+                                    :message="'Từ chối đơn của '.$shiftRequest->requester->name.' ngày '.$shiftRequest->work_date->format('d/m/Y').'? Nhân viên sẽ phải gửi lại đơn mới.'"
+                                >
+                                    <input type="hidden" name="approved" value="0">
+                                </x-admin.confirm-form>
                             @endcan
                             @can('assignReplacement', $shiftRequest)
-                                @if ($shiftRequest->status === \App\Enums\ShiftRequestStatus::Approved && $shiftRequest->type->value === 'leave' && ! $shiftRequest->replacement)
-                                    @php $candidates = $replacementCandidates->get($shiftRequest->id, collect()); @endphp
-                                    @if ($candidates->isNotEmpty())
-                                        <form method="POST" action="{{ route('admin.shift-requests.replacement.assign', $shiftRequest) }}" class="d-flex gap-1 align-items-center">
-                                            @csrf
-                                            <label class="visually-hidden" for="replacement_{{ $shiftRequest->id }}">Nhân viên thay ca</label>
-                                            <select class="form-select form-select-sm" id="replacement_{{ $shiftRequest->id }}" name="replacement_employee_id" required>
-                                                <option value="">Chọn người thay</option>
-                                                @foreach ($candidates as $candidate)
-                                                    <option value="{{ $candidate->id }}">{{ $candidate->name }}</option>
-                                                @endforeach
-                                            </select>
-                                            <button class="btn btn-sm btn-success" type="submit">Phân thay</button>
-                                        </form>
-                                    @else
-                                        <span class="small text-body-secondary">Chưa có ứng viên phù hợp.</span>
-                                    @endif
+                                @if ($shiftRequest->awaitingReplacement())
+                                    @include('admin.shift-requests.partials.replacement-picker', [
+                                        'shiftRequest' => $shiftRequest,
+                                        'candidates' => $replacementCandidates->get($shiftRequest->id, collect()),
+                                    ])
                                 @endif
                             @endcan
                         </td>
@@ -132,6 +150,7 @@
                 @endforelse
             </tbody>
         </table>
-        <div class="p-3">{{ $requests->links() }}</div>
+
+        <x-admin.pagination :paginator="$requests" />
     </section>
 </x-layouts.admin>

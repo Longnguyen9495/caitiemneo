@@ -4,78 +4,44 @@ namespace App\Http\Controllers\Admin;
 
 use App\Actions\Shifts\AssignShiftReplacementAction;
 use App\Actions\Shifts\ManageShiftRequestAction;
-use App\Enums\ShiftRequestStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\ShiftRequests\StoreLeaveRequest;
 use App\Http\Requests\ShiftRequests\StoreSwapRequest;
-use App\Models\ShiftAssignment;
 use App\Models\ShiftRequest;
 use App\Models\User;
+use App\Services\Shifts\ShiftRequestBoard;
 use App\Support\BranchContext;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\View\View;
 
 class ShiftRequestController extends Controller
 {
-    public function __construct(private BranchContext $branchContext) {}
+    public function __construct(
+        private BranchContext $branchContext,
+        private ShiftRequestBoard $board,
+    ) {}
 
     public function index(Request $request, AssignShiftReplacementAction $replacementAction): View
     {
         $this->authorize('viewAny', ShiftRequest::class);
+
         $user = $request->user();
-        $branchIds = $this->branchContext->scopeIds();
-
-        $requests = ShiftRequest::query()
-            ->with(['requester', 'recipient', 'shiftAssignment', 'counterShiftAssignment', 'replacement.replacementEmployee'])
-            ->when($user->isEmployee(), fn ($query) => $query->where(fn ($inner) => $inner->where('requester_id', $user->getKey())->orWhere('recipient_id', $user->getKey())))
-            ->when(! $user->isEmployee() && ! $user->isOwner(), fn ($query) => $query->whereIn('branch_id', $branchIds))
-            ->latest()
-            ->paginate(30);
-
-        $replacementCandidates = collect();
-
-        if ($user->isOwner() || $user->isManager()) {
-            $requests->getCollection()
-                ->filter(fn (ShiftRequest $shiftRequest): bool => $shiftRequest->status === ShiftRequestStatus::Approved
-                    && $shiftRequest->type->value === 'leave'
-                    && $shiftRequest->replacement === null)
-                ->each(fn (ShiftRequest $shiftRequest) => $replacementCandidates->put(
-                    $shiftRequest->getKey(),
-                    $replacementAction->candidates($user, $shiftRequest),
-                ));
-        }
-
-        $ownAssignments = $user->isEmployee()
-            ? ShiftAssignment::query()
-                ->where('employee_id', $user->getKey())
-                ->whereDate('work_date', '>=', now()->toDateString())
-                ->with('workShift')
-                ->orderBy('planned_start_at')
-                ->get()
-            : collect();
-
-        $swapAssignments = $user->isEmployee() && $ownAssignments->isNotEmpty()
-            ? ShiftAssignment::query()
-                ->where('employee_id', '!=', $user->getKey())
-                ->whereHas('employee', fn ($query) => $query->active()->staff())
-                ->where(function ($query) use ($ownAssignments) {
-                    $ownAssignments->each(fn (ShiftAssignment $assignment) => $query->orWhere(fn ($inner) => $inner
-                        ->where('branch_id', $assignment->branch_id)
-                        ->whereDate('work_date', $assignment->work_date)));
-                })
-                ->with(['employee', 'workShift'])
-                ->orderBy('work_date')
-                ->orderBy('planned_start_at')
-                ->get()
-            : collect();
+        $filter = $request->string('loc')->toString();
+        $requests = $this->board->requestsFor($user, $this->branchContext->scopeIds(), $filter);
+        $ownShifts = $user->isEmployee() ? $this->board->ownUpcomingShifts($user) : collect();
 
         return view('admin.shift-requests.index', [
             'requests' => $requests,
-            'ownAssignments' => $ownAssignments,
-            'swapAssignments' => $swapAssignments,
-            'canManage' => $user->isOwner() || $user->isManager(),
-            'replacementCandidates' => $replacementCandidates,
+            'ownAssignments' => $ownShifts,
+            'swapAssignments' => $user->isEmployee()
+                ? $this->board->tradableShiftsAgainst($user, $ownShifts)
+                : collect(),
+            'canManage' => $user->isLeadership(),
+            'filters' => ShiftRequestBoard::FILTERS,
+            'activeFilter' => $filter,
+            'replacementCandidates' => $this->replacementCandidates($user, $requests->getCollection(), $replacementAction),
         ]);
     }
 
@@ -131,5 +97,27 @@ class ShiftRequestController extends Controller
         $action->handle($request->user(), $shiftRequest, $replacement);
 
         return back()->with('success', 'Đã phân nhân viên thay ca.');
+    }
+
+    /**
+     * Who could cover each approved absence, keyed by request.
+     *
+     * Only worked out for the rows that still need somebody, because each one
+     * costs a candidate search.
+     *
+     * @param  Collection<int, ShiftRequest>  $requests
+     * @return Collection<int, Collection<int, User>>
+     */
+    private function replacementCandidates(User $user, Collection $requests, AssignShiftReplacementAction $action): Collection
+    {
+        if (! $user->isLeadership()) {
+            return collect();
+        }
+
+        return $requests
+            ->filter(fn (ShiftRequest $request): bool => $request->awaitingReplacement())
+            ->mapWithKeys(fn (ShiftRequest $request): array => [
+                $request->getKey() => $action->candidates($user, $request),
+            ]);
     }
 }

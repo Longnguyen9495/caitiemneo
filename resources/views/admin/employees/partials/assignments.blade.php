@@ -58,13 +58,11 @@
         <form method="POST" action="{{ route('admin.employees.assignments.store', $employee) }}" class="card-body border-top">
             @csrf
             <div class="row g-3">
-                <x-admin.field name="branch_id" label="Chi nhánh" required>
-                    <select class="form-select @error('branch_id') is-invalid @enderror" id="branch_id" name="branch_id" required>
-                        @foreach ($branches as $branch)
-                            <option value="{{ $branch->id }}" @selected((string) old('branch_id', $defaultBranchId) === (string) $branch->id)>{{ $branch->name }}</option>
-                        @endforeach
-                    </select>
-                </x-admin.field>
+                <x-admin.select-field name="branch_id" label="Chi nhánh" required>
+                    @foreach ($branches as $branch)
+                        <option value="{{ $branch->id }}" @selected((string) old('branch_id', $defaultBranchId) === (string) $branch->id)>{{ $branch->name }}</option>
+                    @endforeach
+                </x-admin.select-field>
 
                 <x-admin.field name="starts_on" label="Từ ngày" col="col-6 col-lg-3" required>
                     <input class="form-control @error('starts_on') is-invalid @enderror" id="starts_on" type="date"

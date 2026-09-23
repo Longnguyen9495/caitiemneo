@@ -45,13 +45,11 @@
                        type="password" autocomplete="new-password" @required(! $employee->exists)>
             </x-admin.field>
 
-            <x-admin.field name="role" label="Vai trò" required>
-                <select class="form-select @error('role') is-invalid @enderror" id="role" name="role" required>
-                    @foreach ($roles as $value => $label)
-                        <option value="{{ $value }}" @selected(old('role', $employee->role?->value) === $value)>{{ $label }}</option>
-                    @endforeach
-                </select>
-            </x-admin.field>
+            <x-admin.select-field name="role" label="Vai trò" required>
+                @foreach ($roles as $value => $label)
+                    <option value="{{ $value }}" @selected(old('role', $employee->role?->value) === $value)>{{ $label }}</option>
+                @endforeach
+            </x-admin.select-field>
 
             @unless ($employee->exists)
                 {{-- Một tài khoản chưa có phân công thì không vào được khu vực quản trị,

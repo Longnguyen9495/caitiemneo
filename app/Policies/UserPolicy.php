@@ -10,7 +10,7 @@ class UserPolicy
     /** The staff directory is visible to the leadership only. */
     public function viewAny(User $user): bool
     {
-        return $user->isOwner() || $user->isManager();
+        return $user->isLeadership();
     }
 
     /**

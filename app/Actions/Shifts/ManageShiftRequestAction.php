@@ -2,27 +2,39 @@
 
 namespace App\Actions\Shifts;
 
+use App\Actions\Shifts\Concerns\AssertsBranchLeadership;
 use App\Enums\AuditAction;
-use App\Enums\LeaveEntitlement;
 use App\Enums\ShiftRequestStatus;
 use App\Enums\ShiftRequestType;
-use App\Models\MonthlyPaidLeaveDay;
 use App\Models\ShiftAssignment;
 use App\Models\ShiftRequest;
 use App\Models\ShiftRequestHistory;
 use App\Models\User;
 use App\Services\Audit\AuditRecorder;
 use App\Services\Payroll\PayrollLockGuard;
+use App\Services\Shifts\PaidLeaveAllowance;
 use App\Services\Shifts\ShiftRequestNotifier;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
+/**
+ * The life of a leave or swap request, from asking to decided.
+ *
+ * Every method here reloads the request under a row lock before looking at its
+ * status. Two managers hitting Approve on the same request within the same
+ * second is not a rare event in a shop, and the model handed in by the router
+ * was read before either of them clicked.
+ */
 class ManageShiftRequestAction
 {
+    use AssertsBranchLeadership;
+
     public function __construct(
         private AuditRecorder $audit,
         private PayrollLockGuard $payrollLock,
         private ShiftRequestNotifier $notifier,
+        private PaidLeaveAllowance $paidLeave,
     ) {}
 
     public function createLeave(User $requester, int $assignmentId, ?string $reason = null): ShiftRequest
@@ -45,7 +57,7 @@ class ManageShiftRequestAction
 
             $this->recordTransition($request, null, ShiftRequestStatus::PendingApproval, $requester, $reason);
             $this->audit->record($request, $requester, AuditAction::Created, null, $request->getAttributes(), $reason, $request->branch_id);
-            $this->notifier->afterCommit($request, $this->notifier->managersFor($request), sprintf('%s đã gửi đơn nghỉ ca ngày %s cần duyệt.', $requester->name, $request->work_date->format('d/m/Y')));
+            $this->notify($request, $this->notifier->managersFor($request), sprintf('%s đã gửi đơn nghỉ ca ngày %s cần duyệt.', $requester->name, $this->dateLabel($request)));
 
             return $request;
         });
@@ -66,14 +78,11 @@ class ManageShiftRequestAction
                 throw ValidationException::withMessages(['recipient_id' => 'Người nhận phải sở hữu ca đối ứng.']);
             }
 
-            if ($assignment->branch_id !== $counter->branch_id
-                || $assignment->work_date->toDateString() !== $counter->work_date->toDateString()
-                || ! $recipient->canAccessBranch($assignment->branch_id, $assignment->work_date)) {
+            if (! $this->isExchangeable($assignment, $counter) || ! $recipient->canAccessBranch($assignment->branch_id, $assignment->work_date)) {
                 throw ValidationException::withMessages(['counter_shift_assignment_id' => 'Ca đổi phải cùng ngày, cùng chi nhánh và người nhận còn được phân công hợp lệ.']);
             }
 
-            $this->assertNoConflictingAssignment($requester, $counter, [$assignment->getKey(), $counter->getKey()]);
-            $this->assertNoConflictingAssignment($recipient, $assignment, [$assignment->getKey(), $counter->getKey()]);
+            $this->assertSwapLeavesNoOverlap($requester, $recipient, $assignment, $counter);
 
             $this->assertNoOpenRequest($assignment->getKey());
             $this->assertNoOpenRequest($counter->getKey());
@@ -92,7 +101,7 @@ class ManageShiftRequestAction
 
             $this->recordTransition($request, null, ShiftRequestStatus::PendingRecipient, $requester, $reason);
             $this->audit->record($request, $requester, AuditAction::Created, null, $request->getAttributes(), $reason, $request->branch_id);
-            $this->notifier->afterCommit($request, [$recipient], sprintf('%s đề nghị đổi ca ngày %s với bạn.', $requester->name, $request->work_date->format('d/m/Y')));
+            $this->notify($request, [$recipient], sprintf('%s đề nghị đổi ca ngày %s với bạn.', $requester->name, $this->dateLabel($request)));
 
             return $request;
         });
@@ -101,20 +110,19 @@ class ManageShiftRequestAction
     public function cancel(User $actor, ShiftRequest $request, ?string $note = null): ShiftRequest
     {
         return DB::transaction(function () use ($actor, $request, $note): ShiftRequest {
-            $request = ShiftRequest::query()->lockForUpdate()->findOrFail($request->getKey());
+            $request = $this->lockRequest($request);
 
             if ($request->requester_id !== $actor->getKey() || ! $request->status->canBeCancelledByRequester()) {
                 throw ValidationException::withMessages(['request' => 'Đơn này không còn có thể hủy.']);
             }
 
             $request = $this->transition($request, ShiftRequestStatus::Cancelled, $actor, $note, AuditAction::Cancelled);
-            $recipients = $this->notifier->managersFor($request);
 
-            if ($request->recipient_id !== null) {
-                $recipients->push(User::query()->find($request->recipient_id))->filter();
-            }
-
-            $this->notifier->afterCommit($request, $recipients, sprintf('%s đã hủy đơn ca làm ngày %s.', $actor->name, $request->work_date->format('d/m/Y')));
+            $this->notify(
+                $request,
+                $this->notifier->managersFor($request)->merge($this->recipientOf($request)),
+                sprintf('%s đã hủy đơn ca làm ngày %s.', $actor->name, $this->dateLabel($request)),
+            );
 
             return $request;
         });
@@ -123,20 +131,27 @@ class ManageShiftRequestAction
     public function respond(User $actor, ShiftRequest $request, bool $accepted, ?string $note = null): ShiftRequest
     {
         return DB::transaction(function () use ($actor, $request, $accepted, $note): ShiftRequest {
-            $request = ShiftRequest::query()->lockForUpdate()->findOrFail($request->getKey());
+            $request = $this->lockRequest($request);
 
             if ($request->type !== ShiftRequestType::Swap || $request->recipient_id !== $actor->getKey() || $request->status !== ShiftRequestStatus::PendingRecipient) {
                 throw ValidationException::withMessages(['request' => 'Bạn không thể phản hồi đơn đổi ca này.']);
             }
 
-            $request = $this->transition($request, $accepted ? ShiftRequestStatus::RecipientConfirmed : ShiftRequestStatus::Rejected, $actor, $note, $accepted ? AuditAction::Updated : AuditAction::Rejected);
-            $recipients = collect([User::query()->find($request->requester_id)]);
+            $request = $this->transition(
+                $request,
+                $accepted ? ShiftRequestStatus::RecipientConfirmed : ShiftRequestStatus::Rejected,
+                $actor,
+                $note,
+                $accepted ? AuditAction::Updated : AuditAction::Rejected,
+            );
+
+            $audience = $this->requesterOf($request);
 
             if ($accepted) {
-                $recipients = $recipients->merge($this->notifier->managersFor($request));
+                $audience = $audience->merge($this->notifier->managersFor($request));
             }
 
-            $this->notifier->afterCommit($request, $recipients, sprintf('%s đã %s đề nghị đổi ca ngày %s.', $actor->name, $accepted ? 'đồng ý' : 'từ chối', $request->work_date->format('d/m/Y')));
+            $this->notify($request, $audience, sprintf('%s đã %s đề nghị đổi ca ngày %s.', $actor->name, $accepted ? 'đồng ý' : 'từ chối', $this->dateLabel($request)));
 
             return $request;
         });
@@ -145,88 +160,97 @@ class ManageShiftRequestAction
     public function decide(User $actor, ShiftRequest $request, bool $approved, ?string $note = null): ShiftRequest
     {
         return DB::transaction(function () use ($actor, $request, $approved, $note): ShiftRequest {
-            $request = ShiftRequest::query()->lockForUpdate()->findOrFail($request->getKey());
+            $request = $this->lockRequest($request);
             $this->assertManagerScope($actor, $request);
-
-            $allowed = $request->type === ShiftRequestType::Leave
-                ? $request->status === ShiftRequestStatus::PendingApproval
-                : $request->status === ShiftRequestStatus::RecipientConfirmed;
-
-            if (! $allowed) {
-                throw ValidationException::withMessages(['request' => 'Trạng thái đơn không hợp lệ để duyệt.']);
-            }
+            $this->assertAwaitingDecision($request);
 
             $assignment = ShiftAssignment::query()->lockForUpdate()->findOrFail($request->shift_assignment_id);
             $this->assertMutableAssignment($assignment);
 
-            if ($request->type === ShiftRequestType::Swap) {
-                $counter = ShiftAssignment::query()->lockForUpdate()->findOrFail($request->counter_shift_assignment_id);
-                $this->assertMutableAssignment($counter);
-
-                if ($counter->employee_id !== $request->recipient_id
-                    || $counter->branch_id !== $assignment->branch_id
-                    || $counter->work_date->toDateString() !== $assignment->work_date->toDateString()) {
-                    throw ValidationException::withMessages(['request' => 'Ca đối ứng đã thay đổi hoặc không còn hợp lệ.']);
-                }
-
-                $requester = User::query()->findOrFail($request->requester_id);
-                $recipient = User::query()->findOrFail($request->recipient_id);
-                $this->assertNoConflictingAssignment($requester, $counter, [$assignment->getKey(), $counter->getKey()]);
-                $this->assertNoConflictingAssignment($recipient, $assignment, [$assignment->getKey(), $counter->getKey()]);
-            }
+            // Ca đối ứng vẫn được khóa và soát lại ngay cả khi sắp từ chối: nếu
+            // nó đã đổi từ lúc gửi đơn thì người duyệt cần biết, chứ không phải
+            // nhận một câu "đã từ chối" cho thứ không còn tồn tại.
+            $counter = $request->type === ShiftRequestType::Swap
+                ? $this->lockExchangeableCounter($request, $assignment)
+                : null;
 
             if (! $approved) {
                 $request = $this->transition($request, ShiftRequestStatus::Rejected, $actor, $note, AuditAction::Rejected);
-                $recipients = collect([User::query()->find($request->requester_id)]);
-
-                if ($request->recipient_id !== null) {
-                    $recipients->push(User::query()->find($request->recipient_id));
-                }
-
-                $this->notifier->afterCommit($request, $recipients, sprintf('Đơn %s ngày %s đã bị từ chối.', $request->type->label(), $request->work_date->format('d/m/Y')));
+                $this->notify($request, $this->partiesTo($request), sprintf('Đơn %s ngày %s đã bị từ chối.', $request->type->label(), $this->dateLabel($request)));
 
                 return $request;
             }
 
-            if ($request->type === ShiftRequestType::Leave) {
-                User::query()->lockForUpdate()->findOrFail($request->requester_id);
-
-                $paidLeaveDaysThisMonth = MonthlyPaidLeaveDay::query()
-                    ->where('employee_id', $request->requester_id)
-                    ->whereBetween('leave_date', [
-                        $request->work_date->copy()->startOfMonth()->toDateString(),
-                        $request->work_date->copy()->endOfMonth()->toDateString(),
-                    ])
-                    ->lockForUpdate()
-                    ->count();
-
-                $request->leave_entitlement = $paidLeaveDaysThisMonth < 2
-                    ? LeaveEntitlement::Paid
-                    : LeaveEntitlement::Unpaid;
-
-                if ($request->leave_entitlement === LeaveEntitlement::Paid) {
-                    MonthlyPaidLeaveDay::query()->create([
-                        'employee_id' => $request->requester_id,
-                        'branch_id' => $request->branch_id,
-                        'leave_date' => $request->work_date,
-                        'scheduled_by' => $actor->getKey(),
-                    ]);
-                }
+            if ($counter === null) {
+                $requester = User::query()->lockForUpdate()->findOrFail($request->requester_id);
+                $request->leave_entitlement = $this->paidLeave->claim($requester, $request->branch_id, $request->work_date, $actor);
             } else {
                 $this->swapEmployees($assignment, $counter);
             }
 
             $request = $this->transition($request, ShiftRequestStatus::Approved, $actor, $note, AuditAction::Approved);
-            $recipients = collect([User::query()->find($request->requester_id)]);
-
-            if ($request->recipient_id !== null) {
-                $recipients->push(User::query()->find($request->recipient_id));
-            }
-
-            $this->notifier->afterCommit($request, $recipients, sprintf('Đơn %s ngày %s đã được duyệt.', $request->type->label(), $request->work_date->format('d/m/Y')));
+            $this->notify($request, $this->partiesTo($request), sprintf('Đơn %s ngày %s đã được duyệt.', $request->type->label(), $this->dateLabel($request)));
 
             return $request;
         });
+    }
+
+    private function lockRequest(ShiftRequest $request): ShiftRequest
+    {
+        return ShiftRequest::query()->lockForUpdate()->findOrFail($request->getKey());
+    }
+
+    /** Only a request actually waiting on a manager may be decided. */
+    private function assertAwaitingDecision(ShiftRequest $request): void
+    {
+        $awaiting = $request->type === ShiftRequestType::Leave
+            ? ShiftRequestStatus::PendingApproval
+            : ShiftRequestStatus::RecipientConfirmed;
+
+        if ($request->status !== $awaiting) {
+            throw ValidationException::withMessages(['request' => 'Trạng thái đơn không hợp lệ để duyệt.']);
+        }
+    }
+
+    /**
+     * The counter shift of a swap, locked and still fit to exchange.
+     *
+     * A roster can move between the request being raised and being approved, so
+     * the pairing is proved again here rather than trusted from the request.
+     */
+    private function lockExchangeableCounter(ShiftRequest $request, ShiftAssignment $assignment): ShiftAssignment
+    {
+        $counter = ShiftAssignment::query()->lockForUpdate()->findOrFail($request->counter_shift_assignment_id);
+        $this->assertMutableAssignment($counter);
+
+        if ($counter->employee_id !== $request->recipient_id || ! $this->isExchangeable($assignment, $counter)) {
+            throw ValidationException::withMessages(['request' => 'Ca đối ứng đã thay đổi hoặc không còn hợp lệ.']);
+        }
+
+        $this->assertSwapLeavesNoOverlap(
+            User::query()->findOrFail($request->requester_id),
+            User::query()->findOrFail($request->recipient_id),
+            $assignment,
+            $counter,
+        );
+
+        return $counter;
+    }
+
+    /** Two shifts may only be traded within the same shop on the same day. */
+    private function isExchangeable(ShiftAssignment $assignment, ShiftAssignment $counter): bool
+    {
+        return $assignment->branch_id === $counter->branch_id
+            && $assignment->work_date->toDateString() === $counter->work_date->toDateString();
+    }
+
+    /** Neither side may end up double-booked once the two shifts change hands. */
+    private function assertSwapLeavesNoOverlap(User $requester, User $recipient, ShiftAssignment $assignment, ShiftAssignment $counter): void
+    {
+        $traded = [$assignment->getKey(), $counter->getKey()];
+
+        $this->assertNoConflictingAssignment($requester, $counter, $traded);
+        $this->assertNoConflictingAssignment($recipient, $assignment, $traded);
     }
 
     private function transition(ShiftRequest $request, ShiftRequestStatus $to, User $actor, ?string $note, AuditAction $auditAction): ShiftRequest
@@ -252,6 +276,43 @@ class ManageShiftRequestAction
         ]);
     }
 
+    /** @param  Collection<int, User>|array<int, User>  $audience */
+    private function notify(ShiftRequest $request, Collection|array $audience, string $message): void
+    {
+        $this->notifier->afterCommit($request, $audience, $message);
+    }
+
+    /**
+     * Both sides of the request: whoever asked, and whoever was asked.
+     *
+     * @return Collection<int, User>
+     */
+    private function partiesTo(ShiftRequest $request): Collection
+    {
+        return $this->requesterOf($request)->merge($this->recipientOf($request));
+    }
+
+    /** @return Collection<int, User> */
+    private function requesterOf(ShiftRequest $request): Collection
+    {
+        return collect([User::query()->find($request->requester_id)])->filter()->values();
+    }
+
+    /** @return Collection<int, User> */
+    private function recipientOf(ShiftRequest $request): Collection
+    {
+        if ($request->recipient_id === null) {
+            return collect();
+        }
+
+        return collect([User::query()->find($request->recipient_id)])->filter()->values();
+    }
+
+    private function dateLabel(ShiftRequest $request): string
+    {
+        return $request->work_date->format('d/m/Y');
+    }
+
     private function assertRequesterOwnsAssignment(User $requester, ShiftAssignment $assignment): void
     {
         if (! $requester->is_active || $assignment->employee_id !== $requester->getKey() || ! $requester->canAccessBranch($assignment->branch_id, $assignment->work_date)) {
@@ -275,14 +336,13 @@ class ManageShiftRequestAction
         }
     }
 
-    /** @param array<int, int> $excludedAssignmentIds */
+    /** @param  array<int, int>  $excludedAssignmentIds */
     private function assertNoConflictingAssignment(User $employee, ShiftAssignment $incoming, array $excludedAssignmentIds): void
     {
         $conflicts = ShiftAssignment::query()
-            ->where('employee_id', $employee->getKey())
+            ->forEmployee($employee)
             ->whereNotIn('id', $excludedAssignmentIds)
-            ->where('planned_start_at', '<', $incoming->planned_end_at)
-            ->where('planned_end_at', '>', $incoming->planned_start_at)
+            ->overlappingAssignment($incoming)
             ->exists();
 
         if ($conflicts) {
@@ -301,8 +361,12 @@ class ManageShiftRequestAction
 
     private function assertManagerScope(User $actor, ShiftRequest $request): void
     {
-        if ((! $actor->isOwner() && ! $actor->isManager()) || ! $actor->canAccessBranch($request->branch_id, $request->work_date)) {
-            throw ValidationException::withMessages(['request' => 'Bạn không có quyền duyệt đơn tại chi nhánh này.']);
-        }
+        $this->assertLeadsBranchOn(
+            $actor,
+            $request->branch_id,
+            $request->work_date,
+            'request',
+            'Bạn không có quyền duyệt đơn tại chi nhánh này.',
+        );
     }
 }

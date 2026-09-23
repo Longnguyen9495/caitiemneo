@@ -3,8 +3,6 @@
 namespace App\Support;
 
 use App\Enums\FeedbackStatus;
-use App\Enums\ShiftRequestStatus;
-use App\Enums\ShiftRequestType;
 use App\Models\Appointment;
 use App\Models\AttendanceRecord;
 use App\Models\Branch;
@@ -18,7 +16,6 @@ use App\Models\RiskFlag;
 use App\Models\Service;
 use App\Models\ShiftRequest;
 use App\Models\User;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Gate;
 
@@ -94,6 +91,9 @@ final class AdminNavigation
                 'icon' => 'alert', 'primary' => false,
                 'visible' => $user->can('viewAny', ShiftRequest::class),
                 'badge' => $shiftRequestBadge,
+                // Huy hiệu hứa một hàng việc, nên nó phải mở ra đúng hàng việc
+                // đó chứ không phải toàn bộ sổ đơn xếp theo ngày gửi.
+                'params' => $shiftRequestBadge > 0 ? ['loc' => 'can-xu-ly'] : [],
                 'group' => 'hr',
             ],
             [
@@ -154,7 +154,7 @@ final class AdminNavigation
                 'visible' => Gate::forUser($user)->allows('view-reports'),
                 'group' => 'sales',
             ],
-        ])->map(fn (array $item): array => $item + ['badge' => 0])
+        ])->map(fn (array $item): array => $item + ['badge' => 0, 'params' => []])
             ->where('visible', true)
             ->values();
     }
@@ -236,20 +236,9 @@ final class AdminNavigation
             return 0;
         }
 
-        // Hai nhóm dưới đây rời nhau về mặt trạng thái nên đếm hợp của chúng
-        // bằng một truy vấn cho ra đúng tổng của hai lần đếm riêng lẻ.
         return ShiftRequest::query()
             ->whereIn('branch_id', $branchIds)
-            ->where(function (Builder $query): void {
-                $query->whereIn('status', [
-                    ShiftRequestStatus::PendingApproval,
-                    ShiftRequestStatus::RecipientConfirmed,
-                ])->orWhere(function (Builder $approved): void {
-                    $approved->where('type', ShiftRequestType::Leave)
-                        ->where('status', ShiftRequestStatus::Approved)
-                        ->whereDoesntHave('replacement');
-                });
-            })
+            ->needingAction()
             ->count();
     }
 

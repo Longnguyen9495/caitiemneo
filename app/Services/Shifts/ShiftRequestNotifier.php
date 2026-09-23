@@ -2,6 +2,7 @@
 
 namespace App\Services\Shifts;
 
+use App\Enums\UserRole;
 use App\Models\ShiftRequest;
 use App\Models\User;
 use App\Notifications\ShiftRequestNotification;
@@ -52,14 +53,24 @@ final class ShiftRequestNotifier
         });
     }
 
-    /** @return Collection<int, User> */
+    /**
+     * The people who may act on this request.
+     *
+     * The role narrowing belongs in SQL: reading every active account in the
+     * company only to drop the employees costs one extra branch lookup per
+     * person dropped, and a shop that grows keeps paying it on every request.
+     * Branch access stays in PHP because it answers differently for an owner,
+     * who is not tied to postings at all.
+     *
+     * @return Collection<int, User>
+     */
     public function managersFor(ShiftRequest $request): Collection
     {
         return User::query()
             ->active()
+            ->whereIn('role', [UserRole::Owner->value, UserRole::Manager->value])
             ->get()
-            ->filter(fn (User $user): bool => ($user->isOwner() || $user->isManager())
-                && $user->canAccessBranch($request->branch_id, $request->work_date))
+            ->filter(fn (User $user): bool => $user->canAccessBranch($request->branch_id, $request->work_date))
             ->values();
     }
 }

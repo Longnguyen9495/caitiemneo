@@ -1,12 +1,16 @@
-@props(['name', 'label', 'help' => null, 'col' => 'col-12 col-lg-6', 'required' => false])
+@props(['name', 'label', 'help' => null, 'col' => 'col-12 col-lg-6', 'required' => false, 'id' => null])
 
 @php
     // Trình đọc màn hình cần biết ô này sai và câu nào giải thích vì sao; đặt
     // hai khối cạnh nhau về mặt thị giác là chưa đủ. Id được sinh ở đây rồi
     // gắn vào control bằng aria-describedby.
-    $fieldId = $name;
-    $errorId = $name.'-error';
-    $helpId = $name.'-help';
+    // Mặc định id trùng tên ô. Hai biểu mẫu trên cùng một trang có thể gửi
+    // cùng một tên — ca cần nghỉ và ca cần đổi đều là `shift_assignment_id` —
+    // nên khi đó mỗi ô phải tự khai một id, nếu không nhãn thứ hai sẽ trỏ vào
+    // ô của biểu mẫu thứ nhất và bấm vào nhãn lại nhảy sang chỗ khác.
+    $fieldId = $id ?? $name;
+    $errorId = $fieldId.'-error';
+    $helpId = $fieldId.'-help';
     $hasError = $errors->has($name);
 
     $describedBy = array_filter([

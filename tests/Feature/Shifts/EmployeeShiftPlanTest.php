@@ -158,4 +158,53 @@ class EmployeeShiftPlanTest extends TestCase
 
         app(ManageShiftRequestAction::class)->decide($this->manager, $request, true);
     }
+
+    /**
+     * Một ngày nghỉ vẫn là một ngày, kể cả khi hôm đó xếp hai ca.
+     *
+     * `monthly_paid_leave_days` khóa duy nhất theo (nhân viên, ngày), nên đơn
+     * thứ hai của cùng ngày trước đây làm vỡ ràng buộc và trả về lỗi 500 thay
+     * vì duyệt được đơn.
+     */
+    public function test_two_shifts_on_one_day_consume_a_single_paid_leave_day(): void
+    {
+        $evening = WorkShift::factory()->atBranch($this->branch)->spanning('18:00:00', '22:00:00')->create();
+        $action = app(ManageShiftRequestAction::class);
+
+        $entitlements = collect([$this->shift, $evening])
+            ->map(function (WorkShift $shift) use ($action): LeaveEntitlement {
+                $assignment = ShiftAssignment::factory()
+                    ->forEmployee($this->employee)
+                    ->atBranch($this->branch)
+                    ->usingShift($shift)
+                    ->on('2026-10-10')
+                    ->create();
+
+                return $action->decide($this->manager, $action->createLeave($this->employee, $assignment->id), true)->leave_entitlement;
+            });
+
+        $this->assertSame([LeaveEntitlement::Paid, LeaveEntitlement::Paid], $entitlements->all());
+        $this->assertSame(1, MonthlyPaidLeaveDay::query()->count());
+    }
+
+    /** Hạn mức ngày nghỉ hưởng lương đọc từ cấu hình chứ không nằm cứng trong code. */
+    public function test_the_paid_leave_allowance_comes_from_configuration(): void
+    {
+        config(['attendance.paid_leave_days_per_month' => 1]);
+
+        $action = app(ManageShiftRequestAction::class);
+        $entitlements = collect(['2026-10-10', '2026-10-20'])
+            ->map(function (string $date) use ($action): LeaveEntitlement {
+                $assignment = ShiftAssignment::factory()
+                    ->forEmployee($this->employee)
+                    ->atBranch($this->branch)
+                    ->usingShift($this->shift)
+                    ->on($date)
+                    ->create();
+
+                return $action->decide($this->manager, $action->createLeave($this->employee, $assignment->id), true)->leave_entitlement;
+            });
+
+        $this->assertSame([LeaveEntitlement::Paid, LeaveEntitlement::Unpaid], $entitlements->all());
+    }
 }

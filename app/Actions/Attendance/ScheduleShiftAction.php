@@ -6,6 +6,7 @@ use App\Models\Branch;
 use App\Models\ShiftAssignment;
 use App\Models\User;
 use App\Models\WorkShift;
+use App\Services\Payroll\PayrollLockGuard;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -19,6 +20,8 @@ use Illuminate\Validation\ValidationException;
  */
 class ScheduleShiftAction
 {
+    public function __construct(private PayrollLockGuard $payrollLock) {}
+
     /** @throws ValidationException */
     public function handle(
         Branch $branch,
@@ -29,7 +32,9 @@ class ScheduleShiftAction
         ?string $note = null,
     ): ShiftAssignment {
         $this->assertTemplateUsable($branch, $shift);
+        $this->assertEmployeeStillWorks($employee);
         $this->assertEmployeePostedToBranch($branch, $employee, $workDate);
+        $this->payrollLock->assertUnlocked($employee->getKey(), $workDate, 'work_date');
 
         $plannedStart = $shift->plannedStartOn($workDate);
         $plannedEnd = $shift->plannedEndOn($workDate);
@@ -76,6 +81,24 @@ class ScheduleShiftAction
         }
     }
 
+    /**
+     * A closed account is not somebody who can turn up.
+     *
+     * Deactivating an account does not end the branch postings behind it, so
+     * without this the person still looks rosterable on any date those
+     * postings cover — and a form opened before they left would still submit.
+     */
+    private function assertEmployeeStillWorks(User $employee): void
+    {
+        if ($employee->is_active) {
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            'employee_id' => 'Tài khoản nhân viên đã ngừng hoạt động nên không thể phân ca.',
+        ]);
+    }
+
     /** Somebody can only be rostered where they are actually posted that day. */
     private function assertEmployeePostedToBranch(Branch $branch, User $employee, string $workDate): void
     {
@@ -98,9 +121,8 @@ class ScheduleShiftAction
     private function assertNoOverlap(User $employee, mixed $plannedStart, mixed $plannedEnd): void
     {
         $clash = ShiftAssignment::query()
-            ->where('employee_id', $employee->getKey())
-            ->where('planned_start_at', '<', $plannedEnd)
-            ->where('planned_end_at', '>', $plannedStart)
+            ->forEmployee($employee)
+            ->overlapping($plannedStart, $plannedEnd)
             ->exists();
 
         if ($clash) {

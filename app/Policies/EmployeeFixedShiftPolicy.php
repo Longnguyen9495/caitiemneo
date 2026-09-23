@@ -36,6 +36,6 @@ class EmployeeFixedShiftPolicy
 
     private function manages(User $user): bool
     {
-        return $user->isOwner() || $user->isManager();
+        return $user->isLeadership();
     }
 }

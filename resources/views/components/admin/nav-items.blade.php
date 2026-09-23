@@ -2,7 +2,7 @@
 
 @foreach ($items as $item)
     <a
-        href="{{ route($item['route']) }}"
+        href="{{ route($item['route'], $item['params'] ?? []) }}"
         @class([$class, 'is-active' => request()->routeIs($item['pattern'])])
         @if (request()->routeIs($item['pattern'])) aria-current="page" @endif
     >

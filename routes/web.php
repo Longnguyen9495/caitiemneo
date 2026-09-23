@@ -169,6 +169,17 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
             ->name('employee-shift-plans.fixed-shifts.store');
         Route::post('employee-shift-plans/generate', [EmployeeShiftPlanController::class, 'generate'])
             ->name('employee-shift-plans.generate');
+        /*
+         * Kết thúc và xóa ca cố định.
+         *
+         * Thiếu hai đường này thì một ca cố định không thời hạn là vĩnh viễn:
+         * quy tắc chống chồng lấn chặn luôn mọi ca mới của nhân viên đó, mà
+         * không có chỗ nào đóng ca cũ lại.
+         */
+        Route::patch('employee-shift-plans/fixed-shifts/{fixed_shift}', [EmployeeShiftPlanController::class, 'endFixedShift'])
+            ->name('employee-shift-plans.fixed-shifts.end');
+        Route::delete('employee-shift-plans/fixed-shifts/{fixed_shift}', [EmployeeShiftPlanController::class, 'destroyFixedShift'])
+            ->name('employee-shift-plans.fixed-shifts.destroy');
 
         Route::get('notifications', [NotificationController::class, 'index'])->name('notifications.index');
         Route::get('notifications/{notification}', [NotificationController::class, 'show'])->name('notifications.show');

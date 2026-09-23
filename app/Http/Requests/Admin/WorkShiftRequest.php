@@ -47,6 +47,7 @@ class WorkShiftRequest extends FormRequest
 
     protected function prepareForValidation(): void
     {
+        $shift = $this->route('work_shift');
         $branchId = $this->input('branch_id');
 
         // "Dùng chung" comes through as an empty option value. Only the owner
@@ -57,11 +58,21 @@ class WorkShiftRequest extends FormRequest
             : (int) $branchId;
 
         if ($resolved !== null && ! $this->user()->canAccessBranch($resolved)) {
-            $resolved = app(BranchContext::class)->currentId();
+            $resolved = null;
         }
 
+        /*
+         * Sửa một ca đã có thì phải giữ nguyên chi nhánh của nó.
+         *
+         * Lấy theo bộ chọn chi nhánh đang mở sẽ khiến quản lý hai cơ sở, đang
+         * đứng ở cơ sở B mà sửa giờ một ca của cơ sở A, vô tình dời luôn ca đó
+         * sang B — A mất ca khỏi form phân công mà không ai bấm gì để dời cả.
+         * Chỉ ca tạo mới mới hỏi tới ngữ cảnh.
+         */
         if ($resolved === null && ! $this->user()->isOwner()) {
-            $resolved = app(BranchContext::class)->currentId();
+            $resolved = $shift instanceof WorkShift
+                ? $shift->branch_id
+                : app(BranchContext::class)->currentId();
         }
 
         $this->merge([
