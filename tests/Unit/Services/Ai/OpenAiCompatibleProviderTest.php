@@ -332,4 +332,100 @@ class OpenAiCompatibleProviderTest extends TestCase
         $this->assertCount(1, $result->blocks);
         $this->assertSame('text', $result->blocks[0]['type']);
     }
+
+    public function test_plain_text_answer_is_salvaged_instead_of_failing(): void
+    {
+        Http::fake([
+            'https://ai.example.com/v1/chat/completions' => Http::response([
+                'id' => 'resp-11',
+                'choices' => [[
+                    'message' => [
+                        'role' => 'assistant',
+                        'content' => 'Mình chỉ tra được số liệu của tiệm, chưa xem được thời tiết nhé.',
+                    ],
+                ]],
+                'usage' => [],
+            ]),
+        ]);
+
+        $provider = new OpenAiCompatibleProvider;
+        $result = $provider->chat([['role' => 'user', 'content' => 'Thời tiết hôm nay thế nào?']]);
+
+        $this->assertSame('Mình chỉ tra được số liệu của tiệm, chưa xem được thời tiết nhé.', $result->content);
+        $this->assertCount(1, $result->blocks);
+        $this->assertSame('text', $result->blocks[0]['type']);
+    }
+
+    public function test_raw_newlines_inside_json_string_are_repaired(): void
+    {
+        Http::fake([
+            'https://ai.example.com/v1/chat/completions' => Http::response([
+                'id' => 'resp-12',
+                'choices' => [[
+                    'message' => [
+                        'role' => 'assistant',
+                        'content' => "{\"content\": \"Doanh thu tháng này:\n```chart\nbar\n```\", \"blocks\": [], \"actions\": []}",
+                    ],
+                ]],
+                'usage' => [],
+            ]),
+        ]);
+
+        $provider = new OpenAiCompatibleProvider;
+        $result = $provider->chat([['role' => 'user', 'content' => 'Biểu đồ doanh thu']]);
+
+        $this->assertStringContainsString('Doanh thu tháng này:', $result->content);
+        $this->assertStringContainsString('```chart', $result->content);
+    }
+
+    public function test_prose_around_json_object_is_ignored(): void
+    {
+        Http::fake([
+            'https://ai.example.com/v1/chat/completions' => Http::response([
+                'id' => 'resp-13',
+                'choices' => [[
+                    'message' => [
+                        'role' => 'assistant',
+                        'content' => 'Đây là kết quả bạn cần: '.json_encode([
+                            'content' => 'Doanh thu tháng 9 là 17 triệu.',
+                            'blocks' => [],
+                            'actions' => [],
+                        ]).' Hy vọng giúp được bạn.',
+                    ],
+                ]],
+                'usage' => [],
+            ]),
+        ]);
+
+        $provider = new OpenAiCompatibleProvider;
+        $result = $provider->chat([['role' => 'user', 'content' => 'Hỏi']]);
+
+        $this->assertSame('Doanh thu tháng 9 là 17 triệu.', $result->content);
+    }
+
+    public function test_missing_content_falls_back_to_first_text_block(): void
+    {
+        Http::fake([
+            'https://ai.example.com/v1/chat/completions' => Http::response([
+                'id' => 'resp-14',
+                'choices' => [[
+                    'message' => [
+                        'role' => 'assistant',
+                        'content' => json_encode([
+                            'blocks' => [
+                                ['type' => 'text', 'content' => 'Tháng này tiệm có 42 lượt khách.'],
+                            ],
+                            'actions' => [],
+                        ]),
+                    ],
+                ]],
+                'usage' => [],
+            ]),
+        ]);
+
+        $provider = new OpenAiCompatibleProvider;
+        $result = $provider->chat([['role' => 'user', 'content' => 'Hỏi']]);
+
+        $this->assertSame('Tháng này tiệm có 42 lượt khách.', $result->content);
+    }
 }

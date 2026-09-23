@@ -423,15 +423,106 @@ class OpenAiCompatibleProvider implements AiProvider
     /** @return array<string, mixed> */
     private function decodeDocument(string $content): array
     {
-        $content = trim($content);
-        $content = preg_replace('/^```(?:json)?\s*|\s*```$/i', '', $content) ?? $content;
-        $decoded = json_decode($content, true);
+        $decoded = $this->tryDecodeDocument($content);
 
-        if (! is_array($decoded)) {
-            throw new RuntimeException('Phản hồi AI không đúng định dạng JSON yêu cầu.');
+        if ($decoded !== null) {
+            return $decoded;
         }
 
-        return $decoded;
+        $plain = $this->stripJsonFence($content);
+
+        // Lượt có kèm công cụ không gửi được `response_format`, nên model đôi khi
+        // trả thẳng văn xuôi. Câu trả lời đó vẫn dùng được: gói lại đúng hình
+        // dạng document còn hơn báo lỗi và bắt người dùng hỏi lại từ đầu.
+        if ($plain !== '' && ! str_contains($plain, '{')) {
+            return ['content' => $plain];
+        }
+
+        throw new RuntimeException('Phản hồi AI không đúng định dạng JSON yêu cầu.');
+    }
+
+    /** @return array<string, mixed>|null */
+    private function tryDecodeDocument(string $content): ?array
+    {
+        $body = $this->stripJsonFence($content);
+        $start = strpos($body, '{');
+        $end = strrpos($body, '}');
+
+        if ($start === false || $end === false || $end <= $start) {
+            return null;
+        }
+
+        // Cắt đúng phần object, bỏ mọi lời dẫn model viết thêm trước hoặc sau.
+        $body = substr($body, $start, $end - $start + 1);
+        $decoded = json_decode($body, true);
+
+        if (! is_array($decoded)) {
+            // Khối ```chart nhiều dòng nằm trong chuỗi `content` hay làm model
+            // quên escape xuống dòng. Escape lại rồi thử tiếp, thay vì vứt bỏ
+            // cả câu trả lời chỉ vì một ký tự xuống dòng.
+            $decoded = json_decode($this->escapeRawNewlinesInStrings($body), true);
+        }
+
+        return is_array($decoded) ? $decoded : null;
+    }
+
+    private function stripJsonFence(string $content): string
+    {
+        $content = trim($content);
+
+        // Chỉ bóc khi TOÀN BỘ phản hồi nằm trong một khối ```. Regex không neo
+        // hai đầu sẽ cắt nhầm khối ```chart nằm bên trong câu trả lời.
+        if (preg_match('/^```(?:json)?\s*([\s\S]*?)```$/i', $content, $matches) === 1) {
+            return trim($matches[1]);
+        }
+
+        return $content;
+    }
+
+    /**
+     * Escape xuống dòng thô nằm bên trong chuỗi JSON, giữ nguyên phần ngoài chuỗi.
+     */
+    private function escapeRawNewlinesInStrings(string $input): string
+    {
+        $out = '';
+        $inString = false;
+        $escaped = false;
+
+        // Duyệt theo byte là an toàn: ký tự UTF-8 nhiều byte không bao giờ chứa
+        // byte trùng với `"`, `\` hay ký tự điều khiển ASCII.
+        foreach (str_split($input) as $char) {
+            if ($escaped) {
+                $out .= $char;
+                $escaped = false;
+
+                continue;
+            }
+
+            if ($char === '\\') {
+                $out .= $char;
+                $escaped = $inString;
+
+                continue;
+            }
+
+            if ($char === '"') {
+                $inString = ! $inString;
+                $out .= $char;
+
+                continue;
+            }
+
+            $out .= $inString
+                ? match ($char) {
+                    "\n" => '\\n',
+                    "\r" => '\\r',
+                    "\t" => '\\t',
+                    default => $char,
+                }
+            : $char;
+        }
+
+        return $out;
     }
 
     /** @param array<string, mixed> $document */
@@ -439,11 +530,40 @@ class OpenAiCompatibleProvider implements AiProvider
     {
         $content = Arr::get($document, 'content');
 
-        if (! is_string($content) || trim($content) === '') {
-            throw new RuntimeException('Phản hồi AI thiếu phần nội dung giải thích.');
+        if (is_string($content) && trim($content) !== '') {
+            return trim($content);
         }
 
-        return trim($content);
+        // Model thỉnh thoảng bỏ `content` mà dồn hết lời giải thích vào block
+        // đầu tiên. Lấy tạm chỗ đó còn hơn báo lỗi khi câu trả lời vẫn có.
+        $fallback = $this->firstTextBlockContent(Arr::get($document, 'blocks'));
+
+        if ($fallback !== null) {
+            return $fallback;
+        }
+
+        throw new RuntimeException('Phản hồi AI thiếu phần nội dung giải thích.');
+    }
+
+    private function firstTextBlockContent(mixed $blocks): ?string
+    {
+        if (! is_array($blocks)) {
+            return null;
+        }
+
+        foreach ($blocks as $block) {
+            if (! is_array($block) || ($block['type'] ?? null) !== 'text') {
+                continue;
+            }
+
+            $text = $block['content'] ?? null;
+
+            if (is_string($text) && trim($text) !== '') {
+                return trim($text);
+            }
+        }
+
+        return null;
     }
 
     /** @return array<int, array<string, mixed>> */
